@@ -1,0 +1,19 @@
+{
+  "ver": "1.2.0",
+  "importer": "directory",
+  "imported": true,
+  "uuid": "c3e6a0b4-5d9f-4c13-8e40-33b2d06f8c23",
+  "files": [],
+  "subMetas": {},
+  "userData": {
+    "isBundle": true,
+    "bundleName": "island_storm_eye",
+    "priority": 2,
+    "compressionType": {
+      "wechatgame": "subpackage"
+    },
+    "isRemoteBundle": {
+      "wechatgame": false
+    }
+  }
+}

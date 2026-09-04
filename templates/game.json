@@ -1,0 +1,22 @@
+{
+  "deviceOrientation": "landscape",
+  "showStatusBar": false,
+  "openDataContext": "open-data",
+  "networkTimeout": {
+    "request": 10000,
+    "connectSocket": 10000,
+    "uploadFile": 10000,
+    "downloadFile": 10000
+  },
+  "subpackages": [
+    { "name": "island_foam_bay", "root": "subpackages/island_foam_bay" },
+    { "name": "island_prism_reef", "root": "subpackages/island_prism_reef" },
+    { "name": "island_storm_eye", "root": "subpackages/island_storm_eye" }
+  ],
+  "parallelPreloadSubpackages": [
+    {
+      "root": "subpackages/island_foam_bay",
+      "pages": ["*"]
+    }
+  ]
+}

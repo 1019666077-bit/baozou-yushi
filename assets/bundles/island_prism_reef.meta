@@ -1,0 +1,19 @@
+{
+  "ver": "1.2.0",
+  "importer": "directory",
+  "imported": true,
+  "uuid": "b2d5f9a3-4c8e-4b02-8d3f-22a1c95e7b12",
+  "files": [],
+  "subMetas": {},
+  "userData": {
+    "isBundle": true,
+    "bundleName": "island_prism_reef",
+    "priority": 2,
+    "compressionType": {
+      "wechatgame": "subpackage"
+    },
+    "isRemoteBundle": {
+      "wechatgame": false
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "ver": "1.2.0",
+  "importer": "directory",
+  "imported": true,
+  "uuid": "a1c4e8f2-3b7d-4a91-9c2e-11f0b84d6a01",
+  "files": [],
+  "subMetas": {},
+  "userData": {
+    "isBundle": true,
+    "bundleName": "island_foam_bay",
+    "priority": 2,
+    "compressionType": {
+      "wechatgame": "subpackage"
+    },
+    "isRemoteBundle": {
+      "wechatgame": false
+    }
+  }
+}

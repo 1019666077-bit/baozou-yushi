@@ -1,0 +1,18 @@
+{
+  "platform": "web-desktop",
+  "debug": true,
+  "buildPath": "project://build",
+  "outputName": "web-desktop",
+  "taskName": "web-desktop",
+  "buildMode": "normal",
+  "startScene": "ca2d3b94-865f-449d-845a-07861402b935",
+  "scenes": [
+    {
+      "url": "db://assets/scenes/Boot.scene",
+      "uuid": "ca2d3b94-865f-449d-845a-07861402b935"
+    }
+  ],
+  "useSplashScreen": false,
+  "md5Cache": false,
+  "sourceMaps": false
+}

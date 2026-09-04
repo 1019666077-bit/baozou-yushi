@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "cc": ["./node_modules/@cocos/creator-types/engine/cc"]
+    },
+    "noEmit": true
+  },
+  "include": ["assets/scripts/**/*.ts"]
+}

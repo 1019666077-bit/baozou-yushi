@@ -1,0 +1,69 @@
+{
+  "platform": "wechatgame",
+  "debug": true,
+  "buildPath": "project://build",
+  "outputName": "wechatgame",
+  "taskName": "wechatgame",
+  "buildMode": "normal",
+  "server": "",
+  "startScene": "ca2d3b94-865f-449d-845a-07861402b935",
+  "scenes": [
+    {
+      "url": "db://assets/scenes/Boot.scene",
+      "uuid": "ca2d3b94-865f-449d-845a-07861402b935"
+    }
+  ],
+  "mainBundleCompressionType": "subpackage",
+  "startSceneAssetBundle": true,
+  "mainBundleIsRemote": false,
+  "bundleConfigs": [
+    {
+      "name": "island_foam_bay",
+      "root": "db://assets/bundles/island_foam_bay",
+      "compressionType": "subpackage",
+      "isRemote": false
+    },
+    {
+      "name": "island_prism_reef",
+      "root": "db://assets/bundles/island_prism_reef",
+      "compressionType": "subpackage",
+      "isRemote": false
+    },
+    {
+      "name": "island_storm_eye",
+      "root": "db://assets/bundles/island_storm_eye",
+      "compressionType": "subpackage",
+      "isRemote": false
+    }
+  ],
+  "useSplashScreen": false,
+  "md5Cache": false,
+  "sourceMaps": false,
+  "packages": {
+    "engine": {
+      "cleanupImageCache": "on",
+      "version": "1.0.12"
+    },
+    "wechatgame": {
+      "orientation": "landscape",
+      "appid": "wx6ac3f5090a6b99c5",
+      "buildOpenDataContextTemplate": "wechat-open-data",
+      "separateEngine": false,
+      "highPerformanceMode": false,
+      "enabelWebGL2": "off",
+      "wasm": "wasm",
+      "wasmSubpackage": true,
+      "version": "1.0.4"
+    }
+  },
+  "overwriteProjectSettings": {
+    "macroConfig": {
+      "cleanupImageCache": "on"
+    },
+    "includeModules": {
+      "physics": "off",
+      "physics-2d": "off",
+      "gfx-webgl2": "off"
+    }
+  }
+}

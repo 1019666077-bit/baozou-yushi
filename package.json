@@ -1,0 +1,28 @@
+{
+  "name": "baozou-yushi",
+  "uuid": "b95f2f44-1d3a-4fc5-91e6-507741cc3f67",
+  "version": "0.1.0",
+  "private": true,
+  "type": "2d",
+  "description": "原创动作钓鱼微信小游戏 MVP",
+  "creator": {
+    "version": "3.8.8"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "typecheck:cocos": "tsc -p tsconfig.cocos-check.json --noEmit",
+    "preflight": "node tools/sync-bundled-config.mjs && node tools/preflight.mjs",
+    "simulate": "node tools/simulate-economy.mjs",
+    "playtest:report": "node tools/analyze-playtest.mjs",
+    "postbuild:wechat": "node tools/postbuild-wechat.mjs",
+    "validate": "npm run typecheck && npm run typecheck:cocos && npm test && npm run preflight"
+  },
+  "devDependencies": {
+    "@cocos/creator-types": "^3.8.8",
+    "@types/node": "^26.4.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}

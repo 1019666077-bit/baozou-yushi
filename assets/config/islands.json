@@ -1,0 +1,82 @@
+[
+  {
+    "id": "island_tutorial",
+    "name": "练潮码头",
+    "unlockCost": 0,
+    "targetSessionSeconds": 60,
+    "waves": [
+      {
+        "durationSeconds": 50,
+        "fishPool": ["fish_bayfin"],
+        "maxAlive": 1,
+        "spawnIntervalSeconds": 8
+      }
+    ]
+  },
+  {
+    "id": "island_foam_bay",
+    "name": "泡沫湾",
+    "unlockCost": 0,
+    "targetSessionSeconds": 180,
+    "waves": [
+      {
+        "durationSeconds": 55,
+        "fishPool": ["fish_bayfin", "fish_shellback"],
+        "maxAlive": 5,
+        "spawnIntervalSeconds": 3.4
+      },
+      {
+        "durationSeconds": 45,
+        "fishPool": ["fish_bayfin", "fish_shellback", "elite_prism_sail"],
+        "maxAlive": 6,
+        "spawnIntervalSeconds": 3
+      }
+    ]
+  },
+  {
+    "id": "island_prism_reef",
+    "name": "棱光礁",
+    "unlockCost": 240,
+    "targetSessionSeconds": 220,
+    "waves": [
+      {
+        "durationSeconds": 65,
+        "fishPool": ["fish_silver_ribbon", "fish_lantern_pod"],
+        "maxAlive": 7,
+        "spawnIntervalSeconds": 2.9
+      },
+      {
+        "durationSeconds": 55,
+        "fishPool": ["fish_silver_ribbon", "fish_lantern_pod", "elite_iron_jaw"],
+        "maxAlive": 7,
+        "spawnIntervalSeconds": 2.7
+      }
+    ]
+  },
+  {
+    "id": "island_storm_eye",
+    "name": "风眼环礁",
+    "unlockCost": 680,
+    "targetSessionSeconds": 300,
+    "waves": [
+      {
+        "durationSeconds": 75,
+        "fishPool": ["fish_ember_eel", "fish_reef_hopper"],
+        "maxAlive": 8,
+        "spawnIntervalSeconds": 2.6
+      },
+      {
+        "durationSeconds": 55,
+        "fishPool": ["fish_ember_eel", "fish_reef_hopper", "elite_tempest_ray"],
+        "maxAlive": 8,
+        "spawnIntervalSeconds": 2.4
+      }
+    ],
+    "bossId": "boss_tide_singer",
+    "bossPhases": [
+      { "threshold": 1, "behavior": "声浪直线扫射", "speedMultiplier": 1, "patternIntervalSeconds": 4.5 },
+      { "threshold": 0.66, "behavior": "召唤双旋涡并暴露鳍部弱点", "speedMultiplier": 1.15, "patternIntervalSeconds": 4 },
+      { "threshold": 0.33, "behavior": "环场冲刺后进入长眩晕", "speedMultiplier": 1.35, "patternIntervalSeconds": 3.4 }
+    ]
+  }
+]

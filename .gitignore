@@ -1,0 +1,13 @@
+library/
+local/
+temp/
+build/
+native/
+profiles/
+node_modules/
+reports/
+*.log
+.DS_Store
+.idea/
+.vscode/
+coverage/

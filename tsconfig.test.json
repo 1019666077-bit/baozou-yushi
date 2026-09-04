@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["vitest/globals", "node"],
+    "noEmit": true
+  },
+  "include": [
+    "assets/scripts/domain/**/*.ts",
+    "assets/scripts/content/IslandFishPool.ts",
+    "assets/scripts/data/types.ts",
+    "cloudfunctions/shared/**/*.ts",
+    "tests/**/*.ts",
+    "vitest.config.mts"
+  ]
+}
