@@ -19,6 +19,9 @@ const FILES = [
   "HarborCopy.ts",
   "FlopPhysics.ts",
   "GrayLook.ts",
+  "ArtRecipe.ts",
+  "CameraFeel.ts",
+  "ProcGeom.ts",
   "HitJuice.ts",
   "SfxFeel.ts",
   "IslandClock.ts",
@@ -63,6 +66,10 @@ function snapshot() {
   const HarborCopy = load("HarborCopy");
   const IslandClock = load("IslandClock");
   const GrayLook = load("GrayLook");
+  const ArtRecipe = load("ArtRecipe");
+  const CameraFeel = load("CameraFeel");
+  const ProcGeom = load("ProcGeom");
+  const FlopPhysics = load("FlopPhysics");
   const SaveMerge = load("SaveMerge");
   const HitJuice = load("HitJuice");
   const SfxFeel = load("SfxFeel");
@@ -97,7 +104,7 @@ function snapshot() {
 
   const data = {
     proxy: true,
-    disclaimer: "非 Cocos 实机，仅体验代理",
+    disclaimer: "非 Cocos 实机，仅体验代理。2D 代理 ≠ Creator 3D 实机",
     sourceStamp: "baozou-flop-v28",
     harborTitle: "暴走鱼市 · 潮汐港口 v28",
     huntSuffix: "潮汐猎场",
@@ -244,6 +251,60 @@ function snapshot() {
       storm: GrayLook.islandLook("island_storm_eye"),
       bayfin: GrayLook.fishLook("fish_bayfin"),
     },
+    art: {
+      harbor: ArtRecipe.islandSetOps("island_foam_bay", true, 0),
+      tutorial: ArtRecipe.islandSetOps(TutorialFlow.TUTORIAL_ISLAND_ID, false, 0),
+      dock: ArtRecipe.dockOps(),
+      boat: ArtRecipe.boatOps(),
+      crate: ArtRecipe.crateOps(),
+      bayfinIdle: ArtRecipe.fishOps("fish_bayfin", 1, {
+        decoy: false,
+        armored: false,
+        hit: false,
+        hooked: false,
+        flashing: false,
+        face: "idle",
+      }),
+      bayfinHooked: ArtRecipe.fishOps("fish_bayfin", 1, {
+        decoy: false,
+        armored: false,
+        hit: false,
+        hooked: true,
+        flashing: true,
+        face: "hooked",
+      }),
+      bayfinStunned: ArtRecipe.fishOps("fish_bayfin", 1, {
+        decoy: false,
+        armored: false,
+        hit: true,
+        hooked: false,
+        flashing: false,
+        face: "stunned",
+      }),
+      bayfinCarry: ArtRecipe.fishOps("fish_bayfin", 1, {
+        decoy: false,
+        armored: false,
+        hit: false,
+        hooked: false,
+        flashing: false,
+        face: "carry",
+      }),
+    },
+    stage3d: {
+      proxyIsNotCreator: true,
+      budget: ProcGeom.STAGE_BUDGET,
+      camRest: CameraFeel.CAM_REST,
+      smashSeconds: CameraFeel.CAM_FEEL.smashSeconds,
+    },
+    flopFeel: {
+      yank: FlopPhysics.YANK_FEEL,
+      flop: FlopPhysics.FLOP_FEEL,
+      knock: FlopPhysics.KNOCK_FEEL,
+      carry: FlopPhysics.CARRY_FEEL,
+      dockX: FlopPhysics.DOCK_X,
+      deckY: FlopPhysics.DECK_Y,
+      carryWalkSeconds: FlopPhysics.carryWalkSeconds(),
+    },
     islands: GrayLook.harborIslandIds().map((id) => {
       const island = islands.find((item) => item.id === id);
       return {
@@ -344,6 +405,8 @@ function snapshot() {
       cast: HitJuice.juiceCount("cast", false),
       gold: HitJuice.juiceCount("gold", false),
       sell: HitJuice.juiceCount("sell", false),
+      smash: HitJuice.juiceCount("smash", false),
+      yank: HitJuice.juiceCount("yank", false),
     },
     juiceFlash: {
       weak: HitJuice.spawnJuiceFlash("weak", 0, 0, false),

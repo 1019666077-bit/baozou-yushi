@@ -1,6 +1,57 @@
 export const DOCK_X = -260;
 export const DECK_Y = -118;
 export const WATER_X = -150;
+export const CRATE_X = -520;
+export const CRATE_Y = -150;
+
+/**
+ * 甩砸手感档位。数字都要能说清「为什么更爽、还不挡下一步」。
+ * 代理预览抽出同一份，避免 Runtime / 代理各调各的。
+ */
+export const YANK_FEEL = {
+  /** 目标点在码头内侧，避免鱼停在水线像没拽上来。 */
+  targetX: -340,
+  targetY: DECK_Y + 52,
+  /** 1.85：后半段像线突然绷直。dt=0.05 从海里仍不落地。 */
+  pullRate: 1.85,
+  /** 中段抬高，避免直线传送。 */
+  arcPx: 54,
+  liftRate: 1.55,
+  /** 用当前位置估拽程，420 覆盖教学湾鳍的海里起点。 */
+  span: 420,
+};
+
+export const FLOP_FEEL = {
+  /** 第一下要看见抛物线，不是贴地滑。 */
+  launchVx: -150,
+  launchVy: 780,
+  launchAngle: 1.12,
+  launchSpin: 26,
+  /** 未砸晕：砸甲板要弹得开，才读得出「砸」。 */
+  liveRestitution: 0.86,
+  /** 砸晕：第二下迅速贴地，好捡、不挡点击。 */
+  stunRestitution: 0.28,
+  gravityLive: -2040,
+  gravityStun: -1180,
+  liveFriction: 0.8,
+  stunFriction: 0.68,
+};
+
+export const KNOCK_FEEL = {
+  /** 命中爆点：先弹起来再旋转，空中砸才看得见。 */
+  base: 420,
+  perPower: 28,
+  popVy: 260,
+  spin: 16,
+};
+
+export const CARRY_FEEL = {
+  /** 走路颠簸小，不挡点「丢掉入箱」。 */
+  freqX: 9,
+  freqY: 11,
+  ampX: 3,
+  ampY: 7,
+};
 
 export interface FlopBody {
   x: number;
@@ -15,15 +66,20 @@ export function createFlopBody(x: number, y: number): FlopBody {
   return { x, y, vx: 0, vy: 0, angle: 0, spin: 0 };
 }
 
+export function yankArcLift(x: number): number {
+  const t = Math.min(1, Math.max(0, (x - YANK_FEEL.targetX) / YANK_FEEL.span));
+  return Math.sin(t * Math.PI) * YANK_FEEL.arcPx;
+}
+
 export function yankStep(
   x: number,
   y: number,
   dt: number,
 ): { x: number; y: number; landed: boolean } {
-  const tx = -340;
-  const ty = DECK_Y + 52;
-  const nx = x + (tx - x) * Math.min(1, dt * 1.55);
-  const ny = y + (ty - y) * Math.min(1, dt * 1.35);
+  const tx = YANK_FEEL.targetX;
+  const ty = YANK_FEEL.targetY + yankArcLift(x);
+  const nx = x + (tx - x) * Math.min(1, dt * YANK_FEEL.pullRate);
+  const ny = y + (ty - y) * Math.min(1, dt * YANK_FEEL.liftRate);
   return { x: nx, y: ny, landed: nx <= DOCK_X };
 }
 
@@ -31,15 +87,15 @@ export function beginFlop(x: number, y: number): FlopBody {
   return {
     x,
     y: Math.max(y, DECK_Y + 12),
-    vx: -110,
-    vy: 640,
-    angle: 0.95,
-    spin: 22,
+    vx: FLOP_FEEL.launchVx,
+    vy: FLOP_FEEL.launchVy,
+    angle: FLOP_FEEL.launchAngle,
+    spin: FLOP_FEEL.launchSpin,
   };
 }
 
 export function stepFlop(body: FlopBody, dt: number, stunned: boolean): FlopBody {
-  const gravity = stunned ? -1100 : -1980;
+  const gravity = stunned ? FLOP_FEEL.gravityStun : FLOP_FEEL.gravityLive;
   let vx = body.vx;
   let vy = body.vy + gravity * dt;
   let x = body.x + vx * dt;
@@ -53,8 +109,10 @@ export function stepFlop(body: FlopBody, dt: number, stunned: boolean): FlopBody
   }
   if (x <= DOCK_X + 90 && y <= DECK_Y) {
     y = DECK_Y;
-    if (vy < 0) vy = -vy * (stunned ? 0.32 : 0.78);
-    vx *= stunned ? 0.72 : 0.84;
+    if (vy < 0) {
+      vy = -vy * (stunned ? FLOP_FEEL.stunRestitution : FLOP_FEEL.liveRestitution);
+    }
+    vx *= stunned ? FLOP_FEEL.stunFriction : FLOP_FEEL.liveFriction;
     spin += -vx * 0.018;
     if (Math.abs(vy) < 48) vy = 0;
   }
@@ -86,12 +144,12 @@ export function knock(
   const dx = body.x - fromX;
   const dy = body.y - fromY;
   const len = Math.hypot(dx, dy) || 1;
-  const punch = 380 + power * 26;
+  const punch = KNOCK_FEEL.base + power * KNOCK_FEEL.perPower;
   return {
     ...body,
     vx: body.vx + (dx / len) * punch,
-    vy: body.vy + (dy / len) * punch + 200,
-    spin: body.spin + (dx >= 0 ? -14 : 14),
+    vy: body.vy + (dy / len) * punch + KNOCK_FEEL.popVy,
+    spin: body.spin + (dx >= 0 ? -KNOCK_FEEL.spin : KNOCK_FEEL.spin),
   };
 }
 
@@ -102,9 +160,6 @@ export function isAirborne(body: FlopBody): boolean {
 export function inWater(body: Pick<FlopBody, "x" | "y">): boolean {
   return body.x > WATER_X && body.y < -18;
 }
-
-export const CRATE_X = -520;
-export const CRATE_Y = -150;
 
 export function crateDrop(x: number, y: number): boolean {
   return Math.hypot(x - CRATE_X, y - CRATE_Y) < 92;
@@ -125,4 +180,21 @@ export function canPickUp(
   fishY: number,
 ): boolean {
   return Math.hypot(playerX - fishX, playerY - fishY) < 168;
+}
+
+export function carryBobOffset(elapsed: number): { x: number; y: number } {
+  return {
+    x: Math.sin(elapsed * CARRY_FEEL.freqX) * CARRY_FEEL.ampX,
+    y: Math.abs(Math.sin(elapsed * CARRY_FEEL.freqY)) * CARRY_FEEL.ampY,
+  };
+}
+
+/** 代理预览走箱：0.36s 够读出步伐，不拖到挡「丢掉入箱」。 */
+export function carryWalkSeconds(): number {
+  return 0.36;
+}
+
+export function carryWalkAt(t: number): number {
+  const u = Math.min(1, Math.max(0, t));
+  return 1 - (1 - u) * (1 - u);
 }

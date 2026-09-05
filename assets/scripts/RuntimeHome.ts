@@ -96,6 +96,7 @@ import {
   tutorialGuideRing,
 } from "./domain/TutorialFlow";
 import { RuntimePrototype } from "./RuntimePrototype";
+import { HarborStage } from "./world/HarborStage";
 
 const { ccclass } = _decorator;
 
@@ -137,6 +138,7 @@ export class RuntimeHome extends Component {
   private goldGfx?: Graphics;
   private settleGuide?: Graphics;
   private settleGuideAt = { x: 0, y: -230 };
+  private harbor3d?: HarborStage;
 
   protected onLoad(): void {
     try {
@@ -182,12 +184,17 @@ export class RuntimeHome extends Component {
     if (this.surface === "harbor") this.showHarbor();
   }
 
+  protected onDestroy(): void {
+    HarborStage.drop();
+    this.harbor3d = undefined;
+  }
+
   showHarbor(): void {
     this.surface = "harbor";
     const proto = this.node.getComponent(RuntimePrototype);
     if (proto) proto.destroy();
     const layer = replacePlayLayer(this.node);
-    drawOcean(layer, { harbor: true });
+    this.paintHarborWorld(layer);
 
     const save = playerSave.get();
     this.selectedIslandId = resolveHarborIsland(
@@ -418,7 +425,7 @@ export class RuntimeHome extends Component {
     const proto = this.node.getComponent(RuntimePrototype);
     if (proto) proto.destroy();
     const layer = replacePlayLayer(this.node);
-    drawOcean(layer, { harbor: true });
+    this.paintHarborWorld(layer);
     makeLabel(layer, "潮汐鱼市结算", 34, 0, 300);
     makeLabel(layer, settleHeadline(summary), 26, 0, 236);
     const knownBefore = playerSave.get().discoveredFish;
@@ -473,7 +480,7 @@ export class RuntimeHome extends Component {
   private showBook(): void {
     this.surface = "book";
     const layer = replacePlayLayer(this.node);
-    drawOcean(layer, { harbor: true });
+    this.paintHarborWorld(layer);
     const save = playerSave.get();
     makeLabel(layer, "潮汐图鉴", 34, 0, 300);
     makeLabel(
@@ -503,7 +510,7 @@ export class RuntimeHome extends Component {
   private showSettings(): void {
     this.surface = "settings";
     const layer = replacePlayLayer(this.node);
-    drawOcean(layer, { harbor: true });
+    this.paintHarborWorld(layer);
     const save = playerSave.get();
     makeLabel(layer, "潮汐设置", 34, 0, 300);
     makeLabel(
@@ -569,7 +576,7 @@ export class RuntimeHome extends Component {
   private showPrivacy(): void {
     this.surface = "privacy";
     const layer = replacePlayLayer(this.node);
-    drawOcean(layer, { harbor: true });
+    this.paintHarborWorld(layer);
     makeLabel(layer, privacyTitle(), 34, 0, 300);
     makeLabel(layer, healthAdviceTitle(), 22, 0, 258);
     healthAdviceLines().forEach((line, index) => {
@@ -593,7 +600,7 @@ export class RuntimeHome extends Component {
   private showWipe(): void {
     this.surface = "wipe";
     const layer = replacePlayLayer(this.node);
-    drawOcean(layer, { harbor: true });
+    this.paintHarborWorld(layer);
     makeLabel(layer, wipeTitle(), 34, 0, 220);
     makeLabel(layer, wipeBody(), 22, 0, 120, 980);
     makeButton(
@@ -637,7 +644,7 @@ export class RuntimeHome extends Component {
   private showBoard(): void {
     this.surface = "board";
     const layer = replacePlayLayer(this.node);
-    drawOcean(layer, { harbor: true });
+    this.paintHarborWorld(layer);
     const save = playerSave.get();
     makeLabel(layer, "潮汐精彩榜", 34, 0, 300);
     makeLabel(layer, bestStyleLine(save.bestStyleScore), 26, 0, 252);
@@ -830,6 +837,8 @@ export class RuntimeHome extends Component {
     }
     this.statusFlash = undefined;
     this.surface = "sea";
+    HarborStage.drop();
+    this.harbor3d = undefined;
     RuntimePrototype.pending = {
       islandId: this.selectedIslandId,
       toolId: this.selectedToolId,
@@ -849,7 +858,17 @@ export class RuntimeHome extends Component {
     }
   }
 
+  private paintHarborWorld(layer: Node): void {
+    try {
+      this.harbor3d = HarborStage.ensure(this.node);
+    } catch {
+      this.harbor3d = undefined;
+      drawOcean(layer, { harbor: true });
+    }
+  }
+
   protected update(dt: number): void {
+    this.harbor3d?.tick(dt, playerSave.get().settings.lowPower);
     if (this.gold.length > 0 || this.goldFlash) {
       this.gold = tickJuice(this.gold, dt);
       this.goldFlash = tickJuiceFlash(this.goldFlash, dt);

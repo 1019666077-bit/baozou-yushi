@@ -17,7 +17,8 @@
 - 岛分包加载失败时留在港口并可重试；教学关无真实 bundle，直接成功。
 - 开放数据域以 `wechat-open-data/` 为准。
 - CI：`npm run validate` 与 `npm run simulate`。
-- 第一局体验代理与 `tools/first-run-preview/shots/` **不是** Cocos 实机证据。
+- 第一局体验代理与 `tools/first-run-preview/shots/` **不是** Cocos 实机证据，更 **不是** Creator 3D 证据。
+- 2.5D 港湾/猎场（`HarborStage` / `DeckStage`）只在本机 Creator 预览或 web-desktop 里能看见；云端无 Creator。
 
 ## 需要发行主体或真人完成
 

@@ -57,6 +57,16 @@ let fishAngle = 0;
 let flopLeft = 0;
 let flopFrom = { x: 210, y: 20 };
 let flopTo = { x: 40, y: -40 };
+let yanking = false;
+let flopBody = null;
+let stunned = false;
+let pendingWeak = false;
+let carryWalk = 0;
+let carryFrom = { x: -400, y: -90 };
+let carryTo = { x: -470, y: -118 };
+let boatX = -400;
+let boatY = -90;
+let fishFace = "idle";
 let sfxCtx;
 
 function rgb(arr, a = 1) {
@@ -145,30 +155,47 @@ function guideRing(nowMs) {
 
 function burst(kind, x, y) {
   const count = COPY.juiceCount[kind] ?? COPY.juiceCount.hit;
-  const star = kind === "weak" || kind === "catch" || kind === "gold" || kind === "sell";
+  const star =
+    kind === "weak" ||
+    kind === "catch" ||
+    kind === "gold" ||
+    kind === "sell" ||
+    kind === "smash";
   const coin = kind === "gold" || kind === "sell";
   for (let i = 0; i < count; i += 1) {
     const angle = (i / count) * Math.PI * 2 + 0.15;
-    const speed = (kind === "weak" ? 140 : coin ? 110 : 95) + (i % 3) * 18;
+    const speed =
+      (kind === "smash" ? 190 : kind === "weak" ? 150 : coin ? 110 : kind === "splash" ? 170 : 95) +
+      (i % 3) * 18;
     particles.push({
       x,
       y,
       vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed + (coin ? 140 : kind === "cast" ? 18 : 8),
+      vy:
+        Math.sin(angle) * speed +
+        (coin ? 140 : kind === "smash" || kind === "splash" ? 90 : kind === "cast" || kind === "yank" ? 18 : 8),
       life: 1,
-      maxLife: coin || kind === "catch" ? 0.4 : 0.3,
+      maxLife: coin || kind === "catch" ? 0.4 : kind === "smash" ? 0.26 : 0.3,
       kind: coin ? "coin" : star && i % 2 === 0 ? "star" : "bubble",
-      size: coin ? 6 : kind === "catch" ? 8 : kind === "weak" ? 7 : kind === "cast" ? 4 : 5,
+      size:
+        coin ? 6 : kind === "catch" ? 8 : kind === "smash" || kind === "splash" ? 9 : kind === "weak" ? 7 : kind === "cast" || kind === "yank" ? 4 : 5,
     });
   }
-  flash = {
-    x,
-    y,
-    life: 1,
-    kind,
-    maxLife: kind === "catch" || kind === "sell" ? 0.16 : kind === "weak" ? 0.14 : 0.1,
-  };
-  if (kind === "weak" || kind === "catch" || kind === "sell") {
+  if (kind !== "yank" && kind !== "splash") {
+    flash = {
+      x,
+      y,
+      life: 1,
+      kind,
+      maxLife:
+        kind === "catch" || kind === "sell" || kind === "smash"
+          ? 0.16
+          : kind === "weak"
+            ? 0.14
+            : 0.1,
+    };
+  }
+  if (kind === "weak" || kind === "catch" || kind === "sell" || kind === "smash") {
     shakeLeft = COPY.juiceShakeSeconds ?? 0.08;
   }
 }
@@ -247,340 +274,216 @@ function playSfx(id) {
   }
 }
 
-function paintPalm(ctx, x, y, s, look) {
-  ctx.fillStyle = rgb(look.accent);
-  ctx.fillRect(x - 3 * s, y, 6 * s, 28 * s);
-  ctx.fillStyle = rgb(look.landDark);
-  ctx.beginPath();
-  ctx.moveTo(x, y + 30 * s);
-  ctx.lineTo(x - 22 * s, y + 18 * s);
-  ctx.lineTo(x - 8 * s, y + 24 * s);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(x, y + 30 * s);
-  ctx.lineTo(x + 22 * s, y + 16 * s);
-  ctx.lineTo(x + 6 * s, y + 24 * s);
-  ctx.closePath();
-  ctx.fill();
+function fillOf(arr) {
+  return rgb(arr, (arr[3] ?? 255) / 255);
 }
 
-function paintFoamIsle(ctx, x, y, s, look) {
-  ctx.fillStyle = rgb(look.deep, 0.62);
-  ctx.beginPath();
-  ctx.ellipse(x, y + 6 * s, 86 * s, 24 * s, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = rgb(look.landDark, 0.82);
-  ctx.beginPath();
-  ctx.ellipse(x, y, 78 * s, 20 * s, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = rgb(look.land);
-  ctx.beginPath();
-  ctx.ellipse(x, y - 10 * s, 70 * s, 18 * s, 0, 0, Math.PI * 2);
-  ctx.fill();
-  paintPalm(ctx, x - 22 * s, y - 12 * s, s, look);
-  paintPalm(ctx, x + 20 * s, y - 10 * s, 0.72 * s, look);
-  ctx.fillStyle = rgb(look.accent);
-  ctx.beginPath();
-  ctx.moveTo(x - 18 * s, y - 8 * s);
-  ctx.lineTo(x, y - 28 * s);
-  ctx.lineTo(x + 18 * s, y - 8 * s);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = "rgba(236,210,150,0.95)";
-  ctx.beginPath();
-  ctx.roundRect(x - 13 * s, y - 8 * s, 26 * s, 16 * s, 3);
-  ctx.fill();
-}
-
-function paintPrismIsle(ctx, x, y, s, look) {
-  ctx.fillStyle = rgb(look.landDark, 0.63);
-  ctx.beginPath();
-  ctx.ellipse(x, y, 70 * s, 16 * s, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = rgb(look.land);
-  ctx.beginPath();
-  ctx.moveTo(x - 40 * s, y - 6 * s);
-  ctx.lineTo(x - 8 * s, y - 54 * s);
-  ctx.lineTo(x + 18 * s, y - 6 * s);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = rgb(look.accent);
-  ctx.beginPath();
-  ctx.moveTo(x - 6 * s, y - 6 * s);
-  ctx.lineTo(x + 16 * s, y - 62 * s);
-  ctx.lineTo(x + 34 * s, y - 6 * s);
-  ctx.closePath();
-  ctx.fill();
-}
-
-function paintStormIsle(ctx, x, y, s, look) {
-  ctx.fillStyle = rgb(look.landDark, 0.78);
-  ctx.beginPath();
-  ctx.ellipse(x, y, 88 * s, 20 * s, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = rgb(look.land);
-  ctx.beginPath();
-  ctx.moveTo(x - 48 * s, y - 4 * s);
-  ctx.lineTo(x, y - 58 * s);
-  ctx.lineTo(x + 48 * s, y - 4 * s);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = rgb(look.accent);
-  ctx.beginPath();
-  ctx.ellipse(x, y - 58 * s, 12 * s, 6 * s, 0, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function paintSun(ctx, x, y, look) {
-  ctx.fillStyle = rgb(look.accent, 0.16);
-  ctx.beginPath();
-  ctx.arc(x, y, 58, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = rgb(look.accent, 0.35);
-  ctx.beginPath();
-  ctx.arc(x, y, 40, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "rgba(255,226,140,0.95)";
-  ctx.beginPath();
-  ctx.arc(x, y, 24, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function paintPier(ctx) {
-  ctx.fillStyle = "rgba(8,28,40,0.72)";
-  ctx.beginPath();
-  ctx.ellipse(240, 590, 120, 16, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#5c3e20";
-  for (let i = 0; i < 6; i += 1) ctx.fillRect(130 + i * 46, 538, 12, 36);
-  ctx.fillStyle = "#c48440";
-  ctx.beginPath();
-  ctx.roundRect(110, 564, 300, 22, 6);
-  ctx.fill();
-  ctx.fillStyle = "#ecb25c";
-  ctx.beginPath();
-  ctx.roundRect(110, 576, 300, 12, 4);
-  ctx.fill();
-  ctx.fillStyle = "#d65630";
-  ctx.beginPath();
-  ctx.roundRect(154, 512, 86, 52, 8);
-  ctx.fill();
-  ctx.fillStyle = "#ffd278";
-  ctx.beginPath();
-  ctx.roundRect(166, 524, 62, 14, 3);
-  ctx.fill();
-}
-
-function paintSea(ctx, look, harbor = false) {
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, rgb(look.skyTop));
-  sky.addColorStop(0.22, rgb(look.sky));
-  sky.addColorStop(0.38, rgb(look.haze));
-  sky.addColorStop(0.48, rgb(look.far));
-  sky.addColorStop(0.66, rgb(look.mid));
-  sky.addColorStop(0.82, rgb(look.near));
-  sky.addColorStop(1, rgb(look.deep));
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = rgb([255, 236, 190], 0.2);
-  ctx.beginPath();
-  ctx.ellipse(720, 158, 260, 28, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(255,236,180,0.35)";
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(0, 312);
-  ctx.lineTo(W, 312);
-  ctx.stroke();
-  ctx.strokeStyle = "rgba(255,252,236,0.28)";
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.moveTo(0, 320);
-  ctx.lineTo(W, 320);
-  ctx.stroke();
-  if (harbor) {
-    paintSun(ctx, 1060, 110, look);
-    paintFoamIsle(ctx, sx(-160), 282, 1, COPY.looks.foam);
-    paintPrismIsle(ctx, sx(170), 278, 1, COPY.looks.prism);
-    paintStormIsle(ctx, sx(470), 284, 0.85, COPY.looks.storm);
-    paintPier(ctx);
-  } else {
-    paintSun(ctx, 1100, 112, look);
-    paintFoamIsle(ctx, 1020, 280, 1.05, look);
-    paintFoamIsle(ctx, 220, 286, 0.7, look);
-    ctx.fillStyle = "rgba(176,124,70,0.92)";
-    ctx.beginPath();
-    ctx.roundRect(0, 478, 430, 98, 12);
-    ctx.fill();
-    ctx.fillStyle = "rgba(214,168,104,0.95)";
-    ctx.beginPath();
-    ctx.roundRect(0, 478, 430, 16, 8);
-    ctx.fill();
-    ctx.fillStyle = "rgba(142,96,52,0.9)";
-    for (let i = 0; i < 8; i += 1) ctx.fillRect(8 + i * 52, 498, 5, 70);
+function paintOps(ctx, ops, phase = 0, local = false) {
+  const px = (x, tag) => {
+    const drift =
+      tag === "caustic" || tag === "shaft" || tag === "spark"
+        ? Math.sin(phase + x * 0.01) * 10
+        : 0;
+    return local ? x + drift : 640 + x + drift;
+  };
+  const py = (y) => (local ? y : 360 - y);
+  for (const op of ops) {
+    if (op.t === "ellipse") {
+      ctx.fillStyle = fillOf(op.fill);
+      ctx.beginPath();
+      ctx.ellipse(px(op.x, op.tag), py(op.y), op.rx, op.ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+      continue;
+    }
+    if (op.t === "circle") {
+      ctx.fillStyle = fillOf(op.fill);
+      ctx.beginPath();
+      ctx.arc(px(op.x, op.tag), py(op.y), op.r, 0, Math.PI * 2);
+      ctx.fill();
+      continue;
+    }
+    if (op.t === "rect") {
+      ctx.fillStyle = fillOf(op.fill);
+      const x = local ? op.x : 640 + op.x;
+      const y = local ? op.y : 360 - op.y - op.h;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, y, op.w, op.h, op.r ?? 0);
+      else ctx.rect(x, y, op.w, op.h);
+      ctx.fill();
+      continue;
+    }
+    if (op.t === "poly") {
+      ctx.fillStyle = fillOf(op.fill);
+      ctx.beginPath();
+      ctx.moveTo(px(op.pts[0]), py(op.pts[1]));
+      for (let i = 2; i < op.pts.length; i += 2) ctx.lineTo(px(op.pts[i]), py(op.pts[i + 1]));
+      ctx.closePath();
+      ctx.fill();
+      continue;
+    }
+    if (op.t === "line") {
+      ctx.strokeStyle = fillOf(op.color);
+      ctx.lineWidth = op.width;
+      ctx.beginPath();
+      ctx.moveTo(px(op.x1), py(op.y1));
+      ctx.lineTo(px(op.x2), py(op.y2));
+      ctx.stroke();
+      continue;
+    }
+    if (op.t === "bezier") {
+      ctx.strokeStyle = fillOf(op.color);
+      ctx.lineWidth = op.width;
+      ctx.beginPath();
+      ctx.moveTo(px(op.x1, op.tag), py(op.y1));
+      ctx.bezierCurveTo(px(op.c1x), py(op.c1y), px(op.c2x), py(op.c2y), px(op.x2), py(op.y2));
+      ctx.stroke();
+      continue;
+    }
+    if (op.t === "ring") {
+      ctx.strokeStyle = fillOf(op.color);
+      ctx.lineWidth = op.width;
+      ctx.beginPath();
+      ctx.arc(px(op.x), py(op.y), op.r, 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
+    if (op.t === "strokeRect") {
+      ctx.strokeStyle = fillOf(op.color);
+      ctx.lineWidth = op.width;
+      const x = local ? op.x : 640 + op.x;
+      const y = local ? op.y : 360 - op.y - op.h;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, y, op.w, op.h, op.r ?? 0);
+      else ctx.rect(x, y, op.w, op.h);
+      ctx.stroke();
+    }
   }
-  ctx.strokeStyle = rgb(look.haze, 0.22);
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(80, 420);
-  ctx.bezierCurveTo(200, 408, 320, 432, 460, 418);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(640, 500);
-  ctx.bezierCurveTo(780, 488, 920, 512, 1100, 498);
-  ctx.stroke();
+}
+
+function paintLocal(ctx, ops, x, y, angle = 0) {
+  ctx.save();
+  ctx.translate(sx(x), sy(y));
+  ctx.scale(1, -1);
+  ctx.rotate(angle);
+  paintOps(ctx, ops, 0, true);
+  ctx.restore();
+}
+
+function flopFeel() {
+  return COPY.flopFeel ?? {};
+}
+
+function yankStepPreview(x, y, dt) {
+  const yank = flopFeel().yank ?? { targetX: -340, targetY: -66, pullRate: 1.85, arcPx: 54, liftRate: 1.55, span: 420 };
+  const t = Math.min(1, Math.max(0, (x - yank.targetX) / yank.span));
+  const lift = Math.sin(t * Math.PI) * yank.arcPx;
+  const nx = x + (yank.targetX - x) * Math.min(1, dt * yank.pullRate);
+  const ny = y + (yank.targetY + lift - y) * Math.min(1, dt * yank.liftRate);
+  return { x: nx, y: ny, landed: nx <= (flopFeel().dockX ?? -260) };
+}
+
+function beginFlopPreview(x, y) {
+  const flop = flopFeel().flop ?? { launchVx: -150, launchVy: 780, launchAngle: 1.12, launchSpin: 26 };
+  return {
+    x,
+    y: Math.max(y, (flopFeel().deckY ?? -118) + 12),
+    vx: flop.launchVx,
+    vy: flop.launchVy,
+    angle: flop.launchAngle,
+    spin: flop.launchSpin,
+  };
+}
+
+function stepFlopPreview(body, dt, down) {
+  const flop = flopFeel().flop ?? {};
+  const deckY = flopFeel().deckY ?? -118;
+  const dockX = flopFeel().dockX ?? -260;
+  const gravity = down ? flop.gravityStun ?? -1180 : flop.gravityLive ?? -2040;
+  let vx = body.vx;
+  let vy = body.vy + gravity * dt;
+  let x = body.x + vx * dt;
+  let y = body.y + vy * dt;
+  let spin = body.spin * (down ? 0.88 : 0.996);
+  let angle = body.angle + spin * dt;
+  if (x < -620) {
+    x = -620;
+    vx = Math.abs(vx) * 0.4;
+  }
+  if (x <= dockX + 90 && y <= deckY) {
+    y = deckY;
+    if (vy < 0) vy = -vy * (down ? flop.stunRestitution ?? 0.28 : flop.liveRestitution ?? 0.86);
+    vx *= down ? flop.stunFriction ?? 0.68 : flop.liveFriction ?? 0.8;
+    spin += -vx * 0.018;
+    if (Math.abs(vy) < 48) vy = 0;
+  }
+  return { x, y, vx, vy, angle, spin };
+}
+
+function knockPreview(body, fromX, fromY, power) {
+  const knock = flopFeel().knock ?? { base: 420, perPower: 28, popVy: 260, spin: 16 };
+  const dx = body.x - fromX;
+  const dy = body.y - fromY;
+  const len = Math.hypot(dx, dy) || 1;
+  const punch = knock.base + power * knock.perPower;
+  return {
+    ...body,
+    vx: body.vx + (dx / len) * punch,
+    vy: body.vy + (dy / len) * punch + knock.popVy,
+    spin: body.spin + (dx >= 0 ? -knock.spin : knock.spin),
+  };
+}
+
+function carryBob(elapsed) {
+  const carry = flopFeel().carry ?? { freqX: 9, freqY: 11, ampX: 3, ampY: 7 };
+  return {
+    x: Math.sin(elapsed * carry.freqX) * carry.ampX,
+    y: Math.abs(Math.sin(elapsed * carry.freqY)) * carry.ampY,
+  };
+}
+
+function paintSea(ctx, _look, harbor = false) {
+  const ops = harbor ? COPY.art?.harbor : COPY.art?.tutorial;
+  if (ops) {
+    paintOps(ctx, ops, performance.now() / 700);
+    if (!harbor && COPY.art?.dock) paintOps(ctx, COPY.art.dock, performance.now() / 700);
+    return;
+  }
+  ctx.fillStyle = "#0a5c7e";
+  ctx.fillRect(0, 0, W, H);
 }
 
 function paintBoat(ctx, x, y) {
-  ctx.save();
-  ctx.translate(sx(x), sy(y));
-  ctx.fillStyle = "rgba(8,28,40,0.66)";
-  ctx.beginPath();
-  ctx.ellipse(4, 18, 72, 14, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#e29c48";
-  ctx.beginPath();
-  ctx.roundRect(-62, -14, 124, 36, 16);
-  ctx.fill();
-  ctx.fillStyle = "#ffce76";
-  ctx.fillRect(-56, 4, 112, 10);
-  ctx.fillStyle = "#ffe4b0";
-  ctx.beginPath();
-  ctx.roundRect(-16, 10, 56, 28, 8);
-  ctx.fill();
-  ctx.fillStyle = "#5cd6e2";
-  ctx.beginPath();
-  ctx.arc(12, 24, 9, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#5c4428";
-  ctx.fillRect(-8, 12, 6, 46);
-  ctx.fillStyle = "#ff942a";
-  ctx.beginPath();
-  ctx.moveTo(-6, 56);
-  ctx.lineTo(32, 42);
-  ctx.lineTo(-6, 32);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
+  paintLocal(ctx, COPY.art?.boat ?? [], x, y);
 }
 
-function paintFish(ctx, x, y, glow) {
-  const look = COPY.looks.bayfin;
-  ctx.save();
-  ctx.translate(sx(x), sy(y));
-  ctx.rotate(fishAngle);
-  if (glow) {
-    ctx.fillStyle = "rgba(255,214,32,0.28)";
-    ctx.beginPath();
-    ctx.ellipse(look.weakX, -look.weakY, 22, 16, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.fillStyle = rgb(look.accent);
-  ctx.beginPath();
-  ctx.moveTo(-28, 0);
-  ctx.lineTo(-68, -20);
-  ctx.lineTo(-54, 0);
-  ctx.lineTo(-68, 20);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(8, 8);
-  ctx.lineTo(28, 34);
-  ctx.lineTo(32, 6);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = rgb(look.body);
-  ctx.beginPath();
-  ctx.moveTo(6, -6);
-  ctx.lineTo(0, -30);
-  ctx.lineTo(18, -8);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(8, 2, 38, 19, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = rgb(look.belly);
-  ctx.beginPath();
-  ctx.ellipse(16, 8, 24, 11, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "rgba(255,168,140,0.55)";
-  ctx.beginPath();
-  ctx.ellipse(18, -2, 8, 5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = rgb(look.accent);
-  ctx.lineWidth = 2.4;
-  ctx.beginPath();
-  ctx.moveTo(-6, 2);
-  ctx.quadraticCurveTo(8, 12, 24, 3);
-  ctx.stroke();
-  ctx.fillStyle = "#fffaf0";
-  ctx.beginPath();
-  ctx.arc(32, 1, 6.2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#121c18";
-  ctx.beginPath();
-  ctx.arc(34, 0, 3, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#fff";
-  ctx.beginPath();
-  ctx.arc(35.2, -1.2, 1.1, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = glow ? "#ffe24a" : rgb(look.accent);
-  ctx.beginPath();
-  ctx.ellipse(look.weakX, -look.weakY, glow ? 9 : 7, glow ? 9 : 7, 0, 0, Math.PI * 2);
-  ctx.fill();
-  if (glow) {
-    ctx.strokeStyle = "#fff8c8";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(look.weakX, -look.weakY, 16, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.restore();
+function bayfinOps() {
+  if (fishFace === "carry") return COPY.art?.bayfinCarry ?? [];
+  if (fishFace === "stunned") return COPY.art?.bayfinStunned ?? [];
+  if (fishFace === "hooked") return COPY.art?.bayfinHooked ?? [];
+  return COPY.art?.bayfinIdle ?? [];
+}
+
+function paintFish(ctx, x, y) {
+  paintLocal(ctx, bayfinOps(), x, y, fishAngle);
 }
 
 function paintLine(ctx) {
-  if (!hooked && flopLeft <= 0) return;
+  if (!hooked && !yanking && !flopBody) return;
   ctx.save();
-  ctx.strokeStyle = flopLeft > 0 ? "rgba(255,214,70,1)" : "rgba(255,214,70,0.92)";
-  ctx.lineWidth = flopLeft > 0 ? 10 : 6;
+  ctx.strokeStyle = yanking ? "rgba(255,214,70,1)" : "rgba(255,214,70,0.88)";
+  ctx.lineWidth = yanking ? 10 : 6;
   ctx.beginPath();
-  ctx.moveTo(sx(-372), sy(-72));
+  ctx.moveTo(sx(boatX + 28), sy(boatY + 18));
   ctx.lineTo(sx(fishX), sy(fishY));
   ctx.stroke();
   ctx.restore();
 }
 
 function paintCrate(ctx) {
-  const x = sx(COPY.crate.x);
-  const y = sy(COPY.crate.y);
   ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(crateScale, crateScale);
-  ctx.fillStyle = "rgba(12,32,44,0.55)";
-  ctx.beginPath();
-  ctx.ellipse(0, 28, 46, 8, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#9c5c26";
-  ctx.beginPath();
-  ctx.roundRect(-46, -28, 92, 58, 8);
-  ctx.fill();
-  ctx.fillStyle = "#cc8a40";
-  ctx.beginPath();
-  ctx.roundRect(-46, 12, 92, 18, 6);
-  ctx.fill();
-  ctx.fillStyle = "#6e4020";
-  for (let i = 0; i < 4; i += 1) ctx.fillRect(-36 + i * 22, -20, 5, 32);
-  ctx.strokeStyle = "#ffd660";
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.roundRect(-46, -28, 92, 58, 8);
-  ctx.stroke();
-  ctx.fillStyle = "#ffd648";
-  ctx.beginPath();
-  ctx.arc(0, 20, 5, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.translate(sx(COPY.crate.x), sy(COPY.crate.y));
+  ctx.scale(crateScale, -crateScale);
+  paintOps(ctx, COPY.art?.crate ?? [], 0, true);
   ctx.restore();
 }
 
@@ -657,7 +560,7 @@ function paintJuice(ctx) {
       flash.kind === "weak" || flash.kind === "perfect" || flash.kind === "sell"
         ? "#ffe24a"
         : "#fff6c8";
-    ctx.lineWidth = flash.kind === "weak" ? 9 : 6;
+    ctx.lineWidth = flash.kind === "weak" || flash.kind === "smash" ? 9 : 6;
     ctx.beginPath();
     const grow = flash.kind === "catch" || flash.kind === "sell" ? 42 : flash.kind === "weak" ? 28 : 30;
     ctx.arc(sx(flash.x), sy(flash.y), 18 + grow * (1 - flash.life), 0, Math.PI * 2);
@@ -794,10 +697,10 @@ function renderSea() {
   const ctx = bg.getContext("2d");
   paintSea(ctx, COPY.looks.tutorial, false);
   paintCrate(ctx);
-  paintBoat(ctx, carrying ? -430 : -400, -90);
+  paintBoat(ctx, boatX, boatY);
   paintLine(ctx);
   if (tutorialStep !== "settle") {
-    paintFish(ctx, fishX, fishY, tutorialStep === "weakPoint");
+    paintFish(ctx, fishX, fishY);
   }
   const focus =
     surface === "settle"
@@ -891,6 +794,25 @@ function renderSettle() {
   cta(COPY.sellCaption, 0, -230, hero.width, hero.height, hero.fontSize, "primary", confirmSettle);
 }
 
+function paintBackdrop() {
+  const ctx = bg.getContext("2d");
+  if (surface === "harbor" || surface === "settle") {
+    paintSea(ctx, COPY.looks.harbor, true);
+    if (surface === "settle" && settleGuide) paintGuide(ctx, "sell");
+    return;
+  }
+  paintSea(ctx, COPY.looks.tutorial, false);
+  paintCrate(ctx);
+  paintBoat(ctx, boatX, boatY);
+  paintLine(ctx);
+  if (tutorialStep !== "settle") paintFish(ctx, fishX, fishY);
+  const focus =
+    carrying
+      ? COPY.guideTargets.carrying
+      : COPY.guideTargets[tutorialStep];
+  if (focus && focus !== "none") paintGuide(ctx, focus);
+}
+
 function render() {
   stage.dataset.surface = surface;
   stage.dataset.step = tutorialStep;
@@ -926,36 +848,58 @@ function sail() {
   fishY = 20;
   fishAngle = 0;
   flopLeft = 0;
+  yanking = false;
+  flopBody = null;
+  stunned = false;
+  pendingWeak = false;
+  carryWalk = 0;
+  boatX = -400;
+  boatY = -90;
+  fishFace = "idle";
   render();
 }
 
 function onCast() {
   if (surface !== "sea" || tutorialStep !== "cast") return;
   hooked = true;
+  yanking = true;
+  flopBody = null;
+  stunned = false;
+  fishFace = "hooked";
   tutorialStep = "weakPoint";
   status = COPY.tutorialPrompts.weakPoint;
   fishName = `${COPY.firstRun.liveQuoteHooked} · 韧性 24 · 弱点亮`;
   showCallout(COPY.firstRun.castSnap);
-  burst("cast", -372, -72);
+  burst("cast", boatX + 28, boatY + 18);
+  burst("yank", fishX, fishY);
   playSfx("cast");
   render();
 }
 
-function onWeak() {
-  if (tutorialStep !== "weakPoint") return;
+function applyWeak() {
   tutorialStep = "reel";
   hooked = true;
   pickable = true;
+  stunned = true;
+  fishFace = "stunned";
   multiplier = COPY.firstRun.comboHudAfter;
   showCallout(COPY.firstRun.calloutWeak);
-  burst("weak", 210, 20);
-  burst("splash", 40, -40);
+  if (!flopBody) flopBody = beginFlopPreview(fishX, fishY);
+  flopBody = knockPreview(flopBody, boatX, boatY, 20);
+  burst("weak", fishX, fishY);
+  burst("smash", fishX, fishY);
   playSfx("weak");
-  flopFrom = { x: 210, y: 20 };
-  flopTo = { x: 40, y: -40 };
-  flopLeft = 0.42;
   status = COPY.tutorialPrompts.reel;
   fishName = `${COPY.firstRun.liveQuoteHooked} · 韧性 0 · 弱点亮`;
+}
+
+function onWeak() {
+  if (tutorialStep !== "weakPoint") return;
+  if (yanking) {
+    pendingWeak = true;
+    return;
+  }
+  applyWeak();
   render();
 }
 
@@ -968,9 +912,12 @@ function onPick() {
   carrying = true;
   pickable = false;
   hooked = false;
-  fishX = -390;
-  fishY = -60;
-  fishAngle = 0.4;
+  yanking = false;
+  flopBody = null;
+  fishFace = "carry";
+  carryFrom = { x: boatX, y: boatY };
+  carryTo = { x: -470, y: -118 };
+  carryWalk = flopFeel().carryWalkSeconds ?? 0.36;
   playSfx("ui");
   status = COPY.tutorialPrompts.carrying;
   render();
@@ -1035,18 +982,44 @@ function tick(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   tickParticles(dt);
-  if (flopLeft > 0) {
-    flopLeft = Math.max(0, flopLeft - dt);
-    const t = 1 - flopLeft / 0.42;
-    const bounce = Math.sin(t * Math.PI) * 36;
-    fishX = flopFrom.x + (flopTo.x - flopFrom.x) * t;
-    fishY = flopFrom.y + (flopTo.y - flopFrom.y) * t + bounce;
-    fishAngle = t * 1.2;
-    if (flopLeft === 0) {
-      fishX = flopTo.x;
-      fishY = flopTo.y;
-      fishAngle = 0.35;
+  if (yanking) {
+    const next = yankStepPreview(fishX, fishY, dt);
+    fishX = next.x;
+    fishY = next.y;
+    fishAngle = 0.35 + (fishX + 340) * 0.002;
+    if (next.landed) {
+      yanking = false;
+      flopBody = beginFlopPreview(next.x, next.y);
+      burst("splash", next.x, next.y + 24);
+      if (pendingWeak) {
+        pendingWeak = false;
+        applyWeak();
+      }
     }
+  } else if (flopBody && !carrying) {
+    const prevY = flopBody.y;
+    const prevVy = flopBody.vy;
+    flopBody = stepFlopPreview(flopBody, dt, stunned);
+    if (prevVy < -90 && flopBody.y <= (flopFeel().deckY ?? -118) + 2 && prevY > flopBody.y - 2) {
+      burst("smash", flopBody.x, flopBody.y);
+    }
+    fishX = flopBody.x;
+    fishY = flopBody.y;
+    fishAngle = flopBody.angle;
+  }
+  if (carrying) {
+    const walkDur = flopFeel().carryWalkSeconds ?? 0.36;
+    if (carryWalk > 0) {
+      carryWalk = Math.max(0, carryWalk - dt);
+      const t = 1 - carryWalk / walkDur;
+      const ease = 1 - (1 - t) * (1 - t);
+      boatX = carryFrom.x + (carryTo.x - carryFrom.x) * ease;
+      boatY = carryFrom.y + (carryTo.y - carryFrom.y) * ease;
+    }
+    const bob = carryBob(performance.now() / 1000);
+    fishX = boatX + 40 + bob.x;
+    fishY = boatY + 30 + bob.y;
+    fishAngle = 0.35;
   }
   if (coinJumpLeft > 0) {
     coinJumpLeft = Math.max(0, coinJumpLeft - dt);
@@ -1068,16 +1041,9 @@ function tick(now) {
     autoSettleAt = 0;
     goSettle();
   }
+  paintBackdrop();
   paintJuice(juiceCanvas.getContext("2d"));
   if (surface === "harbor" && coinJumpLeft > 0) renderHarbor();
-  if (surface === "sea" && (particles.length || flash || flopLeft > 0 || (callout && now < calloutUntil + 30) || cratePunchLeft > 0)) {
-    void renderSea();
-  }
-  if (surface === "settle" && settleGuide) {
-    const ctx = bg.getContext("2d");
-    paintSea(ctx, COPY.looks.harbor, true);
-    paintGuide(ctx, "sell");
-  }
   requestAnimationFrame(tick);
 }
 

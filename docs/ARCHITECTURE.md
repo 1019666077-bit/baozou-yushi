@@ -11,6 +11,7 @@
 ## 分层
 
 - `RuntimeHome` / `RuntimePrototype`：当前主路径的港口与海面灰盒。
+- `world/HarborStage` + `world/DeckStage`：2.5D 程序低模（透视世界 + Screen Space UI）；失败回退 `GrayArt`。详见 `docs/STAGE_3D.md`。
 - `battle/`：编辑器战斗组件，只处理场景节点、输入和表现；**未挂到 Boot.scene**。
 - `domain/`：无引擎依赖的确定性规则，可在Node环境测试。
 - `data/`：JSON配置与强类型定义。

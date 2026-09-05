@@ -383,6 +383,16 @@ export class FishController extends Component {
       decoy: this.decoy,
       armored: this.config?.behavior === "shield" && !this.shieldOpen,
       hit: this.hitPulse > 0,
+      face:
+        this.mode === "carried"
+          ? "carry"
+          : this.mode === "yank"
+            ? "hooked"
+            : this.stunnedNow
+              ? "stunned"
+              : this.hooked
+                ? "hooked"
+                : "idle",
     });
   }
 }

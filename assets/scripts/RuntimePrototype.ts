@@ -72,7 +72,7 @@ import {
   shouldSpawn,
   waveCaption,
 } from "./domain/IslandClock";
-import { canPickUp, crateDrop } from "./domain/FlopPhysics";
+import { canPickUp, carryBobOffset, crateDrop } from "./domain/FlopPhysics";
 import { discoveryToast, isFirstCatch } from "./domain/SettleCopy";
 import { depthScale } from "./domain/DepthScale";
 import {
@@ -306,6 +306,7 @@ export class RuntimePrototype extends Component {
     this.sortByDepth();
     this.drawGuide();
     this.tickJuiceFx(dt);
+    this.deck?.tickWater(dt, this.lowPower);
     this.renderHud();
   }
 
@@ -956,7 +957,8 @@ export class RuntimePrototype extends Component {
         this.burst("splash", fish.node.position.x, fish.node.position.y + 24);
       }
       if (fx.bounce) {
-        this.burst("hit", fish.node.position.x, fish.node.position.y);
+        this.burst("smash", fish.node.position.x, fish.node.position.y);
+        SfxPlayer.play("hit");
       }
     }
   }
@@ -967,7 +969,8 @@ export class RuntimePrototype extends Component {
       return;
     }
     const p = this.player.position;
-    this.carried.followCarry(p.x + 40, p.y + 30);
+    const bob = carryBobOffset(this.runElapsed);
+    this.carried.followCarry(p.x + 40 + bob.x, p.y + 30 + bob.y);
     if (crateDrop(this.carried.node.position.x, this.carried.node.position.y)) {
       this.stashCarried();
     }
@@ -1549,6 +1552,13 @@ export class RuntimePrototype extends Component {
       this.fishRoot,
       this.hooked,
       this.aiming ? this.aimTo : undefined,
+      {
+        smashElapsed:
+          this.shakeLeft > 0
+            ? juiceShakeSeconds(this.lowPower) - this.shakeLeft
+            : 1,
+        lowPower: this.lowPower,
+      },
     );
     if (!this.status) return;
     const preview = this.session.preview();

@@ -8,7 +8,7 @@ Cocos Creator **3.8.8**。仓库不提交真实 AppID / 云环境 ID；本地替
 
 | 路径 | 命令 | 算不算实机 |
 | --- | --- | --- |
-| 第一局体验代理（当前唯一无 Creator 可点） | `node tools/first-run-preview/serve.mjs` → http://127.0.0.1:8766/ | **不算。** 非 Cocos、无甲板扑腾真手感、无微信震动 |
+| 第一局体验代理（当前唯一无 Creator 可点） | `node tools/first-run-preview/serve.mjs` → http://127.0.0.1:8766/ | **不算。** 2D 代理 ≠ Creator 3D 实机；无甲板扑腾/透视相机/微信震动 |
 | 本机 Creator 预览 | 打开仓库 → `Boot.scene` → 预览 | 编辑器预览，仍非微信真机 |
 | 本机 web-desktop | 见下节，产物 `build/web-desktop/`，`npx serve … -l 8765` | 接近 Runtime，仍非微信真机 |
 | 命令行出包 | `node tools/try-web-desktop-build.mjs` | 找不到 Creator 会 **清晰失败（exit 2）**，不假装已出包 |
@@ -61,7 +61,7 @@ node tools/first-run-preview/serve.mjs
 
 - 复刻教学→抛竿→弱点→翻扑→捡起→入箱→卖出→回港。
 - 文案 / CTA / 色板 / juice 参数从 `assets/scripts/domain` 抽出。
-- **不是** Creator 预览，**不是** web-desktop，**不是** 微信真机。报告里只能写「代理分」。
+- **不是** Creator 预览，**不是** web-desktop，**不是** 微信真机。**2D 代理 ≠ Creator 3D 港湾/低模鱼。** 报告里只能写「代理分」。3D 路线见 `docs/STAGE_3D.md`。
 
 自动点完并截图（需 Chrome + `puppeteer-core`）：
 

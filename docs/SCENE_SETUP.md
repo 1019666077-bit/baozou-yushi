@@ -14,7 +14,7 @@
 2. 保留默认 `Canvas`。运行后 `RuntimeAutoStart` 会挂 `RuntimeHome`；出海时再挂 `RuntimePrototype`。
 3. 不要创建 `Home.scene`，也不要在 Boot 上挂 `GameBootstrap` / `BattleController` / `TutorialController`。
 4. 四个 JSON 的单一真相源是 `assets/config/*.json`，已打进 `bundledConfig`；主路径不依赖编辑器拖引用。改配置后跑 `npm run sync:config`，把 `assets/resources/config/` 镜像一起对齐。
-5. 灰盒海面/船/鱼由 `DeckStage` 或 2D 回退绘制，不需要先做鱼 Prefab。
+5. 灰盒海面/船/鱼由 `HarborStage` / `DeckStage` 程序低模绘制（2.5D），失败则 2D `GrayArt` 回退。不需要先做鱼 Prefab。3D 路线见 `docs/STAGE_3D.md`。
 
 ## 编辑器实验栈（未接线，不要当已交付）
 
@@ -43,7 +43,7 @@
 - 启动画面：开启（`build-config.wechat.json` 的 `useSplashScreen`），用于健康游戏忠告；Cocos 默认 Logo 仍由 postbuild 去掉
 - 物理：关闭；不启用Bullet/Ammo
 - 引擎模块：开启3D与primitive（透视方块甲板），关闭粒子3D、地形、后处理
-- 战斗里HUD仍是Canvas 2D，海面/船/鱼由运行时DeckStage生成
+- HUD 仍是 Canvas 2D（Screen Space）。港湾/海面/船/鱼由运行时 HarborStage + DeckStage 生成；关阴影与后处理
 - iOS高性能模式：真机测试通过后再开
 - AppID、云环境ID只写本机构建设置，不提交真实值。配置里的 `wx6ac3f5090a6b99c5` 是 Cocos 默认占位，本地必须替换
 - **未接入广告 SDK**，不要填写或提交广告位 ID

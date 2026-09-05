@@ -151,6 +151,10 @@ import {
   yankStep,
   bouncedOnDeck,
   canPickUp,
+  CARRY_FEEL,
+  YANK_FEEL,
+  carryBobOffset,
+  yankArcLift,
 } from "../assets/scripts/domain/FlopPhysics";
 import {
   deckKindForFish,
@@ -229,6 +233,32 @@ import {
   harborIslandX,
   islandLook,
 } from "../assets/scripts/domain/GrayLook";
+import {
+  boatOps,
+  crateOps,
+  fishOps,
+  islandSetOps,
+  recipeHasTag,
+  recipeKindCount,
+} from "../assets/scripts/domain/ArtRecipe";
+import {
+  CAM_FEEL,
+  CAM_REST,
+  camSmashOffset,
+  composeHuntCam,
+  smashHoldSeconds,
+  yankCamK,
+} from "../assets/scripts/domain/CameraFeel";
+import {
+  STAGE_BUDGET,
+  countParts,
+  dockParts,
+  fishParts,
+  harborExtraParts,
+  huntIsleParts,
+  stageMeshCap,
+  waterParts,
+} from "../assets/scripts/domain/ProcGeom";
 
 const fish: FishConfig = {
   id: "fish_test",
@@ -817,6 +847,9 @@ describe("HitJuice", () => {
     expect(crateBounceScaleAt(0.05, false)).toBeGreaterThan(1);
     expect(popupLiftPx(0.2)).toBeGreaterThan(popupLiftPx(0.02));
     expect(juiceFlashLineWidth({ x: 0, y: 0, life: 1, maxLife: 0.2, kind: "weak" })).toBeGreaterThan(6);
+    expect(juiceCount("smash", false)).toBeGreaterThan(juiceCount("hit", false));
+    expect(juiceWantsPunch("smash", false)).toBe(true);
+    expect(juiceShakePx("smash", false)).toBeGreaterThan(0);
   });
 });
 
@@ -1453,6 +1486,71 @@ describe("FlopPhysics", () => {
     ).toBe(true);
     expect(canPickUp(-400, -90, -320, -70)).toBe(true);
     expect(canPickUp(-400, -90, 80, 40)).toBe(false);
+    expect(yankArcLift(YANK_FEEL.targetX + YANK_FEEL.span / 2)).toBeGreaterThan(20);
+    expect(carryBobOffset(0.2).y).toBeGreaterThanOrEqual(0);
+    expect(CARRY_FEEL.ampY).toBeLessThan(12);
+  });
+});
+
+describe("CameraFeel", () => {
+  it("keeps yank/smash/flop short and disables smash on low power", () => {
+    expect(yankCamK(-340)).toBe(0);
+    expect(yankCamK(-340 + 210)).toBeGreaterThan(0.5);
+    expect(camSmashOffset(0.04, CAM_FEEL.smashSeconds, false).x).not.toBe(0);
+    expect(camSmashOffset(0.04, CAM_FEEL.smashSeconds, true)).toEqual({ x: 0, y: 0, z: 0 });
+    expect(smashHoldSeconds(true)).toBe(0);
+    const yanked = composeHuntCam({ yankK: 1, lowPower: false });
+    expect(yanked.z).toBeGreaterThan(CAM_REST.z);
+    const flop = composeHuntCam({ airborne: true, lowPower: false });
+    expect(flop.y).toBeGreaterThan(CAM_REST.y);
+    expect(composeHuntCam({ airborne: true, lowPower: true }).y).toBe(CAM_REST.y);
+  });
+});
+
+describe("ProcGeom budget", () => {
+  it("keeps harbor/hunt mesh counts and fish parts inside the wechat budget", () => {
+    const water = waterParts([12, 112, 146], [8, 58, 86]);
+    const dock = dockParts();
+    const extras = harborExtraParts({
+      land: [236, 210, 118],
+      landDark: [72, 168, 112],
+      accent: [255, 148, 42],
+    });
+    const hunt = huntIsleParts("island_tutorial", {
+      land: [210, 186, 118],
+      landDark: [86, 138, 112],
+      accent: [255, 176, 72],
+    });
+    const fish = fishParts([36, 214, 178], [210, 250, 220], [18, 142, 124], 1);
+    expect(fish.length).toBeLessThanOrEqual(STAGE_BUDGET.maxFishParts);
+    expect(countParts([...water, ...dock, ...extras])).toBeLessThanOrEqual(
+      stageMeshCap("harbor"),
+    );
+    expect(countParts([...water, ...dock, ...hunt])).toBeLessThanOrEqual(stageMeshCap("hunt"));
+    expect((STAGE_BUDGET.waterSegX + 1) * (STAGE_BUDGET.waterSegZ + 1)).toBeLessThanOrEqual(
+      STAGE_BUDGET.maxWaterVerts,
+    );
+    expect(STAGE_BUDGET.textureBytes).toBe(0);
+    expect(STAGE_BUDGET.maxLights).toBe(1);
+  });
+});
+
+describe("ArtRecipe", () => {
+  it("paints layered water, a market pier, and a bayfin face from one recipe", () => {
+    const sea = islandSetOps("island_foam_bay", true, 0);
+    expect(recipeHasTag(sea, "caustic")).toBe(true);
+    expect(recipeKindCount(sea, "rect")).toBeGreaterThan(8);
+    expect(crateOps().length).toBeGreaterThan(6);
+    expect(boatOps().some((op) => op.t === "poly")).toBe(true);
+    const fish = fishOps("fish_bayfin", 1, {
+      decoy: false,
+      armored: false,
+      hit: false,
+      hooked: false,
+      flashing: true,
+      face: "idle",
+    });
+    expect(fish.length).toBeGreaterThan(8);
   });
 });
 

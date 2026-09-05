@@ -7,7 +7,9 @@ export type JuiceKind =
   | "splash"
   | "cast"
   | "gold"
-  | "sell";
+  | "sell"
+  | "smash"
+  | "yank";
 
 export interface JuiceParticle {
   x: number;
@@ -21,11 +23,12 @@ export interface JuiceParticle {
 }
 
 export function juiceCount(kind: JuiceKind, lowPower: boolean): number {
-  if (kind === "cast") return lowPower ? 2 : 4;
+  if (kind === "cast" || kind === "yank") return lowPower ? 2 : 4;
   if (kind === "gold" || kind === "sell") return lowPower ? 6 : 10;
   if (lowPower) return kind === "miss" ? 2 : 3;
   if (kind === "miss") return 4;
   if (kind === "splash") return 10;
+  if (kind === "smash") return 12;
   if (kind === "hit") return 9;
   if (kind === "catch") return 8;
   return 9;
@@ -41,13 +44,15 @@ export function spawnJuice(
   const burst =
     kind === "splash"
       ? 170
-      : kind === "weak" || kind === "perfect"
-        ? 140
-        : kind === "miss"
-          ? 55
-          : kind === "cast"
-            ? 70
-            : 95;
+      : kind === "smash"
+        ? 190
+        : kind === "weak" || kind === "perfect"
+          ? 150
+          : kind === "miss"
+            ? 55
+            : kind === "cast" || kind === "yank"
+              ? 70
+              : 95;
   return Array.from({ length: count }, (_, i) => {
     const angle = (i / count) * Math.PI * 2 + (kind === "miss" ? 0.6 : 0.15);
     const speed = burst + (i % 3) * 18;
@@ -56,14 +61,15 @@ export function spawnJuice(
       kind === "perfect" ||
       kind === "catch" ||
       kind === "gold" ||
-      kind === "sell";
+      kind === "sell" ||
+      kind === "smash";
     const coin = kind === "gold" || kind === "sell";
     const up =
-      kind === "splash"
+      kind === "splash" || kind === "smash"
         ? 90
         : kind === "miss"
           ? 30
-          : kind === "cast"
+          : kind === "cast" || kind === "yank"
             ? 18
             : coin
               ? 140
@@ -75,16 +81,22 @@ export function spawnJuice(
       vy: Math.sin(angle) * speed + up,
       life: 1,
       maxLife:
-        kind === "perfect" || coin ? 0.4 : kind === "splash" ? 0.28 : 0.32,
+        kind === "perfect" || coin
+          ? 0.4
+          : kind === "smash"
+            ? 0.26
+            : kind === "splash"
+              ? 0.28
+              : 0.32,
       kind: coin ? "coin" : star && i % 2 === 0 ? "star" : "bubble",
       size:
-        kind === "splash"
+        kind === "splash" || kind === "smash"
           ? 9
           : kind === "perfect"
             ? 8
             : kind === "weak"
               ? 7
-              : kind === "cast"
+              : kind === "cast" || kind === "yank"
                 ? 4
                 : coin
                   ? 6
@@ -103,7 +115,7 @@ export interface JuiceFlash {
 
 export function juiceShakePx(kind: JuiceKind, lowPower: boolean): number {
   if (lowPower) return 0;
-  if (kind === "weak" || kind === "perfect") return 4;
+  if (kind === "weak" || kind === "perfect" || kind === "smash") return 5;
   if (kind === "hit" || kind === "catch") return 3;
   return 0;
 }
@@ -119,20 +131,23 @@ export function juiceWantsPunch(kind: JuiceKind, lowPower: boolean): boolean {
     kind === "weak" ||
     kind === "catch" ||
     kind === "perfect" ||
-    kind === "sell"
+    kind === "sell" ||
+    kind === "smash"
   );
 }
 
 export function juicePunchPeak(kind: JuiceKind, lowPower: boolean): number {
   if (!juiceWantsPunch(kind, lowPower)) return 1;
-  if (kind === "weak" || kind === "perfect") return 1.26;
+  if (kind === "weak" || kind === "perfect" || kind === "smash") return 1.28;
   if (kind === "catch") return 1.18;
   return 1.14;
 }
 
 export function juicePunchSeconds(kind: JuiceKind, lowPower: boolean): number {
   if (!juiceWantsPunch(kind, lowPower)) return 0;
-  return kind === "weak" || kind === "perfect" || kind === "catch" ? 0.16 : 0.11;
+  return kind === "weak" || kind === "perfect" || kind === "catch" || kind === "smash"
+    ? 0.16
+    : 0.11;
 }
 
 export function juicePunchScaleAt(
@@ -154,18 +169,19 @@ export function spawnJuiceFlash(
   y: number,
   lowPower: boolean,
 ): JuiceFlash | undefined {
-  if (kind === "miss" || kind === "splash") return undefined;
+  if (kind === "miss" || kind === "splash" || kind === "yank") return undefined;
   if (
     lowPower &&
     kind !== "weak" &&
     kind !== "perfect" &&
     kind !== "catch" &&
-    kind !== "sell"
+    kind !== "sell" &&
+    kind !== "smash"
   ) {
     return undefined;
   }
   const maxLife =
-    kind === "catch" || kind === "perfect" || kind === "sell"
+    kind === "catch" || kind === "perfect" || kind === "sell" || kind === "smash"
       ? 0.16
       : kind === "weak"
         ? 0.14
@@ -193,14 +209,14 @@ export function juiceFlashRadius(flash: JuiceFlash): number {
   const grow =
     flash.kind === "catch" || flash.kind === "perfect" || flash.kind === "sell"
       ? 42
-      : flash.kind === "weak"
+      : flash.kind === "weak" || flash.kind === "smash"
         ? 28
         : 30;
   return 18 + grow * (1 - flash.life);
 }
 
 export function juiceFlashLineWidth(flash: JuiceFlash): number {
-  if (flash.kind === "weak" || flash.kind === "perfect") return 9;
+  if (flash.kind === "weak" || flash.kind === "perfect" || flash.kind === "smash") return 9;
   if (flash.kind === "catch" || flash.kind === "sell") return 8;
   return 6;
 }

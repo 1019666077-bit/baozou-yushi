@@ -180,13 +180,13 @@ const ISLANDS: Record<string, IslandLook> = {
 };
 
 const HARBOR: IslandLook = {
-  skyTop: [255, 164, 86],
-  sky: [255, 196, 128],
+  skyTop: [255, 148, 72],
+  sky: [255, 192, 118],
   haze: [255, 220, 168],
-  far: [36, 168, 186],
-  mid: [16, 128, 158],
-  near: [10, 92, 126],
-  deep: [6, 44, 68],
+  far: [28, 168, 186],
+  mid: [12, 122, 154],
+  near: [8, 84, 118],
+  deep: [4, 36, 58],
   land: [226, 178, 96],
   landDark: [72, 142, 108],
   accent: [255, 148, 42],
