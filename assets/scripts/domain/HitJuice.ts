@@ -1,4 +1,11 @@
-export type JuiceKind = "miss" | "hit" | "weak" | "perfect" | "catch" | "splash";
+export type JuiceKind =
+  | "miss"
+  | "hit"
+  | "weak"
+  | "perfect"
+  | "catch"
+  | "splash"
+  | "cast";
 
 export interface JuiceParticle {
   x: number;
@@ -12,6 +19,7 @@ export interface JuiceParticle {
 }
 
 export function juiceCount(kind: JuiceKind, lowPower: boolean): number {
+  if (kind === "cast") return lowPower ? 2 : 4;
   if (lowPower) return kind === "miss" ? 2 : 3;
   if (kind === "miss") return 4;
   if (kind === "splash") return 16;
@@ -34,13 +42,16 @@ export function spawnJuice(
         ? 140
         : kind === "miss"
           ? 55
-          : 95;
+          : kind === "cast"
+            ? 70
+            : 95;
   return Array.from({ length: count }, (_, i) => {
     const angle = (i / count) * Math.PI * 2 + (kind === "miss" ? 0.6 : 0.15);
     const speed = burst + (i % 3) * 18;
     const star =
       kind === "weak" || kind === "perfect" || kind === "catch";
-    const up = kind === "splash" ? 90 : kind === "miss" ? 30 : 8;
+    const up =
+      kind === "splash" ? 90 : kind === "miss" ? 30 : kind === "cast" ? 18 : 8;
     return {
       x,
       y,
@@ -49,7 +60,16 @@ export function spawnJuice(
       life: 1,
       maxLife: kind === "perfect" || kind === "splash" ? 0.55 : 0.4,
       kind: star && i % 2 === 0 ? "star" : "bubble",
-      size: kind === "splash" ? 9 : kind === "perfect" ? 8 : kind === "weak" ? 7 : 5,
+      size:
+        kind === "splash"
+          ? 9
+          : kind === "perfect"
+            ? 8
+            : kind === "weak"
+              ? 7
+              : kind === "cast"
+                ? 4
+                : 5,
     };
   });
 }
@@ -106,7 +126,12 @@ export function spawnJuiceFlash(
   lowPower: boolean,
 ): JuiceFlash | undefined {
   if (kind === "miss" || kind === "splash") return undefined;
-  if (lowPower && kind !== "weak" && kind !== "perfect" && kind !== "catch") {
+  if (
+    lowPower &&
+    kind !== "weak" &&
+    kind !== "perfect" &&
+    kind !== "catch"
+  ) {
     return undefined;
   }
   const maxLife =
@@ -157,4 +182,40 @@ export function tickJuice(
     });
   }
   return next;
+}
+
+/** 欢乐钓鱼大师式甩钩：线闪很短，低配只留细线。 */
+export function castFlashSeconds(lowPower: boolean): number {
+  return lowPower ? 0.1 : 0.16;
+}
+
+export function castLineWidth(
+  elapsed: number,
+  duration: number,
+  lowPower: boolean,
+): number {
+  if (duration <= 0) return 6;
+  const t = 1 - Math.min(1, Math.max(0, elapsed / duration));
+  return lowPower ? 6 + 2 * t : 6 + 6 * t;
+}
+
+export function castTipNudgePx(
+  elapsed: number,
+  duration: number,
+  lowPower: boolean,
+): number {
+  if (duration <= 0) return 0;
+  const t = 1 - Math.min(1, Math.max(0, elapsed / duration));
+  return (lowPower ? 4 : 10) * t;
+}
+
+export function castRodScaleAt(
+  elapsed: number,
+  duration: number,
+  lowPower: boolean,
+): number {
+  if (lowPower || duration <= 0) return 1;
+  const t = Math.min(1, Math.max(0, elapsed / duration));
+  const env = t < 0.35 ? t / 0.35 : 1 - (t - 0.35) / 0.65;
+  return 1 + 0.08 * Math.max(0, env);
 }

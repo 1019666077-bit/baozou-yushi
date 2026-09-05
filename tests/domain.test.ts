@@ -49,6 +49,8 @@ import {
   applyRunRewards,
   bookLines,
   coinJumpCaption,
+  discoveryToast,
+  discoveryToastLine,
   firstCatchIds,
   isFirstCatch,
   settleHeadline,
@@ -71,6 +73,10 @@ import {
   juiceWantsPunch,
   spawnJuiceFlash,
   tickJuiceFlash,
+  castFlashSeconds,
+  castLineWidth,
+  castRodScaleAt,
+  castTipNudgePx,
 } from "../assets/scripts/domain/HitJuice";
 import {
   BOSS_SECONDS,
@@ -80,6 +86,8 @@ import {
   waveCaption,
 } from "../assets/scripts/domain/IslandClock";
 import {
+  castLockCaption,
+  castSnapCaption,
   comboHud,
   inboxPopup,
   liveQuote,
@@ -92,6 +100,10 @@ import {
   hitStopSeconds,
   buttonFillRgb,
   goldHudRgb,
+  styleHudPunchRgb,
+  styleHudPunchScaleAt,
+  styleHudPunchSeconds,
+  styleHudShouldPunch,
 } from "../assets/scripts/domain/GameFeel";
 import {
   bestStyleLine,
@@ -571,6 +583,10 @@ describe("SettleCopy", () => {
     expect(firstCatchIds(["fish_test", "fish_test"], [])).toEqual(["fish_test"]);
     expect(coinJumpCaption(36)).toBe("+36金");
     expect(coinJumpCaption(0)).toBe("");
+    expect(discoveryToast("湾鳍鱼")).toBe("图鉴新纪录：湾鳍鱼");
+    expect(discoveryToastLine(["湾鳍鱼"])).toBe("图鉴新纪录：湾鳍鱼");
+    expect(discoveryToastLine(["湾鳍鱼", "焰鳗"])).toBe("图鉴新纪录：湾鳍鱼 等2种");
+    expect(discoveryToastLine([])).toBe("");
     expect(settleSlogan(summary).length).toBeGreaterThan(0);
     const next = applyRunRewards(save, summary);
     expect(next.coins).toBe(save.coins + summary.totalCoins);
@@ -668,6 +684,8 @@ describe("StyleCallout", () => {
     expect(low).toContain("估价");
     expect(high).toContain("×2.00");
     expect(comboHud(1.4, 3)).toContain("3连");
+    expect(castSnapCaption()).toBe("钩出去了。");
+    expect(castLockCaption("湾鳍鱼")).toBe("拽住湾鳍鱼。");
   });
 });
 
@@ -685,6 +703,16 @@ describe("GameFeel", () => {
       false,
     );
     expect(settingCaption("低配", true)).toBe("低配 开");
+    expect(styleHudShouldPunch({ multiplier: 1, combo: 1 }, { multiplier: 1.2, combo: 1 })).toBe(
+      true,
+    );
+    expect(styleHudShouldPunch({ multiplier: 1.4, combo: 3 }, { multiplier: 1, combo: 0 })).toBe(
+      false,
+    );
+    expect(styleHudPunchSeconds(false)).toBeGreaterThan(styleHudPunchSeconds(true));
+    expect(styleHudPunchScaleAt(0.04, false)).toBeGreaterThan(1);
+    expect(styleHudPunchScaleAt(0.04, true)).toBeGreaterThan(1);
+    expect(styleHudPunchRgb(0.04, false)[0]).toBeGreaterThan(240);
     expect(hitStopSeconds("weak", false)).toBe(0.09);
     expect(hitStopSeconds("hit", false)).toBe(0.05);
     expect(hitStopSeconds("weak", true)).toBe(0);
@@ -720,6 +748,18 @@ describe("HitJuice", () => {
     expect(tickJuiceFlash(flash, 1)).toBeUndefined();
     expect(spawnJuiceFlash("miss", 0, 0, false)).toBeUndefined();
     expect(spawnJuiceFlash("hit", 0, 0, true)).toBeUndefined();
+    expect(juiceCount("cast", false)).toBe(4);
+    expect(juiceCount("cast", true)).toBe(2);
+    expect(spawnJuice("cast", 0, 0).every((p) => p.kind === "bubble")).toBe(true);
+    expect(juiceWantsPunch("cast", false)).toBe(false);
+    expect(juiceShakePx("cast", false)).toBe(0);
+    expect(spawnJuiceFlash("cast", 0, 0, false)?.kind).toBe("cast");
+    expect(spawnJuiceFlash("cast", 0, 0, true)).toBeUndefined();
+    expect(castFlashSeconds(true)).toBeLessThan(castFlashSeconds(false));
+    expect(castLineWidth(0, 0.16, false)).toBeGreaterThan(castLineWidth(0.16, 0.16, false));
+    expect(castTipNudgePx(0, 0.16, false)).toBeGreaterThan(castTipNudgePx(0, 0.16, true));
+    expect(castRodScaleAt(0.04, 0.16, false)).toBeGreaterThan(1);
+    expect(castRodScaleAt(0.04, 0.16, true)).toBe(1);
   });
 });
 

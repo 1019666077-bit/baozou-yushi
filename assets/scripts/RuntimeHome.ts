@@ -6,6 +6,7 @@ import {
   applyRunRewards,
   bookLines,
   coinJumpCaption,
+  discoveryToastLine,
   firstCatchIds,
   settleHeadline,
   settleRows,
@@ -335,6 +336,12 @@ export class RuntimeHome extends Component {
     makeLabel(layer, "潮汐鱼市结算", 34, 0, 300);
     makeLabel(layer, settleHeadline(summary), 26, 0, 236);
     const knownBefore = playerSave.get().discoveredFish;
+    const firstNames = firstCatchIds(
+      summary.fish.map((item) => item.fishId),
+      knownBefore,
+    ).map((id) => ConfigService.fishById(id).name);
+    const toast = discoveryToastLine(firstNames);
+    if (toast) makeLabel(layer, toast, 22, 0, 204);
     settleRows(
       summary,
       (id) => ConfigService.fishById(id).name,
@@ -617,7 +624,10 @@ export class RuntimeHome extends Component {
       void LeaderboardService.submit(run).catch(() => undefined);
       this.lastSummary = run;
       this.pendingSummary = undefined;
-      this.statusFlash = undefined;
+      const toast = discoveryToastLine(
+        this.justDiscovered.map((id) => ConfigService.fishById(id).name),
+      );
+      this.statusFlash = toast || undefined;
       this.selectedIslandId = resolveHarborIsland(
         next.tutorialComplete,
         this.selectedIslandId,

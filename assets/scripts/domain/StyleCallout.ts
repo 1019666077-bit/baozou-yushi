@@ -34,3 +34,12 @@ export function comboHud(multiplier: number, combo: number): string {
   const core = `精彩 ×${multiplier.toFixed(2)}`;
   return combo > 1 ? `${core}  ${combo}连` : core;
 }
+
+/** 甩钩当下的极短口令，不盖教学下一步。 */
+export function castSnapCaption(): string {
+  return "钩出去了。";
+}
+
+export function castLockCaption(name: string): string {
+  return `拽住${name}。`;
+}

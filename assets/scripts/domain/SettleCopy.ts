@@ -28,6 +28,16 @@ export function coinJumpCaption(gained: number): string {
   return gained > 0 ? `+${gained}金` : "";
 }
 
+export function discoveryToast(name: string): string {
+  return `图鉴新纪录：${name}`;
+}
+
+export function discoveryToastLine(names: string[]): string {
+  if (names.length === 0) return "";
+  if (names.length === 1) return discoveryToast(names[0]);
+  return `图鉴新纪录：${names[0]} 等${names.length}种`;
+}
+
 export function settleRows(
   summary: RunSummary,
   nameOf: (fishId: string) => string,

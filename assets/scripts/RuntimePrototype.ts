@@ -55,6 +55,8 @@ import {
   decoyOffsets,
 } from "./domain/FishBehavior";
 import {
+  castLockCaption,
+  castSnapCaption,
   comboHud,
   inboxPopup,
   liveQuote,
@@ -67,11 +69,16 @@ import {
   waveCaption,
 } from "./domain/IslandClock";
 import { canPickUp, crateDrop } from "./domain/FlopPhysics";
+import { discoveryToast, isFirstCatch } from "./domain/SettleCopy";
 import { depthScale } from "./domain/DepthScale";
 import {
   hitStopSeconds,
   spawnCap,
   shouldVibrate,
+  styleHudPunchRgb,
+  styleHudPunchScaleAt,
+  styleHudPunchSeconds,
+  styleHudShouldPunch,
   type ButtonTone,
 } from "./domain/GameFeel";
 import {
@@ -82,6 +89,10 @@ import {
   type Shot,
 } from "./domain/ShotFlight";
 import {
+  castFlashSeconds,
+  castLineWidth,
+  castRodScaleAt,
+  castTipNudgePx,
   juicePunchScaleAt,
   juicePunchSeconds,
   juiceShakePx,
@@ -171,6 +182,13 @@ export class RuntimePrototype extends Component {
   private punchElapsed = 0;
   private punchLeft = 0;
   private cratePunchLeft = 0;
+  private castFlashLeft = 0;
+  private castFlashElapsed = 0;
+  private castFlashDuration = 0;
+  private hudPunchLeft = 0;
+  private hudPunchElapsed = 0;
+  private lastHudMultiplier = 1;
+  private lastHudCombo = 0;
   private shakeLeft = 0;
   private shakePx = 0;
   private crateLabel?: Label;
@@ -537,18 +555,40 @@ export class RuntimePrototype extends Component {
     return ConfigService.toolById(this.launch.toolId).kind;
   }
 
+  private drawHookLine(flashing: boolean): void {
+    if (!this.hooked?.node.active) return;
+    const elapsed = this.castFlashElapsed;
+    const duration = this.castFlashDuration;
+    const width = flashing
+      ? castLineWidth(elapsed, duration, this.lowPower)
+      : 6;
+    const nudge = flashing
+      ? castTipNudgePx(elapsed, duration, this.lowPower)
+      : 0;
+    const sx = this.player.position.x + 28;
+    const sy = this.player.position.y + 18;
+    const tx = this.hooked.node.position.x;
+    const ty = this.hooked.node.position.y;
+    const dx = tx - sx;
+    const dy = ty - sy;
+    const len = Math.hypot(dx, dy) || 1;
+    this.aimLine.strokeColor = new Color(255, 214, 70, flashing ? 255 : 250);
+    this.aimLine.lineWidth = width;
+    this.aimLine.moveTo(sx + (dx / len) * nudge, sy + (dy / len) * nudge);
+    this.aimLine.lineTo(tx, ty);
+    this.aimLine.stroke();
+  }
+
   private drawAim(): void {
     this.aimLine.clear();
+    const flashing = this.castFlashLeft > 0 && !!this.hooked?.node.active;
+    if (flashing) this.drawHookLine(true);
     if (deckFlag.live) {
       drawShots(this.aimLine, this.shots);
       return;
     }
-    if (this.hooked?.yanking && this.hooked.node.active) {
-      this.aimLine.strokeColor = new Color(255, 214, 70, 250);
-      this.aimLine.lineWidth = 6;
-      this.aimLine.moveTo(this.player.position.x + 28, this.player.position.y + 18);
-      this.aimLine.lineTo(this.hooked.node.position.x, this.hooked.node.position.y);
-      this.aimLine.stroke();
+    if (!flashing && this.hooked?.yanking && this.hooked.node.active) {
+      this.drawHookLine(false);
     }
     if (this.aiming) {
       const kind = this.currentKind();
@@ -609,6 +649,9 @@ export class RuntimePrototype extends Component {
     this.hookedAt = Date.now();
     this.reelActive = false;
     this.session.resetStyle();
+    this.lastHudMultiplier = 1;
+    this.lastHudCombo = 0;
+    this.playCastFeel();
     if (this.tutorial) {
       this.hooked.setAssist({
         freezeSeconds: TUTORIAL_WEAK_PAUSE_SECONDS,
@@ -619,8 +662,18 @@ export class RuntimePrototype extends Component {
       return;
     }
     const name = target.fishConfig?.name ?? "目标";
+    this.setStatus(`${castLockCaption(name)}钓线绷着，等它摔上甲板再砸。`);
+  }
+
+  private playCastFeel(): void {
+    const tipX = this.player.position.x + 28;
+    const tipY = this.player.position.y + 18;
+    this.castFlashDuration = castFlashSeconds(this.lowPower);
+    this.castFlashElapsed = 0;
+    this.castFlashLeft = this.castFlashDuration;
+    this.burst("cast", tipX, tipY);
+    this.showCallout(castSnapCaption());
     SfxPlayer.play("cast");
-    this.setStatus(`拽住${name}。钓线绷着，等它摔上甲板再砸。`);
   }
 
   private fire(): void {
@@ -928,10 +981,18 @@ export class RuntimePrototype extends Component {
     this.showCallout(inboxPopup(sold.price));
     this.cratePunchLeft = juicePunchSeconds("catch", this.lowPower);
     SfxPlayer.play(airborneBag ? "perfect" : "catch");
+    const first = isFirstCatch(captured.id, playerSave.get().discoveredFish);
     this.setStatus(
-      `${captured.name} ×${sold.styleMultiplier.toFixed(2)} → ${sold.price}金，丢进鱼箱。回港才卖。`,
+      first
+        ? `${discoveryToast(captured.name)} 入箱 ${sold.price}金。`
+        : `${captured.name} ×${sold.styleMultiplier.toFixed(2)} → ${sold.price}金，丢进鱼箱。回港才卖。`,
     );
-    if (this.tutorial) this.enterTutorial("captured");
+    if (this.tutorial) {
+      this.enterTutorial("captured");
+      if (first) {
+        this.setStatus(`${discoveryToast(captured.name)} 回港点卖。`);
+      }
+    }
     if (captured.tier === "boss") {
       this.setStatus("巨鲲入箱。收网回港。");
       this.returnHarbor();
@@ -1414,6 +1475,17 @@ export class RuntimePrototype extends Component {
     const style = this.session.getStyleSnapshot();
     this.coinsLabel.string = `本局 ${preview.coins}`;
     this.multiplier.string = comboHud(style.multiplier, style.combo);
+    if (
+      styleHudShouldPunch(
+        { multiplier: this.lastHudMultiplier, combo: this.lastHudCombo },
+        { multiplier: style.multiplier, combo: style.combo },
+      )
+    ) {
+      this.hudPunchElapsed = 0;
+      this.hudPunchLeft = styleHudPunchSeconds(this.lowPower);
+    }
+    this.lastHudMultiplier = style.multiplier;
+    this.lastHudCombo = style.combo;
     if (this.callout) {
       this.callout.string = Date.now() < this.calloutUntil ? this.callout.string : "";
     }
@@ -1462,6 +1534,7 @@ export class RuntimePrototype extends Component {
   private tickJuiceFx(dt: number): void {
     this.juiceFlash = tickJuiceFlash(this.juiceFlash, dt);
     if (this.juice.length > 0) this.juice = tickJuice(this.juice, dt);
+    this.tickCastFlash(dt);
     this.tickPunch(dt);
     this.tickShake(dt);
     if (
@@ -1469,12 +1542,32 @@ export class RuntimePrototype extends Component {
       !this.juiceFlash &&
       this.punchLeft <= 0 &&
       this.shakeLeft <= 0 &&
-      this.cratePunchLeft <= 0
+      this.cratePunchLeft <= 0 &&
+      this.castFlashLeft <= 0 &&
+      this.hudPunchLeft <= 0
     ) {
       if (this.juiceGfx) this.juiceGfx.clear();
       return;
     }
     this.drawJuiceFx();
+  }
+
+  private tickCastFlash(dt: number): void {
+    if (this.castFlashLeft <= 0) {
+      this.castFlashLeft = 0;
+      return;
+    }
+    this.castFlashElapsed += dt;
+    this.castFlashLeft = Math.max(0, this.castFlashLeft - dt);
+    if (!this.player?.isValid) return;
+    const scale =
+      depthScale(this.player.position.y) *
+      castRodScaleAt(
+        this.castFlashElapsed,
+        this.castFlashDuration,
+        this.lowPower,
+      );
+    this.player.setScale(scale, scale, 1);
   }
 
   private tickPunch(dt: number): void {
@@ -1498,6 +1591,19 @@ export class RuntimePrototype extends Component {
       this.crateLabel?.node.setScale(scale, scale, 1);
     } else if (this.crateLabel) {
       this.crateLabel.node.setScale(1, 1, 1);
+    }
+    if (this.hudPunchLeft > 0) {
+      this.hudPunchElapsed += dt;
+      this.hudPunchLeft = Math.max(0, this.hudPunchLeft - dt);
+      const scale = styleHudPunchScaleAt(this.hudPunchElapsed, this.lowPower);
+      const rgb = styleHudPunchRgb(this.hudPunchElapsed, this.lowPower);
+      this.multiplier?.node.setScale(scale, scale, 1);
+      if (this.multiplier) {
+        this.multiplier.color = new Color(rgb[0], rgb[1], rgb[2], 255);
+      }
+    } else if (this.multiplier) {
+      this.multiplier.node.setScale(1, 1, 1);
+      this.multiplier.color = new Color(240, 250, 255, 255);
     }
   }
 
