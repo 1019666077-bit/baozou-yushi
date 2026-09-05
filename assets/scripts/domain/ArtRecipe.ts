@@ -817,6 +817,11 @@ export function farBoatOps(): DrawOp[] {
     { t: "rect", x: 198, y: 24, w: 20, h: 6, r: 2, fill: rgba(hull, 180) },
     { t: "rect", x: 210, y: 28, w: 2, h: 10, fill: rgba(hull, 190) },
     { t: "ellipse", x: 520, y: 22, rx: 16, ry: 3, fill: rgba(hull, 140), tag: "silhouette" },
+    { t: "rect", x: 512, y: 22, w: 14, h: 5, r: 2, fill: rgba(hull, 160) },
+    { t: "ellipse", x: -40, y: 20, rx: 18, ry: 3.4, fill: rgba(hull, 150), tag: "silhouette" },
+    { t: "rect", x: -50, y: 20, w: 16, h: 5, r: 2, fill: rgba(hull, 170) },
+    { t: "rect", x: -40, y: 24, w: 2, h: 9, fill: rgba(hull, 180) },
+    { t: "ellipse", x: 360, y: 18, rx: 14, ry: 2.8, fill: rgba(hull, 130), tag: "silhouette" },
   ];
 }
 
@@ -2119,9 +2124,9 @@ export function islandSetOps(
       ...sunOps(420, 250, look),
       ...farRidgeOps(look),
       ...farBoatOps(),
-      ...foamIsleOps(-160, 70, 1.22, islandLook("island_foam_bay")),
-      ...prismIsleOps(170, 74, 1.18, islandLook("island_prism_reef")),
-      ...stormIsleOps(470, 68, 1.02, islandLook("island_storm_eye")),
+      ...foamIsleOps(-160, 70, 1.48, islandLook("island_foam_bay")),
+      ...prismIsleOps(170, 74, 1.38, islandLook("island_prism_reef")),
+      ...stormIsleOps(470, 68, 1.22, islandLook("island_storm_eye")),
       ...pierMarketOps(look),
       ...harborAmbienceOps(look),
       ...harborForegroundOps(),
@@ -2146,8 +2151,8 @@ export function islandSetOps(
   }
   ops.push(
     ...sunOps(460, 248, look),
-    ...foamIsleOps(380, 86, 1.42, look),
-    ...foamIsleOps(-420, 78, 1.02, look),
+    ...foamIsleOps(380, 86, 1.68, look),
+    ...foamIsleOps(-420, 78, 1.18, look),
     ...harborForegroundOps(),
   );
   return ops;

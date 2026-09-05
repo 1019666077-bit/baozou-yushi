@@ -5,12 +5,12 @@
  */
 export const CAST_FEEL = {
   /** 蓄满所需按住时长。略拉长，条和轨迹才读得出窗口。 */
-  chargeMs: 880,
+  chargeMs: 920,
   /** 甜区收窄：偏后半段，点太早/太晚都出甜区。 */
   sweetLo: 0.58,
   sweetHi: 0.8,
   /** 教学/单击：到此时长自动甩，落在甜区中段。 */
-  tutorialAutoMs: 610,
+  tutorialAutoMs: 640,
   /** 低于此值教学仍协助上钩，但不算甜区。 */
   minCharge: 0.18,
   previewPts: 10,
@@ -70,8 +70,8 @@ export function castBarSpec(): {
   sweetHi: number;
 } {
   return {
-    width: 268,
-    height: 20,
+    width: 400,
+    height: 30,
     sweetLo: CAST_FEEL.sweetLo,
     sweetHi: CAST_FEEL.sweetHi,
   };

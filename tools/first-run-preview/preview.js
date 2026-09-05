@@ -3,6 +3,17 @@
  * 非 Cocos 实机：2D/辅助 ≠ Creator 3D。无甲板扑腾、无真实瞄准手感。
  */
 import { COPY } from "./generated/copy.mjs";
+import {
+  makeGrain,
+  paintBayTraffic,
+  paintChargeAura,
+  paintFinish,
+  paintNearPier,
+  paintSkyBloom,
+  paintWaterLife,
+} from "./skin.js";
+
+const grain = makeGrain(320, 180);
 
 const stage = document.getElementById("stage");
 const bg = document.getElementById("bg");
@@ -710,14 +721,32 @@ function paintSea(ctx, _look, harbor = false) {
   if (ops) {
     paintOps(ctx, ops, performance.now() / 520);
     if (!harbor && COPY.art?.dock) paintOps(ctx, COPY.art.dock, performance.now() / 520);
-    return;
+  } else {
+    ctx.fillStyle = "#0a5c7e";
+    ctx.fillRect(0, 0, W, H);
   }
-  ctx.fillStyle = "#0a5c7e";
-  ctx.fillRect(0, 0, W, H);
+  const phase = performance.now() / 520;
+  paintSkyBloom(ctx, phase, harbor);
+  paintWaterLife(ctx, phase, !harbor);
+  paintBayTraffic(ctx, phase, harbor);
+  paintNearPier(ctx, phase, harbor);
+  paintFinish(ctx, grain, W, H);
 }
 
 function paintBoat(ctx, x, y) {
-  paintLocal(ctx, COPY.art?.boat ?? [], x, y);
+  ctx.save();
+  ctx.translate(sx(x), sy(y));
+  ctx.scale(1.48, -1.48);
+  paintOps(ctx, COPY.art?.boat ?? [], 0, true);
+  ctx.fillStyle = "rgba(36, 24, 18, 0.9)";
+  ctx.beginPath();
+  ctx.ellipse(-8, 22, 7, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#c47e3a";
+  ctx.fillRect(-12, 10, 10, 14);
+  ctx.fillStyle = "#ff8a20";
+  ctx.fillRect(-14, 6, 14, 6);
+  ctx.restore();
 }
 
 function bayfinOps() {
@@ -764,7 +793,7 @@ function paintFish(ctx, x, y) {
   const wet = x > -150 && y < 80 && !carrying;
   ctx.save();
   ctx.translate(sx(x), sy(y));
-  ctx.scale(squash.sx * 1.32, -squash.sy * 1.32);
+  ctx.scale(squash.sx * 1.92, -squash.sy * 1.92);
   ctx.rotate(fishAngle);
   if (wet) {
     ctx.fillStyle = "rgba(70, 210, 220, 0.16)";
@@ -855,24 +884,33 @@ function paintCharge(ctx) {
     ctx.arc(sx(pt.x), sy(pt.y), 3.4, 0, Math.PI * 2);
     ctx.fill();
   }
-  const spec = feelBar();
+  paintChargeAura(ctx, sx(tx), sy(ty), charge, judgeCharge(charge));
+  const spec = { ...feelBar(), width: 400, height: 30 };
   const bx = sx(0);
   const by = sy(-248);
-  ctx.fillStyle = "rgba(12,22,30,0.84)";
+  const qualityGlow = judgeCharge(charge);
+  if (qualityGlow === "sweet") {
+    ctx.fillStyle = "rgba(255,154,26,0.18)";
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx - spec.width / 2 - 10, by - 8, spec.width + 20, spec.height + 16, 12);
+    else ctx.rect(bx - spec.width / 2 - 10, by - 8, spec.width + 20, spec.height + 16);
+    ctx.fill();
+  }
+  ctx.fillStyle = "rgba(12,22,30,0.88)";
   if (ctx.roundRect) {
     ctx.beginPath();
-    ctx.roundRect(bx - spec.width / 2, by, spec.width, spec.height, 8);
+    ctx.roundRect(bx - spec.width / 2, by, spec.width, spec.height, 10);
     ctx.fill();
   } else ctx.fillRect(bx - spec.width / 2, by, spec.width, spec.height);
-  ctx.fillStyle = "rgba(86,210,132,0.38)";
+  ctx.fillStyle = qualityGlow === "sweet" ? "rgba(255,176,48,0.55)" : "rgba(86,210,132,0.42)";
   ctx.fillRect(
     bx - spec.width / 2 + spec.width * spec.sweetLo,
     by + 3,
     spec.width * (spec.sweetHi - spec.sweetLo),
     spec.height - 6,
   );
-  ctx.strokeStyle = "rgba(120,255,168,0.85)";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = qualityGlow === "sweet" ? "rgba(255,220,96,0.95)" : "rgba(120,255,168,0.85)";
+  ctx.lineWidth = 2.4;
   ctx.strokeRect(
     bx - spec.width / 2 + spec.width * spec.sweetLo,
     by + 2,
@@ -1129,14 +1167,14 @@ function paintJuice(ctx) {
     ctx.restore();
     ctx.save();
     ctx.globalAlpha = Math.min(1, slamMark);
-    ctx.font = "900 64px PingFang SC, Noto Sans SC, sans-serif";
+    ctx.font = "900 78px PingFang SC, Noto Sans SC, sans-serif";
     ctx.textAlign = "center";
     ctx.lineJoin = "round";
     ctx.strokeStyle = "rgba(72, 28, 0, 0.92)";
-    ctx.lineWidth = 10;
-    ctx.strokeText(COPY.firstRun.beatSlam ?? "砸！", cx, cy - 78);
+    ctx.lineWidth = 12;
+    ctx.strokeText(COPY.firstRun.beatSlam ?? "砸！", cx, cy - 86);
     ctx.fillStyle = "#fff4b0";
-    ctx.fillText(COPY.firstRun.beatSlam ?? "砸！", cx, cy - 78);
+    ctx.fillText(COPY.firstRun.beatSlam ?? "砸！", cx, cy - 86);
     ctx.restore();
     ctx.globalAlpha = 1;
   }
@@ -1200,40 +1238,42 @@ function renderHarbor() {
           : phase === "toast"
             ? statusFlash
             : "";
-  plate(0, 248, 820, 48, !complete);
-  label(line, 20, 0, 248, 1100, rgb(COPY.colors.cream));
+  plate(0, 292, 760, 44, !complete);
+  label(line, 20, 0, 292, 1100, rgb(COPY.colors.cream));
   if (toastText) {
     label(
       toastText,
       22,
       0,
-      206,
+      252,
       720,
       toastText === discoveryText ? rgb(COPY.colors.gold) : rgb(COPY.colors.cream),
     );
   }
-  for (const island of COPY.islands) {
+  COPY.islands.forEach((island, index) => {
     const selected = complete && island.id === displayIsland;
     const unlocked = island.unlockCost === 0;
     const caption = complete
       ? island.chipAfter ??
         (unlocked ? `${selected ? "● " : ""}${island.name}` : `${island.name} ${island.unlockCost}`)
       : island.chipNew ?? `${island.name} · 教学后`;
-    cta(caption, island.x, 188, COPY.button.chip.width, COPY.button.chip.height, COPY.button.chip.fontSize, "secondary", () => onIsland(island));
-  }
+    const chip = cta(caption, -220 + index * 220, 210, 148, 32, 14, "secondary", () => onIsland(island));
+    chip.classList.add("chip");
+  });
   COPY.tools.forEach((tool, index) => {
     const owned = tool.id === "tool_rod";
     const selected = owned;
     const caption = owned
       ? `${selected ? "● " : ""}${tool.name} Lv1`
       : `买${tool.name}`;
-    cta(caption, -340 + index * 340, 40, 300, 72, 22, "secondary", () => {
+    const toolBtn = cta(caption, -520, -8 - index * 48, 148, 36, 14, "secondary", () => {
       if (!owned) setStatus(COPY.coinFail);
       render();
     });
+    toolBtn.classList.add("chip");
   });
-  label(complete ? COPY.sailLineAfter : COPY.sailLineNew, 22, 0, -40, 1100);
-  label(complete ? COPY.fishCountAfter : COPY.fishCountNew, 20, 0, -90, 1100);
+  label(complete ? COPY.sailLineAfter : COPY.sailLineNew, 18, 200, -86, 520);
+  label(complete ? COPY.fishCountAfter : COPY.fishCountNew, 18, 200, -112, 520);
   const labels = complete ? COPY.featureLabelsAfter : COPY.featureLabelsNew;
   cta(
     complete ? COPY.sailCaptionAfter : COPY.sailCaptionNew,

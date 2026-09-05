@@ -107,8 +107,8 @@ function snapshot() {
   const data = {
     proxy: true,
     disclaimer: `非 Cocos 实机，仅 2D 辅助体验代理。2D/辅助 ≠ Creator 3D · 不是港湾真机画面 · 可浏览器代验玩法/画面 · ${SfxFeel.sfxPlaceholderNote()} · 真机 4 张只认 docs/stage3d/creator-shots/`,
-    sourceStamp: "baozou-flop-v35",
-    harborTitle: "暴走鱼市 · 潮汐港口 v35",
+    sourceStamp: "baozou-flop-v36",
+    harborTitle: "暴走鱼市 · 潮汐港口 v36",
     castRelease: "甩出",
     huntSuffix: "潮汐猎场",
     castButton: "抛竿",
