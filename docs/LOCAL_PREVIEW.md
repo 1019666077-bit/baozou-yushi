@@ -48,7 +48,7 @@ PLAYTEST_URL=http://127.0.0.1:8765/ node tools/playtest-live.mjs
 COCOS_CREATOR=/path/to/CocosCreator node tools/try-web-desktop-build.mjs
 ```
 
-当前云端探测结果：无 Creator 可执行文件，该脚本 exit 2。
+当前云端探测结果：无 Creator 可执行文件，该脚本 exit 2。云端若仍无 Creator，不要假装已出 `build/web-desktop`，自评只报代理分，未真机不出 8.5。
 
 ## 第一局体验代理（无 Creator，非实机证据）
 

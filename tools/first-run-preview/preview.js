@@ -33,6 +33,7 @@ let hooked = false;
 let pickable = false;
 let status = COPY.harborPrompts.newSail;
 let statusFlash = "";
+let toastLeft = 0;
 let fishName = COPY.waitingCast;
 let multiplier = COPY.firstRun.comboHud;
 let runCoins = 0;
@@ -213,6 +214,13 @@ function showCallout(text) {
 function setStatus(value) {
   status = value;
   statusFlash = value;
+  toastLeft = COPY.harborToastHoldSeconds ?? 1.25;
+}
+
+function harborPhase() {
+  if (coinJumpLeft > 0) return "justSold";
+  if (toastLeft > 0 && statusFlash) return "toast";
+  return "idle";
 }
 
 function playSfx(id) {
@@ -258,16 +266,31 @@ function paintPalm(ctx, x, y, s, look) {
 }
 
 function paintFoamIsle(ctx, x, y, s, look) {
-  ctx.fillStyle = rgb(look.landDark, 0.7);
+  ctx.fillStyle = rgb(look.deep, 0.62);
   ctx.beginPath();
-  ctx.ellipse(x, y, 78 * s, 22 * s, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, y + 6 * s, 86 * s, 24 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = rgb(look.landDark, 0.82);
+  ctx.beginPath();
+  ctx.ellipse(x, y, 78 * s, 20 * s, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = rgb(look.land);
   ctx.beginPath();
-  ctx.ellipse(x, y - 8 * s, 70 * s, 18 * s, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, y - 10 * s, 70 * s, 18 * s, 0, 0, Math.PI * 2);
   ctx.fill();
-  paintPalm(ctx, x - 18 * s, y - 10 * s, s, look);
-  paintPalm(ctx, x + 16 * s, y - 8 * s, 0.75 * s, look);
+  paintPalm(ctx, x - 22 * s, y - 12 * s, s, look);
+  paintPalm(ctx, x + 20 * s, y - 10 * s, 0.72 * s, look);
+  ctx.fillStyle = rgb(look.accent);
+  ctx.beginPath();
+  ctx.moveTo(x - 18 * s, y - 8 * s);
+  ctx.lineTo(x, y - 28 * s);
+  ctx.lineTo(x + 18 * s, y - 8 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "rgba(236,210,150,0.95)";
+  ctx.beginPath();
+  ctx.roundRect(x - 13 * s, y - 8 * s, 26 * s, 16 * s, 3);
+  ctx.fill();
 }
 
 function paintPrismIsle(ctx, x, y, s, look) {
@@ -310,26 +333,42 @@ function paintStormIsle(ctx, x, y, s, look) {
 }
 
 function paintSun(ctx, x, y, look) {
-  ctx.fillStyle = rgb(look.accent, 0.31);
+  ctx.fillStyle = rgb(look.accent, 0.16);
   ctx.beginPath();
-  ctx.arc(x, y, 36, 0, Math.PI * 2);
+  ctx.arc(x, y, 58, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = rgb(look.accent);
+  ctx.fillStyle = rgb(look.accent, 0.35);
   ctx.beginPath();
-  ctx.arc(x, y, 22, 0, Math.PI * 2);
+  ctx.arc(x, y, 40, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,226,140,0.95)";
+  ctx.beginPath();
+  ctx.arc(x, y, 24, 0, Math.PI * 2);
   ctx.fill();
 }
 
 function paintPier(ctx) {
-  ctx.fillStyle = "rgba(16,42,58,0.78)";
+  ctx.fillStyle = "rgba(8,28,40,0.72)";
   ctx.beginPath();
-  ctx.roundRect(120, 568, 260, 18, 4);
+  ctx.ellipse(240, 590, 120, 16, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#8a6c40";
-  for (let i = 0; i < 5; i += 1) ctx.fillRect(140 + i * 48, 548, 10, 28);
-  ctx.fillStyle = "#b0844e";
+  ctx.fillStyle = "#5c3e20";
+  for (let i = 0; i < 6; i += 1) ctx.fillRect(130 + i * 46, 538, 12, 36);
+  ctx.fillStyle = "#c48440";
   ctx.beginPath();
-  ctx.roundRect(120, 576, 260, 10, 3);
+  ctx.roundRect(110, 564, 300, 22, 6);
+  ctx.fill();
+  ctx.fillStyle = "#ecb25c";
+  ctx.beginPath();
+  ctx.roundRect(110, 576, 300, 12, 4);
+  ctx.fill();
+  ctx.fillStyle = "#d65630";
+  ctx.beginPath();
+  ctx.roundRect(154, 512, 86, 52, 8);
+  ctx.fill();
+  ctx.fillStyle = "#ffd278";
+  ctx.beginPath();
+  ctx.roundRect(166, 524, 62, 14, 3);
   ctx.fill();
 }
 
@@ -344,21 +383,21 @@ function paintSea(ctx, look, harbor = false) {
   sky.addColorStop(1, rgb(look.deep));
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = rgb([255, 236, 210], 0.16);
+  ctx.fillStyle = rgb([255, 236, 190], 0.2);
   ctx.beginPath();
-  ctx.ellipse(1060, 168, 220, 22, 0, 0, Math.PI * 2);
+  ctx.ellipse(720, 158, 260, 28, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = rgb(look.haze, 0.43);
-  ctx.lineWidth = 4;
+  ctx.strokeStyle = "rgba(255,236,180,0.35)";
+  ctx.lineWidth = 6;
   ctx.beginPath();
-  ctx.moveTo(0, 316);
-  ctx.lineTo(W, 316);
+  ctx.moveTo(0, 312);
+  ctx.lineTo(W, 312);
   ctx.stroke();
-  ctx.strokeStyle = "rgba(255,252,236,0.16)";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = "rgba(255,252,236,0.28)";
+  ctx.lineWidth = 2.5;
   ctx.beginPath();
-  ctx.moveTo(0, 322);
-  ctx.lineTo(W, 322);
+  ctx.moveTo(0, 320);
+  ctx.lineTo(W, 320);
   ctx.stroke();
   if (harbor) {
     paintSun(ctx, 1060, 110, look);
@@ -396,31 +435,31 @@ function paintSea(ctx, look, harbor = false) {
 function paintBoat(ctx, x, y) {
   ctx.save();
   ctx.translate(sx(x), sy(y));
-  ctx.fillStyle = "rgba(12,36,48,0.58)";
+  ctx.fillStyle = "rgba(8,28,40,0.66)";
   ctx.beginPath();
-  ctx.ellipse(2, 16, 62, 12, 0, 0, Math.PI * 2);
+  ctx.ellipse(4, 18, 72, 14, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#d0a056";
+  ctx.fillStyle = "#e29c48";
   ctx.beginPath();
-  ctx.roundRect(-54, -12, 108, 30, 12);
+  ctx.roundRect(-62, -14, 124, 36, 16);
   ctx.fill();
-  ctx.fillStyle = "#ecc47a";
-  ctx.fillRect(-50, 2, 100, 8);
-  ctx.fillStyle = "#f2d7a8";
+  ctx.fillStyle = "#ffce76";
+  ctx.fillRect(-56, 4, 112, 10);
+  ctx.fillStyle = "#ffe4b0";
   ctx.beginPath();
-  ctx.roundRect(-12, 8, 48, 24, 6);
+  ctx.roundRect(-16, 10, 56, 28, 8);
   ctx.fill();
-  ctx.fillStyle = "#78c4d6";
+  ctx.fillStyle = "#5cd6e2";
   ctx.beginPath();
-  ctx.arc(10, 20, 8, 0, Math.PI * 2);
+  ctx.arc(12, 24, 9, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#5c4a30";
-  ctx.fillRect(-6, 10, 5, 40);
-  ctx.fillStyle = "#ffa848";
+  ctx.fillStyle = "#5c4428";
+  ctx.fillRect(-8, 12, 6, 46);
+  ctx.fillStyle = "#ff942a";
   ctx.beginPath();
-  ctx.moveTo(-4, 48);
-  ctx.lineTo(26, 38);
-  ctx.lineTo(-4, 30);
+  ctx.moveTo(-6, 56);
+  ctx.lineTo(32, 42);
+  ctx.lineTo(-6, 32);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
@@ -454,34 +493,38 @@ function paintFish(ctx, x, y, glow) {
   ctx.fillStyle = rgb(look.body);
   ctx.beginPath();
   ctx.moveTo(6, -6);
-  ctx.lineTo(2, -28);
+  ctx.lineTo(0, -30);
   ctx.lineTo(18, -8);
   ctx.closePath();
   ctx.fill();
   ctx.beginPath();
-  ctx.ellipse(8, 2, 36, 18, 0, 0, Math.PI * 2);
+  ctx.ellipse(8, 2, 38, 19, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = rgb(look.belly);
   ctx.beginPath();
-  ctx.ellipse(16, 8, 22, 10, 0, 0, Math.PI * 2);
+  ctx.ellipse(16, 8, 24, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,168,140,0.55)";
+  ctx.beginPath();
+  ctx.ellipse(18, -2, 8, 5, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = rgb(look.accent);
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2.4;
   ctx.beginPath();
   ctx.moveTo(-6, 2);
-  ctx.quadraticCurveTo(8, 10, 22, 4);
+  ctx.quadraticCurveTo(8, 12, 24, 3);
   ctx.stroke();
-  ctx.fillStyle = "#f7fff4";
+  ctx.fillStyle = "#fffaf0";
   ctx.beginPath();
-  ctx.arc(30, 0, 5, 0, Math.PI * 2);
+  ctx.arc(32, 1, 6.2, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#142018";
+  ctx.fillStyle = "#121c18";
   ctx.beginPath();
-  ctx.arc(32, -1, 2.4, 0, Math.PI * 2);
+  ctx.arc(34, 0, 3, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = "#fff";
   ctx.beginPath();
-  ctx.arc(33, -2, 0.9, 0, Math.PI * 2);
+  ctx.arc(35.2, -1.2, 1.1, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = glow ? "#ffe24a" : rgb(look.accent);
   ctx.beginPath();
@@ -519,24 +562,24 @@ function paintCrate(ctx) {
   ctx.beginPath();
   ctx.ellipse(0, 28, 46, 8, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#8a582a";
+  ctx.fillStyle = "#9c5c26";
   ctx.beginPath();
-  ctx.roundRect(-42, -26, 84, 52, 6);
+  ctx.roundRect(-46, -28, 92, 58, 8);
   ctx.fill();
-  ctx.fillStyle = "#b07c40";
+  ctx.fillStyle = "#cc8a40";
   ctx.beginPath();
-  ctx.roundRect(-42, 10, 84, 16, 5);
+  ctx.roundRect(-46, 12, 92, 18, 6);
   ctx.fill();
-  ctx.fillStyle = "#6e4622";
-  for (let i = 0; i < 4; i += 1) ctx.fillRect(-34 + i * 20, -20, 4, 30);
-  ctx.strokeStyle = "#ffdc78";
-  ctx.lineWidth = 3;
+  ctx.fillStyle = "#6e4020";
+  for (let i = 0; i < 4; i += 1) ctx.fillRect(-36 + i * 22, -20, 5, 32);
+  ctx.strokeStyle = "#ffd660";
+  ctx.lineWidth = 4;
   ctx.beginPath();
-  ctx.roundRect(-42, -26, 84, 52, 6);
+  ctx.roundRect(-46, -28, 92, 58, 8);
   ctx.stroke();
-  ctx.fillStyle = "#ffd25a";
+  ctx.fillStyle = "#ffd648";
   ctx.beginPath();
-  ctx.arc(0, 18, 4, 0, Math.PI * 2);
+  ctx.arc(0, 20, 5, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
@@ -648,22 +691,43 @@ function renderHarbor() {
     const t = 1 - coinJumpLeft / COPY.coinJumpSeconds;
     label(sellPopup, 30, 0, 120 + t * 16, 520, rgb(COPY.colors.gold));
   }
-  label(COPY.cloudLine, 18, 0, 278);
-  label(COPY.healthLine, 16, 0, 262, 1100);
+  const phase = harborPhase();
+  const showMeta = COPY.hudShowMeta?.[phase] ?? phase === "idle";
+  if (showMeta) {
+    label(COPY.cloudLine, 18, 0, 278);
+    label(COPY.healthLine, 16, 0, 262, 1100);
+  }
   const line =
     next !== "sail"
       ? COPY.harborPrompts[next === "upgrade" ? "upgrade" : "sell"]
       : complete
         ? COPY.harborGoalAfter ?? COPY.harborPrompts.freeSail
         : COPY.harborPrompts.newSail;
-  const discovery =
-    complete && COPY.firstRun.discovery && statusFlash === COPY.firstRun.discovery
+  const discoveryText =
+    complete && statusFlash === COPY.firstRun.discovery
       ? COPY.firstRun.discovery
       : "";
+  const toastText =
+    discoveryText && phase === "justSold"
+      ? ""
+      : phase === "justSold" && statusFlash && statusFlash !== discoveryText
+        ? statusFlash
+        : discoveryText && phase !== "justSold"
+          ? discoveryText
+          : phase === "toast"
+            ? statusFlash
+            : "";
   plate(0, 248, 820, 48, !complete);
-  label(discovery ? line : statusFlash || line, 20, 0, 248, 1100, rgb(COPY.colors.cream));
-  if (discovery) {
-    label(discovery, 24, 0, 206, 720, rgb(COPY.colors.gold));
+  label(line, 20, 0, 248, 1100, rgb(COPY.colors.cream));
+  if (toastText) {
+    label(
+      toastText,
+      22,
+      0,
+      206,
+      720,
+      toastText === discoveryText ? rgb(COPY.colors.gold) : rgb(COPY.colors.cream),
+    );
   }
   for (const island of COPY.islands) {
     const selected = complete && island.id === displayIsland;
@@ -757,8 +821,21 @@ function renderSea() {
   label(COPY.tutorialIsland.clock, 20, -470, 268, 280);
   label(COPY.crateLabel, 20, COPY.crate.x, -96, 120, "#ffecb4");
   const bar = COPY.button.bar;
-  cta(COPY.castButton, -390, -292, bar.width, bar.height, bar.fontSize, barTone("cast"), onCast);
-  cta(COPY.pickButton, 390, -292, bar.width, bar.height, bar.fontSize, barTone("pickUp"), onPick);
+  if (!carrying) {
+    cta(COPY.castButton, -390, -292, bar.width, bar.height, bar.fontSize, barTone("cast"), onCast);
+    cta(COPY.pickButton, 390, -292, bar.width, bar.height, bar.fontSize, barTone("pickUp"), onPick);
+  } else {
+    cta(
+      COPY.inboxButton ?? "丢掉入箱",
+      0,
+      -292,
+      220,
+      bar.height,
+      bar.fontSize,
+      "primary",
+      onCrate,
+    );
+  }
   cta(COPY.pauseButton, -530, 268, COPY.button.mini.width, COPY.button.mini.height, COPY.button.mini.fontSize, "secondary", () => {
     setStatus("已暂停。再点暂停，3秒后继续。");
     render();
@@ -943,6 +1020,7 @@ function confirmSettle() {
   playSfx("sell");
   surface = "harbor";
   statusFlash = COPY.firstRun.discovery;
+  toastLeft = 0;
   render();
 }
 
@@ -975,6 +1053,15 @@ function tick(now) {
     if (coinJumpLeft === 0) {
       coinJump = "";
       sellPopup = "";
+      if (statusFlash && toastLeft <= 0) toastLeft = COPY.harborToastHoldSeconds ?? 1.25;
+      if (surface === "harbor") renderHarbor();
+    }
+  }
+  if (coinJumpLeft <= 0 && toastLeft > 0) {
+    toastLeft = Math.max(0, toastLeft - dt);
+    if (toastLeft === 0) {
+      statusFlash = "";
+      if (surface === "harbor") renderHarbor();
     }
   }
   if (autoSettleAt && now >= autoSettleAt && surface === "sea") {

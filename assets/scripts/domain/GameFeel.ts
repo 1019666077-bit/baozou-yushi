@@ -24,16 +24,16 @@ export interface Palette {
 /** RuntimeHome / RuntimePrototype / 代理预览共用色板。 */
 export function feelPalette(): Palette {
   return {
-    primary: [255, 156, 56],
-    secondary: [16, 78, 90],
-    primaryInk: [255, 252, 240],
-    secondaryInk: [220, 238, 244],
-    gold: [255, 220, 72],
-    cream: [255, 252, 236],
-    plate: [8, 18, 28],
-    hud: [240, 250, 255],
-    strokePrimary: [255, 236, 180],
-    strokeSecondary: [72, 168, 176],
+    primary: [255, 138, 32],
+    secondary: [18, 64, 78],
+    primaryInk: [255, 250, 236],
+    secondaryInk: [226, 242, 246],
+    gold: [255, 210, 48],
+    cream: [255, 248, 228],
+    plate: [10, 22, 32],
+    hud: [255, 252, 244],
+    strokePrimary: [255, 228, 150],
+    strokeSecondary: [64, 176, 176],
   };
 }
 
@@ -54,11 +54,11 @@ export function buttonStrokeRgb(tone: ButtonTone): [number, number, number] {
 }
 
 export function buttonRadius(): number {
-  return 18;
+  return 20;
 }
 
 export function buttonStrokeWidth(tone: ButtonTone): number {
-  return tone === "primary" ? 3 : 2;
+  return tone === "primary" ? 4 : 2;
 }
 
 export function buttonSpec(role: ButtonRole): ButtonSpec {
@@ -78,11 +78,11 @@ export function creamInkRgb(): [number, number, number] {
 }
 
 export function plateFillRgba(tutorial = false): [number, number, number, number] {
-  return tutorial ? [8, 18, 28, 214] : [8, 18, 28, 188];
+  return tutorial ? [12, 24, 34, 228] : [12, 24, 34, 200];
 }
 
 export function plateStrokeRgba(tutorial = false): [number, number, number, number] {
-  return tutorial ? [255, 214, 48, 210] : [120, 186, 196, 90];
+  return tutorial ? [255, 206, 64, 230] : [110, 196, 196, 110];
 }
 
 export function plateSize(): { width: number; height: number; radius: number } {

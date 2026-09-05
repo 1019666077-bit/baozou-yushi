@@ -51,7 +51,7 @@ await tap(page, "弱点");
 await wait(1400);
 await tap(page, "捡起");
 await wait(1400);
-await tap(page, "鱼箱");
+await tap(page, "丢掉入箱");
 await wait(900);
 await tap(page, "回港");
 await wait(1400);

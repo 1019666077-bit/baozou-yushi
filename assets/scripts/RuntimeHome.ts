@@ -37,7 +37,6 @@ import {
 import {
   closedIslandCaption,
   cloudStatusLine,
-  harborNotice,
   islandClosed,
   type CloudKind,
 } from "./domain/CloudCopy";
@@ -83,10 +82,15 @@ import {
   harborFeatureButtonLabel,
   harborFeatureLockedHint,
   harborGoalPrompt,
+  harborHudPhase,
+  harborHudShowDiscovery,
+  harborHudShowMeta,
+  harborHudToastText,
   harborIslandChipCaption,
   harborNextCta,
   harborNextPrompt,
   harborSailCaption,
+  harborToastHoldSeconds,
   harborUnlocksForSave,
   resolveHarborIsland,
   tutorialGuideRing,
@@ -106,6 +110,8 @@ export class RuntimeHome extends Component {
   private settling = false;
   private cloudKind: CloudKind = "syncing";
   private statusFlash?: string;
+  private toastLabel?: Label;
+  private toastLeft = 0;
   private surface:
     | "harbor"
     | "settings"
@@ -208,8 +214,6 @@ export class RuntimeHome extends Component {
       this.sellCallout = undefined;
     }
     makeButton(layer, "设置", -530, 310, () => this.showSettings(), 140, 52, 22);
-    makeLabel(layer, cloudStatusLine(this.cloudKind), 18, 0, 278, 900);
-    makeLabel(layer, healthAdviceLines()[1] ?? healthAdviceLines()[0], 16, 0, 262, 1100);
     const unlocks = harborUnlocksForSave(save);
     const island = ConfigService.islandById(this.selectedIslandId);
     const tool = ConfigService.toolById(this.selectedToolId);
@@ -232,33 +236,49 @@ export class RuntimeHome extends Component {
       nextUpgradeCost: nextLevel?.upgradeCost,
       upgradeUnlocked: unlocks.upgrade,
     });
-    const discoveryFlash =
-      this.statusFlash && this.justDiscovered.length > 0
-        ? this.statusFlash
-        : undefined;
-    makePlate(layer, 0, 248, !save.tutorialComplete, 820, 48);
-    this.status = makeLabel(
-      layer,
-      discoveryFlash
-        ? goal
-        : (this.statusFlash ??
-          (nextCta !== "sail"
-            ? harborNextPrompt(nextCta, save.tutorialComplete)
-            : this.lastSummary
-              ? goal
-              : save.tutorialComplete
-                ? harborNotice(ConfigService.remoteConfig().notice)
-                : harborNextPrompt("sail", false))),
-      20,
-      0,
-      248,
+    const phase = harborHudPhase({
+      sellJuiceActive: this.coinJumpLeft > 0,
+      toastActive: this.toastLeft > 0 && !!this.statusFlash,
+    });
+    const showMeta = harborHudShowMeta(phase);
+    const discoveryText = discoveryToastLine(
+      this.justDiscovered.map((id) => {
+        try {
+          return ConfigService.fishById(id).name;
+        } catch {
+          return id;
+        }
+      }),
     );
-    this.status.color = new Color(255, 252, 236, 255);
-    if (discoveryFlash) {
-      this.discoveryLabel = tintGold(
-        makeLabel(layer, discoveryFlash, 24, 0, 206, 720),
+    const showDiscovery = harborHudShowDiscovery(phase, !!discoveryText);
+    if (showMeta) {
+      makeLabel(layer, cloudStatusLine(this.cloudKind), 18, 0, 278, 900);
+      makeLabel(
+        layer,
+        healthAdviceLines()[1] ?? healthAdviceLines()[0],
+        16,
+        0,
+        262,
+        1100,
       );
+    }
+    makePlate(layer, 0, 248, !save.tutorialComplete, 820, 48);
+    this.status = makeLabel(layer, goal, 20, 0, 248);
+    this.status.color = new Color(255, 252, 236, 255);
+    const toastText = harborHudToastText({
+      phase,
+      toast: this.statusFlash,
+      discoveryText: discoveryText || undefined,
+    });
+    if (toastText) {
+      this.toastLabel = makeLabel(layer, toastText, 22, 0, 206, 720);
+      if (showDiscovery && toastText === discoveryText) {
+        this.discoveryLabel = tintGold(this.toastLabel);
+      } else {
+        this.discoveryLabel = undefined;
+      }
     } else {
+      this.toastLabel = undefined;
       this.discoveryLabel = undefined;
     }
 
@@ -364,6 +384,7 @@ export class RuntimeHome extends Component {
       () => {
         if (!unlocks.book) {
           this.setStatus(harborFeatureLockedHint("book", save));
+          this.showHarbor();
           return;
         }
         this.showBook();
@@ -380,6 +401,7 @@ export class RuntimeHome extends Component {
       () => {
         if (!unlocks.board) {
           this.setStatus(harborFeatureLockedHint("board", save));
+          this.showHarbor();
           return;
         }
         this.showBoard();
@@ -608,6 +630,7 @@ export class RuntimeHome extends Component {
     this.pendingSummary = undefined;
     SfxPlayer.setEnabled(playerSave.get().settings.sfx);
     this.statusFlash = error ?? wipeDoneNotice();
+    this.toastLeft = harborToastHoldSeconds();
     this.showHarbor();
   }
 
@@ -705,6 +728,10 @@ export class RuntimeHome extends Component {
         this.justDiscovered.map((id) => ConfigService.fishById(id).name),
       );
       this.statusFlash = toast || undefined;
+      this.toastLeft =
+        this.coinJumpLeft > 0 || !this.statusFlash
+          ? 0
+          : harborToastHoldSeconds();
       this.selectedIslandId = resolveHarborIsland(
         next.tutorialComplete,
         this.selectedIslandId,
@@ -815,8 +842,8 @@ export class RuntimeHome extends Component {
 
   private setStatus(value: string): void {
     this.statusFlash = value;
-    if (this.status) this.status.string = value;
-    if (this.coinsLabel) {
+    this.toastLeft = harborToastHoldSeconds();
+    if (this.coinsLabel?.isValid) {
       this.coinsLabel.string = `金币 ${playerSave.get().coins}`;
       tintGold(this.coinsLabel);
     }
@@ -845,6 +872,17 @@ export class RuntimeHome extends Component {
         this.coinJumpGained = 0;
         this.coinJumpLabel.string = "";
         if (this.sellCallout) this.sellCallout.string = "";
+        if (this.statusFlash && this.toastLeft <= 0) {
+          this.toastLeft = harborToastHoldSeconds();
+        }
+        if (this.surface === "harbor") this.showHarbor();
+      }
+    }
+    if (this.coinJumpLeft <= 0 && this.toastLeft > 0) {
+      this.toastLeft = Math.max(0, this.toastLeft - dt);
+      if (this.toastLeft <= 0 && this.surface === "harbor") {
+        this.statusFlash = undefined;
+        this.showHarbor();
       }
     }
     if (this.sellCallout?.isValid && this.sellPunchLeft > 0) {

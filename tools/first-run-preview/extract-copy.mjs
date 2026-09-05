@@ -107,6 +107,8 @@ function snapshot() {
     returnButton: "回港",
     settingsButton: "设置",
     crateLabel: "鱼箱",
+    inboxButton: TutorialFlow.inboxBarCaption(),
+    harborToastHoldSeconds: TutorialFlow.harborToastHoldSeconds(),
     waitingCast: "等待抛竿",
     settleTitle: "潮汐鱼市结算",
     sellCaption: "卖到鱼市",
@@ -199,6 +201,20 @@ function snapshot() {
         cast: TutorialFlow.tutorialBarButtonTone("reel", "cast", { carrying: true }),
         pickUp: TutorialFlow.tutorialBarButtonTone("reel", "pickUp", { carrying: true }),
       },
+    },
+    barVisible: {
+      carryingCast: TutorialFlow.battleBarButtonVisible({ carrying: true }, "cast"),
+      carryingPick: TutorialFlow.battleBarButtonVisible({ carrying: true }, "pickUp"),
+      idleCast: TutorialFlow.battleBarButtonVisible({ carrying: false }, "cast"),
+    },
+    inboxCtaVisible: {
+      carrying: TutorialFlow.battleInboxCtaVisible({ carrying: true }),
+      idle: TutorialFlow.battleInboxCtaVisible({ carrying: false }),
+    },
+    hudShowMeta: {
+      justSold: TutorialFlow.harborHudShowMeta("justSold"),
+      toast: TutorialFlow.harborHudShowMeta("toast"),
+      idle: TutorialFlow.harborHudShowMeta("idle"),
     },
     waveOnCast: TutorialFlow.battleWaveNarration(
       true,

@@ -96,11 +96,11 @@ export function tutorialGuideRing(nowMs: number): {
   stroke: [number, number, number, number];
 } {
   return {
-    pulse: 14 + Math.sin(nowMs / 180) * 8,
-    lineWidth: 8,
-    fillAlpha: 18,
-    maskAlpha: 148,
-    stroke: [255, 228, 96, 240],
+    pulse: 18 + Math.sin(nowMs / 160) * 10,
+    lineWidth: 10,
+    fillAlpha: 26,
+    maskAlpha: 176,
+    stroke: [255, 220, 72, 250],
   };
 }
 
@@ -143,15 +143,36 @@ export function tutorialBarButtonTone(
   return focus === "pickUp" ? "primary" : "secondary";
 }
 
-/** 自由局也只亮一个主橙：空闲抛竿、可捡则捡起、扛鱼/锁鱼都降权。 */
+export type BattleBarInput = {
+  tutorial: boolean;
+  step: TutorialStep;
+  carrying?: boolean;
+  pickable?: boolean;
+  hooked?: boolean;
+};
+
+/** 去鱼箱步不露抛竿/捡起，避免底栏还像主操作。 */
+export function battleBarButtonVisible(
+  input: Pick<BattleBarInput, "carrying">,
+  _button: "cast" | "pickUp" = "cast",
+): boolean {
+  return !input.carrying;
+}
+
+/** 扛着鱼时底栏只留入箱主橙。 */
+export function battleInboxCtaVisible(
+  input: Pick<BattleBarInput, "carrying">,
+): boolean {
+  return input.carrying === true;
+}
+
+export function inboxBarCaption(): string {
+  return "丢掉入箱";
+}
+
+/** 自由局也只亮一个主橙：空闲抛竿、可捡则捡起、扛鱼改入箱钮。 */
 export function battleBarButtonTone(
-  input: {
-    tutorial: boolean;
-    step: TutorialStep;
-    carrying?: boolean;
-    pickable?: boolean;
-    hooked?: boolean;
-  },
+  input: BattleBarInput,
   button: "cast" | "pickUp",
 ): ButtonTone {
   if (input.tutorial) {
@@ -205,7 +226,56 @@ export function harborNextPrompt(
   return "点「出海捕鱼」，再甩一竿。";
 }
 
-/** 卖完回港：买得起升级就指升级，否则指再出海攒差价。不灌金币。 */
+/** 主目标一句：攒够升级价，带进度，不灌金币。 */
+export function harborUpgradeProgressLine(
+  coins: number,
+  nextUpgradeCost: number,
+): string {
+  return `目标：攒够 ${nextUpgradeCost} 升级竿（${coins}/${nextUpgradeCost}）`;
+}
+
+export type HarborHudPhase = "justSold" | "toast" | "idle";
+
+/** 卖完金币雨优先；短反馈次之；平时才露云档/忠告。 */
+export function harborHudPhase(input: {
+  sellJuiceActive: boolean;
+  toastActive: boolean;
+}): HarborHudPhase {
+  if (input.sellJuiceActive) return "justSold";
+  if (input.toastActive) return "toast";
+  return "idle";
+}
+
+export function harborHudShowMeta(phase: HarborHudPhase): boolean {
+  return phase === "idle";
+}
+
+export function harborHudShowDiscovery(
+  phase: HarborHudPhase,
+  hasDiscovery: boolean,
+): boolean {
+  return hasDiscovery && phase !== "justSold";
+}
+
+/** 发现 toast 等金币雨后再出；升级失败等短反馈可立刻露，但不改主目标。 */
+export function harborHudToastText(input: {
+  phase: HarborHudPhase;
+  toast?: string;
+  discoveryText?: string;
+}): string | undefined {
+  if (!input.toast) return undefined;
+  if (input.discoveryText && input.toast === input.discoveryText) {
+    return input.phase === "justSold" ? undefined : input.toast;
+  }
+  return input.toast;
+}
+
+/** 升级失败等短反馈，不永久占主目标。 */
+export function harborToastHoldSeconds(): number {
+  return 1.25;
+}
+
+/** 卖完回港：买得起升级就指升级，否则主目标写攒够进度。不灌金币。 */
 export function harborGoalPrompt(input: {
   tutorialComplete: boolean;
   completedRuns: number;
@@ -228,7 +298,7 @@ export function harborGoalPrompt(input: {
     input.nextUpgradeCost != null &&
     input.coins < input.nextUpgradeCost
   ) {
-    return `再出海攒金。升级还差 ${input.nextUpgradeCost - input.coins}。`;
+    return harborUpgradeProgressLine(input.coins, input.nextUpgradeCost);
   }
   return harborNextPrompt("sail", input.tutorialComplete);
 }

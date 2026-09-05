@@ -25,10 +25,10 @@ export function juiceCount(kind: JuiceKind, lowPower: boolean): number {
   if (kind === "gold" || kind === "sell") return lowPower ? 6 : 10;
   if (lowPower) return kind === "miss" ? 2 : 3;
   if (kind === "miss") return 4;
-  if (kind === "splash") return 8;
-  if (kind === "hit") return 7;
-  if (kind === "catch") return 6;
-  return 7;
+  if (kind === "splash") return 10;
+  if (kind === "hit") return 9;
+  if (kind === "catch") return 8;
+  return 9;
 }
 
 export function spawnJuice(
@@ -103,13 +103,13 @@ export interface JuiceFlash {
 
 export function juiceShakePx(kind: JuiceKind, lowPower: boolean): number {
   if (lowPower) return 0;
-  if (kind === "weak" || kind === "perfect") return 3;
-  if (kind === "hit" || kind === "catch") return 2;
+  if (kind === "weak" || kind === "perfect") return 4;
+  if (kind === "hit" || kind === "catch") return 3;
   return 0;
 }
 
 export function juiceShakeSeconds(lowPower: boolean): number {
-  return lowPower ? 0 : 0.08;
+  return lowPower ? 0 : 0.1;
 }
 
 export function juiceWantsPunch(kind: JuiceKind, lowPower: boolean): boolean {
@@ -230,7 +230,7 @@ export function tickJuice(
 
 /** 欢乐钓鱼大师式甩钩：线闪很短，低配只留细线。 */
 export function castFlashSeconds(lowPower: boolean): number {
-  return lowPower ? 0.12 : 0.2;
+  return lowPower ? 0.12 : 0.26;
 }
 
 export function castLineWidth(

@@ -11,18 +11,19 @@ fs.mkdirSync(out, { recursive: true });
 
 const bayfin = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-80 -40 160 80" width="320" height="160">
-  <ellipse cx="0" cy="22" rx="42" ry="8" fill="rgba(12,36,48,0.28)"/>
-  <path d="M-28 0 L-68 -20 L-54 0 L-68 20 Z" fill="#2e8a80"/>
-  <path d="M8 8 L28 34 L32 6 Z" fill="#2e8a80"/>
-  <path d="M6 -6 L2 -28 L18 -8 Z" fill="#3cbc9c"/>
-  <ellipse cx="8" cy="2" rx="36" ry="18" fill="#48c4a8"/>
-  <ellipse cx="16" cy="8" rx="22" ry="10" fill="#baecc4"/>
-  <path d="M-6 2 Q8 10 22 4" fill="none" stroke="#2e8a80" stroke-width="1.6"/>
-  <circle cx="30" cy="0" r="5" fill="#f7fff4"/>
-  <circle cx="32" cy="-1" r="2.4" fill="#142018"/>
-  <circle cx="33" cy="-2" r="0.9" fill="#fff"/>
-  <ellipse cx="34" cy="8" rx="4" ry="2" fill="#1a2820"/>
-  <circle cx="26" cy="16" r="6" fill="#ffe478" stroke="#fff8c0" stroke-width="2"/>
+  <ellipse cx="0" cy="22" rx="46" ry="9" fill="rgba(8,28,40,0.32)"/>
+  <path d="M-24 0 L-68 -20 L-52 0 L-68 20 Z" fill="#128e7c"/>
+  <path d="M8 8 L28 36 L34 6 Z" fill="#128e7c"/>
+  <path d="M6 -6 L0 -30 L18 -8 Z" fill="#24d6b2"/>
+  <ellipse cx="6" cy="2" rx="36" ry="18" fill="#24d6b2"/>
+  <ellipse cx="16" cy="8" rx="22" ry="10" fill="#d2fade"/>
+  <ellipse cx="18" cy="-2" rx="8" ry="5" fill="rgba(255,168,140,0.55)"/>
+  <path d="M-6 2 Q8 12 26 3" fill="none" stroke="#128e7c" stroke-width="2.2"/>
+  <circle cx="30" cy="1" r="6.2" fill="#fffaf0"/>
+  <circle cx="32" cy="0" r="3" fill="#121c18"/>
+  <circle cx="33.2" cy="-1.2" r="1.1" fill="#fff"/>
+  <ellipse cx="34" cy="10" rx="4" ry="2" fill="#162820"/>
+  <circle cx="26" cy="16" r="7" fill="#ffe24a" stroke="#fff8c0" stroke-width="2.4"/>
 </svg>
 `;
 
@@ -34,8 +35,8 @@ const dock = `<?xml version="1.0" encoding="UTF-8"?>
   <rect x="156" y="86" width="14" height="42" rx="2" fill="#6a4a28"/>
   <rect x="226" y="86" width="14" height="42" rx="2" fill="#6a4a28"/>
   <rect x="296" y="86" width="14" height="42" rx="2" fill="#6a4a28"/>
-  <rect x="8" y="28" width="400" height="72" rx="8" fill="#c48a48"/>
-  <rect x="8" y="28" width="400" height="14" rx="6" fill="#e2b46a"/>
+  <rect x="8" y="28" width="400" height="72" rx="8" fill="#cc8a44"/>
+  <rect x="8" y="28" width="400" height="16" rx="6" fill="#ecba6c"/>
   <g fill="#8a5a2c">
     <rect x="24" y="46" width="6" height="48"/>
     <rect x="76" y="46" width="6" height="48"/>
@@ -58,12 +59,12 @@ const water = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#b0d6ec"/>
-      <stop offset="0.28" stop-color="#7ec4d8"/>
-      <stop offset="0.42" stop-color="#d2e8ec"/>
-      <stop offset="0.52" stop-color="#40a8ba"/>
-      <stop offset="0.7" stop-color="#16708a"/>
-      <stop offset="1" stop-color="#0c3e56"/>
+      <stop offset="0" stop-color="#ffa456"/>
+      <stop offset="0.22" stop-color="#ffc480"/>
+      <stop offset="0.4" stop-color="#ffdca8"/>
+      <stop offset="0.52" stop-color="#24a8ba"/>
+      <stop offset="0.72" stop-color="#0a5c7e"/>
+      <stop offset="1" stop-color="#062c44"/>
     </linearGradient>
   </defs>
   <rect width="1280" height="720" fill="url(#sky)"/>

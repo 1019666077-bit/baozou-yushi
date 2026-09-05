@@ -195,6 +195,9 @@ import {
   tutorialPrompt,
   tutorialBarButtonTone,
   battleBarButtonTone,
+  battleBarButtonVisible,
+  battleInboxCtaVisible,
+  inboxBarCaption,
   tutorialLessonActive,
   battleWaveNarration,
   waveStartNarration,
@@ -202,6 +205,12 @@ import {
   harborNextCta,
   harborNextPrompt,
   harborGoalPrompt,
+  harborUpgradeProgressLine,
+  harborHudPhase,
+  harborHudShowMeta,
+  harborHudShowDiscovery,
+  harborHudToastText,
+  harborToastHoldSeconds,
   harborIslandChipCaption,
 } from "../assets/scripts/domain/TutorialFlow";
 import { sfxTone, shouldPlaySfx } from "../assets/scripts/domain/SfxFeel";
@@ -750,7 +759,7 @@ describe("GameFeel", () => {
 describe("HitJuice", () => {
   it("spawns fewer bubbles on low power and fades them out", () => {
     expect(juiceCount("weak", true)).toBe(3);
-    expect(juiceCount("weak", false)).toBe(7);
+    expect(juiceCount("weak", false)).toBe(9);
     const burst = spawnJuice("weak", 10, 20);
     expect(burst.some((p) => p.kind === "star")).toBe(true);
     expect(burst[0].x).toBe(10);
@@ -759,7 +768,7 @@ describe("HitJuice", () => {
     const mid = tickJuice(spawnJuice("hit", 0, 0), 0.1);
     expect(mid.length).toBe(juiceCount("hit", false));
     expect(mid[0].life).toBeLessThan(1);
-    expect(juiceCount("splash", false)).toBe(8);
+    expect(juiceCount("splash", false)).toBe(10);
     expect(spawnJuice("splash", 0, 0).every((p) => p.kind === "bubble")).toBe(true);
     expect(juiceWantsPunch("weak", false)).toBe(true);
     expect(juiceWantsPunch("hit", true)).toBe(false);
@@ -769,8 +778,8 @@ describe("HitJuice", () => {
     expect(juicePunchScaleAt("weak", 0.05, false)).toBeGreaterThan(1);
     expect(juicePunchScaleAt("hit", 0, true)).toBe(1);
     expect(juiceShakePx("weak", false)).toBeGreaterThan(0);
-    expect(juiceShakePx("weak", false)).toBeLessThanOrEqual(3);
-    expect(juiceShakeSeconds(false)).toBeLessThanOrEqual(0.08);
+    expect(juiceShakePx("weak", false)).toBeLessThanOrEqual(5);
+    expect(juiceShakeSeconds(false)).toBeLessThanOrEqual(0.12);
     expect(juiceShakePx("hit", true)).toBe(0);
     const flash = spawnJuiceFlash("catch", 8, 12, false);
     expect(flash?.kind).toBe("catch");
@@ -846,6 +855,10 @@ describe("GrayLook", () => {
     );
     expect(islandLook("island_foam_bay", true).skyTop[0]).toBeGreaterThan(
       islandLook("island_storm_eye").skyTop[0],
+    );
+    expect(islandLook("island_foam_bay", true).skyTop[0]).toBeGreaterThan(240);
+    expect(islandLook("island_foam_bay").far[1]).toBeGreaterThan(
+      islandLook("island_storm_eye").far[1],
     );
     expect(harborIslandIds()).toEqual([
       "island_foam_bay",
@@ -1088,6 +1101,12 @@ describe("TutorialFlow", () => {
     expect(tutorialBarButtonTone("reel", "cast", { carrying: true })).toBe(
       "secondary",
     );
+    expect(battleBarButtonVisible({ carrying: true }, "cast")).toBe(false);
+    expect(battleBarButtonVisible({ carrying: true }, "pickUp")).toBe(false);
+    expect(battleBarButtonVisible({ carrying: false }, "cast")).toBe(true);
+    expect(battleInboxCtaVisible({ carrying: true })).toBe(true);
+    expect(battleInboxCtaVisible({ carrying: false })).toBe(false);
+    expect(inboxBarCaption()).toBe("丢掉入箱");
     expect(tutorialBarButtonTone("settle", "cast")).toBe("secondary");
     expect(tutorialBarButtonTone("settle", "pickUp")).toBe("secondary");
     expect(
@@ -1166,7 +1185,7 @@ describe("TutorialFlow", () => {
     expect(goldHudRgb()[0]).toBe(255);
     expect(goldHudRgb()[1]).toBeGreaterThan(180);
     expect(feelPalette().primary[0]).toBe(buttonFillRgb("primary")[0]);
-    expect(buttonRadius()).toBe(18);
+    expect(buttonRadius()).toBe(20);
     expect(buttonStrokeWidth("primary")).toBeGreaterThan(buttonStrokeWidth("secondary"));
     expect(buttonSpec("hero").height).toBeGreaterThan(buttonSpec("chip").height);
     expect(buttonSpec("bar").fontSize).toBe(28);
@@ -1212,7 +1231,8 @@ describe("TutorialFlow", () => {
         nextUpgradeCost: 90,
         upgradeUnlocked: true,
       }),
-    ).toBe("再出海攒金。升级还差 79。");
+    ).toBe("目标：攒够 90 升级竿（11/90）");
+    expect(harborUpgradeProgressLine(11, 90)).toContain("11/90");
     expect(
       harborGoalPrompt({
         tutorialComplete: true,
@@ -1222,6 +1242,37 @@ describe("TutorialFlow", () => {
         upgradeUnlocked: true,
       }),
     ).toContain("升级");
+    expect(harborHudPhase({ sellJuiceActive: true, toastActive: true })).toBe(
+      "justSold",
+    );
+    expect(harborHudShowMeta("justSold")).toBe(false);
+    expect(harborHudShowMeta("toast")).toBe(false);
+    expect(harborHudShowMeta("idle")).toBe(true);
+    expect(harborHudShowDiscovery("justSold", true)).toBe(false);
+    expect(harborHudShowDiscovery("toast", true)).toBe(true);
+    expect(
+      harborHudToastText({
+        phase: "justSold",
+        toast: "图鉴新纪录：湾鳍鱼",
+        discoveryText: "图鉴新纪录：湾鳍鱼",
+      }),
+    ).toBeUndefined();
+    expect(
+      harborHudToastText({
+        phase: "justSold",
+        toast: "金币不足",
+        discoveryText: "图鉴新纪录：湾鳍鱼",
+      }),
+    ).toBe("金币不足");
+    expect(
+      harborHudToastText({
+        phase: "toast",
+        toast: "金币不足",
+        discoveryText: "图鉴新纪录：湾鳍鱼",
+      }),
+    ).toBe("金币不足");
+    expect(harborToastHoldSeconds()).toBeGreaterThan(0.8);
+    expect(harborToastHoldSeconds()).toBeLessThan(2);
     expect(
       harborIslandChipCaption({
         name: "泡沫湾",
@@ -1278,7 +1329,7 @@ describe("TutorialFlow", () => {
         nextUpgradeCost: firstUpgrade,
         upgradeUnlocked: true,
       }),
-    ).toMatch(/再出海|还差/);
+    ).toMatch(/目标：攒够 90|11\/90|再出海|还差/);
   });
 
   it("locks harbor upgrade/book/board until the tutorial is finished", () => {

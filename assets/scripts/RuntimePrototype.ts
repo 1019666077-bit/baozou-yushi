@@ -45,6 +45,9 @@ import {
   tutorialGuideTarget,
   tutorialPrompt,
   battleBarButtonTone,
+  battleBarButtonVisible,
+  battleInboxCtaVisible,
+  inboxBarCaption,
   battleWaveNarration,
   waveStartNarration,
   settleLeaveDecision,
@@ -180,6 +183,7 @@ export class RuntimePrototype extends Component {
   private lastInputAt = 0;
   private castButton?: Node;
   private reelButton?: Node;
+  private dropButton?: Node;
   private leaveButton?: Node;
   private lastCastTone?: ButtonTone;
   private lastPickTone?: ButtonTone;
@@ -431,6 +435,18 @@ export class RuntimePrototype extends Component {
       28,
       pickTone,
     );
+    this.dropButton = makeButton(
+      this.layer,
+      inboxBarCaption(),
+      0,
+      -292,
+      () => this.dropInbox(),
+      220,
+      86,
+      28,
+      "primary",
+    );
+    this.dropButton.active = false;
     this.lastCastTone = castTone;
     this.lastPickTone = pickTone;
     makeButton(this.layer, "暂停", -530, 268, () => this.togglePause(), 150, 56, 22);
@@ -638,17 +654,25 @@ export class RuntimePrototype extends Component {
     return this.lastInputAt ? Date.now() - this.lastInputAt : Number.POSITIVE_INFINITY;
   }
 
+  private barInput() {
+    return {
+      tutorial: this.tutorial,
+      step: this.tutorialStep,
+      carrying: !!this.carried?.node.active,
+      pickable: !!this.nearestPickable(),
+      hooked: !!this.hooked?.node.active,
+    };
+  }
+
   private barTone(button: "cast" | "pickUp") {
-    return battleBarButtonTone(
-      {
-        tutorial: this.tutorial,
-        step: this.tutorialStep,
-        carrying: !!this.carried?.node.active,
-        pickable: !!this.nearestPickable(),
-        hooked: !!this.hooked?.node.active,
-      },
-      button,
-    );
+    return battleBarButtonTone(this.barInput(), button);
+  }
+
+  private dropInbox(): void {
+    this.noteInput();
+    if (this.held()) return;
+    if (!this.carried) return;
+    this.stashCarried();
   }
 
   private cast(): void {
@@ -1440,13 +1464,20 @@ export class RuntimePrototype extends Component {
   }
 
   private syncBarButtons(): void {
+    const input = this.barInput();
+    const showCast = battleBarButtonVisible(input, "cast");
+    const showPick = battleBarButtonVisible(input, "pickUp");
+    const showDrop = battleInboxCtaVisible(input);
+    if (this.castButton) this.castButton.active = showCast;
+    if (this.reelButton) this.reelButton.active = showPick;
+    if (this.dropButton) this.dropButton.active = showDrop;
     const castTone = this.barTone("cast");
     const pickTone = this.barTone("pickUp");
-    if (this.castButton && castTone !== this.lastCastTone) {
+    if (this.castButton && showCast && castTone !== this.lastCastTone) {
       this.lastCastTone = castTone;
       paintButtonTone(this.castButton, castTone);
     }
-    if (this.reelButton && pickTone !== this.lastPickTone) {
+    if (this.reelButton && showPick && pickTone !== this.lastPickTone) {
       this.lastPickTone = pickTone;
       paintButtonTone(this.reelButton, pickTone);
     }

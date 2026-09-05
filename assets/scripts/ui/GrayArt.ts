@@ -44,41 +44,62 @@ function fillPoly(g: Graphics, color: Color, pts: number[]): void {
 }
 
 function palm(g: Graphics, x: number, y: number, s: number, look: IslandLook): void {
-  g.fillColor = c(look.accent);
-  g.roundRect(x - 3 * s, y, 6 * s, 28 * s, 2);
+  g.fillColor = c([118, 82, 42]);
+  g.roundRect(x - 3.5 * s, y, 7 * s, 32 * s, 2);
   g.fill();
   fillPoly(g, c(look.landDark), [
     x,
-    y + 30 * s,
-    x - 22 * s,
-    y + 18 * s,
-    x - 8 * s,
-    y + 24 * s,
-  ]);
-  fillPoly(g, c(look.landDark), [
-    x,
-    y + 30 * s,
-    x + 22 * s,
+    y + 32 * s,
+    x - 26 * s,
     y + 16 * s,
-    x + 6 * s,
-    y + 24 * s,
+    x - 6 * s,
+    y + 26 * s,
   ]);
   fillPoly(g, c(look.accent), [
     x,
-    y + 32 * s,
-    x - 10 * s,
-    y + 42 * s,
-    x + 10 * s,
-    y + 42 * s,
+    y + 34 * s,
+    x + 26 * s,
+    y + 14 * s,
+    x + 6 * s,
+    y + 26 * s,
+  ]);
+  fillPoly(g, c(look.land), [
+    x,
+    y + 36 * s,
+    x - 12 * s,
+    y + 50 * s,
+    x + 12 * s,
+    y + 50 * s,
   ]);
 }
 
+function hut(g: Graphics, x: number, y: number, s: number, look: IslandLook): void {
+  fillPoly(g, c(look.accent), [
+    x - 22 * s,
+    y + 10 * s,
+    x,
+    y + 32 * s,
+    x + 22 * s,
+    y + 10 * s,
+  ]);
+  g.fillColor = c([236, 210, 150]);
+  g.roundRect(x - 16 * s, y - 4 * s, 32 * s, 18 * s, 3);
+  g.fill();
+  g.fillColor = c([92, 58, 32]);
+  g.roundRect(x - 4 * s, y - 4 * s, 8 * s, 12 * s, 2);
+  g.fill();
+  fillCircle(g, x + 8 * s, y + 6 * s, 2.4 * s, c([255, 214, 96]));
+}
+
 function foamIsle(g: Graphics, x: number, y: number, s: number, look: IslandLook): void {
-  fillEllipse(g, x, y, 78 * s, 22 * s, c(look.landDark, 180));
-  fillEllipse(g, x, y + 8 * s, 70 * s, 18 * s, c(look.land));
-  fillEllipse(g, x + 8 * s, y + 18 * s, 28 * s, 16 * s, c(look.landDark));
-  palm(g, x - 18 * s, y + 10 * s, s, look);
-  palm(g, x + 16 * s, y + 8 * s, 0.75 * s, look);
+  fillEllipse(g, x, y, 86 * s, 24 * s, c(look.deep, 160));
+  fillEllipse(g, x, y + 6 * s, 78 * s, 20 * s, c(look.landDark, 210));
+  fillEllipse(g, x, y + 14 * s, 70 * s, 18 * s, c(look.land));
+  fillEllipse(g, x + 10 * s, y + 22 * s, 26 * s, 12 * s, c(look.landDark));
+  fillEllipse(g, x - 8 * s, y + 10 * s, 18 * s, 5 * s, c([255, 248, 210], 90));
+  palm(g, x - 22 * s, y + 12 * s, s, look);
+  palm(g, x + 20 * s, y + 10 * s, 0.72 * s, look);
+  hut(g, x + 2 * s, y + 8 * s, s * 0.85, look);
 }
 
 function prismIsle(g: Graphics, x: number, y: number, s: number, look: IslandLook): void {
@@ -133,24 +154,36 @@ function stormIsle(g: Graphics, x: number, y: number, s: number, look: IslandLoo
 }
 
 function pier(g: Graphics, look: IslandLook): void {
-  fillEllipse(g, -420, -210, 90, 16, c(look.deep, 180));
-  g.fillColor = c(look.accent);
-  g.roundRect(-520, -228, 260, 18, 4);
-  g.fill();
-  g.fillColor = c([138, 108, 64]);
-  for (let i = 0; i < 5; i++) {
-    g.roundRect(-500 + i * 48, -248, 10, 28, 2);
+  fillEllipse(g, -400, -214, 120, 18, c(look.deep, 200));
+  g.fillColor = c([92, 62, 32]);
+  for (let i = 0; i < 6; i++) {
+    g.roundRect(-510 + i * 46, -252, 12, 36, 3);
     g.fill();
   }
-  g.fillColor = c([176, 132, 78]);
-  g.roundRect(-520, -214, 260, 10, 3);
+  g.fillColor = c([196, 132, 64]);
+  g.roundRect(-530, -226, 300, 22, 6);
   g.fill();
+  g.fillColor = c([236, 178, 92]);
+  g.roundRect(-530, -210, 300, 12, 4);
+  g.fill();
+  g.fillColor = c([168, 104, 48]);
+  g.roundRect(-530, -198, 300, 8, 3);
+  g.fill();
+  g.fillColor = c([214, 86, 48]);
+  g.roundRect(-486, -168, 86, 52, 8);
+  g.fill();
+  g.fillColor = c([255, 210, 120]);
+  g.roundRect(-474, -156, 62, 14, 3);
+  g.fill();
+  fillCircle(g, -456, -128, 5, c([255, 220, 80]));
+  fillCircle(g, -430, -124, 4, c([255, 168, 64]));
 }
 
 function sun(g: Graphics, x: number, y: number, look: IslandLook): void {
-  fillCircle(g, x, y, 36, c(look.accent, 80));
-  fillCircle(g, x, y, 22, c(look.accent));
-  fillCircle(g, x + 6, y + 4, 8, c([255, 236, 200], 180));
+  fillCircle(g, x, y, 58, c(look.accent, 40));
+  fillCircle(g, x, y, 40, c(look.accent, 90));
+  fillCircle(g, x, y, 24, c([255, 226, 140]));
+  fillCircle(g, x + 7, y + 5, 8, c([255, 248, 220], 200));
 }
 
 function paintWaterBands(g: Graphics, look: IslandLook): void {
@@ -160,8 +193,9 @@ function paintWaterBands(g: Graphics, look: IslandLook): void {
   g.fillColor = c(look.sky);
   g.rect(-640, 110, 1280, 110);
   g.fill();
-  fillEllipse(g, -80, 168, 220, 22, c([255, 236, 210], 36));
-  fillEllipse(g, 0, 92, 640, 34, c(look.haze, 140));
+  fillEllipse(g, 80, 176, 260, 28, c([255, 236, 190], 48));
+  fillEllipse(g, -220, 154, 140, 16, c([255, 248, 220], 28));
+  fillEllipse(g, 0, 96, 640, 36, c(look.haze, 160));
   g.fillColor = c(look.far);
   g.rect(-640, 36, 1280, 78);
   g.fill();
@@ -174,29 +208,30 @@ function paintWaterBands(g: Graphics, look: IslandLook): void {
   g.fillColor = c(look.deep);
   g.rect(-640, -360, 1280, 196);
   g.fill();
-  g.strokeColor = c(look.haze, 110);
-  g.lineWidth = 4;
-  g.moveTo(-640, 44);
-  g.lineTo(640, 44);
+  g.strokeColor = c([255, 236, 180], 90);
+  g.lineWidth = 6;
+  g.moveTo(-640, 48);
+  g.lineTo(640, 48);
   g.stroke();
-  g.strokeColor = c([255, 252, 236], 36);
-  g.lineWidth = 2;
-  g.moveTo(-640, 38);
-  g.lineTo(640, 38);
+  g.strokeColor = c([255, 252, 236], 70);
+  g.lineWidth = 2.5;
+  g.moveTo(-640, 40);
+  g.lineTo(640, 40);
   g.stroke();
-  fillEllipse(g, -200, -72, 150, 11, c(look.haze, 46));
-  fillEllipse(g, 180, -118, 190, 13, c(look.haze, 32));
-  fillEllipse(g, 420, -200, 120, 9, c(look.haze, 24));
-  g.strokeColor = c(look.haze, 50);
-  g.lineWidth = 2;
+  fillEllipse(g, -220, -68, 170, 12, c([210, 246, 255], 40));
+  fillEllipse(g, 160, -122, 210, 14, c([210, 246, 255], 28));
+  fillEllipse(g, 420, -206, 140, 10, c([255, 248, 220], 22));
+  fillEllipse(g, -80, -188, 90, 7, c([255, 248, 220], 18));
+  g.strokeColor = c(look.haze, 70);
+  g.lineWidth = 2.4;
   g.moveTo(-520, -40);
-  g.bezierCurveTo(-360, -20, -200, -56, -40, -36);
+  g.bezierCurveTo(-360, -16, -200, -56, -40, -32);
   g.stroke();
   g.moveTo(40, -88);
-  g.bezierCurveTo(180, -70, 320, -104, 480, -86);
+  g.bezierCurveTo(180, -64, 320, -108, 480, -82);
   g.stroke();
-  g.strokeColor = c([255, 252, 236], 28);
-  g.lineWidth = 1.5;
+  g.strokeColor = c([255, 252, 236], 36);
+  g.lineWidth = 1.8;
   g.moveTo(-300, -160);
   g.bezierCurveTo(-140, -148, 20, -176, 180, -158);
   g.stroke();
@@ -248,85 +283,92 @@ export function drawDock(parent: Node): void {
   node.parent = parent;
   node.addComponent(UITransform).setContentSize(1280, 720);
   const g = node.addComponent(Graphics);
-  g.fillColor = new Color(10, 32, 46, 210);
-  g.roundRect(-640, -258, 460, 30, 6);
-  g.fill();
-  g.fillColor = new Color(186, 132, 74, 255);
-  g.roundRect(-640, -228, 430, 98, 12);
-  g.fill();
-  g.fillColor = new Color(214, 168, 104, 255);
-  g.roundRect(-640, -228, 430, 16, 8);
-  g.fill();
-  g.fillColor = new Color(142, 96, 52, 255);
-  for (let i = 0; i < 8; i++) {
-    g.rect(-632 + i * 52, -214, 5, 78);
+  fillEllipse(g, -420, -250, 220, 16, new Color(8, 28, 40, 210));
+  g.fillColor = new Color(78, 50, 26, 255);
+  for (let i = 0; i < 6; i++) {
+    g.roundRect(-620 + i * 68, -268, 14, 44, 3);
     g.fill();
   }
-  g.strokeColor = new Color(92, 62, 34, 180);
-  g.lineWidth = 2;
-  g.moveTo(-630, -176);
-  g.lineTo(-230, -176);
+  g.fillColor = new Color(204, 138, 68, 255);
+  g.roundRect(-640, -230, 460, 108, 14);
+  g.fill();
+  g.fillColor = new Color(236, 186, 108, 255);
+  g.roundRect(-640, -230, 460, 18, 10);
+  g.fill();
+  g.fillColor = new Color(168, 108, 52, 255);
+  for (let i = 0; i < 8; i++) {
+    g.rect(-628 + i * 54, -214, 6, 82);
+    g.fill();
+  }
+  g.strokeColor = new Color(92, 58, 28, 200);
+  g.lineWidth = 3;
+  g.moveTo(-630, -172);
+  g.lineTo(-200, -172);
   g.stroke();
-  g.fillColor = new Color(24, 154, 170, 255);
-  g.roundRect(-556, -184, 76, 62, 10);
+  g.fillColor = new Color(28, 168, 176, 255);
+  g.roundRect(-560, -186, 88, 68, 12);
   g.fill();
-  g.fillColor = new Color(18, 90, 104, 255);
-  g.roundRect(-548, -176, 60, 18, 4);
+  g.fillColor = new Color(16, 86, 98, 255);
+  g.roundRect(-550, -176, 68, 18, 4);
   g.fill();
-  g.fillColor = new Color(255, 236, 180, 90);
-  g.roundRect(-540, -172, 18, 8, 3);
+  g.fillColor = new Color(255, 226, 140, 160);
+  g.roundRect(-542, -172, 20, 8, 3);
   g.fill();
+  fillCircle(g, -248, -148, 7, new Color(255, 176, 56, 255));
+  fillCircle(g, -248, -148, 3, new Color(255, 236, 160, 255));
 }
 
 export function drawBoat(graphics: Graphics): void {
   const g = graphics;
   g.clear();
-  fillEllipse(g, 2, -14, 62, 12, new Color(12, 36, 48, 150));
-  fillPoly(g, new Color(196, 122, 64, 255), [44, -6, 68, 4, 50, 12, 30, 4]);
-  g.fillColor = new Color(214, 160, 86, 255);
-  g.roundRect(-54, -12, 108, 30, 12);
+  fillEllipse(g, 4, -16, 72, 14, new Color(8, 28, 40, 170));
+  fillPoly(g, new Color(214, 128, 58, 255), [48, -4, 78, 8, 56, 16, 28, 6]);
+  g.fillColor = new Color(226, 156, 72, 255);
+  g.roundRect(-62, -14, 124, 36, 16);
   g.fill();
-  g.fillColor = new Color(236, 196, 122, 255);
-  g.roundRect(-50, 2, 100, 8, 3);
+  g.fillColor = new Color(255, 206, 118, 255);
+  g.roundRect(-56, 4, 112, 10, 4);
   g.fill();
-  g.fillColor = new Color(168, 110, 54, 255);
-  g.roundRect(-48, 8, 96, 6, 2);
+  g.fillColor = new Color(168, 96, 44, 255);
+  g.roundRect(-54, 12, 108, 7, 3);
   g.fill();
-  g.fillColor = new Color(236, 214, 168, 255);
-  g.roundRect(-12, 8, 48, 24, 6);
+  g.fillColor = new Color(255, 228, 176, 255);
+  g.roundRect(-16, 10, 56, 28, 8);
   g.fill();
-  fillCircle(g, 10, 20, 8, new Color(120, 196, 214, 255));
-  fillCircle(g, 12, 22, 3.2, new Color(236, 248, 255, 220));
-  g.fillColor = new Color(92, 74, 48, 255);
-  g.rect(-6, 10, 5, 40);
+  fillCircle(g, 12, 24, 9, new Color(92, 214, 226, 255));
+  fillCircle(g, 14, 26, 3.6, new Color(255, 252, 240, 230));
+  g.fillColor = new Color(92, 68, 40, 255);
+  g.roundRect(-8, 12, 6, 46, 2);
   g.fill();
-  fillPoly(g, new Color(255, 168, 72, 255), [-4, 48, 26, 38, -4, 30]);
-  fillPoly(g, new Color(255, 214, 140, 200), [-4, 46, 16, 38, -4, 34]);
+  fillPoly(g, new Color(255, 148, 42, 255), [-6, 56, 32, 42, -6, 32]);
+  fillPoly(g, new Color(255, 226, 150, 220), [-6, 54, 18, 42, -6, 38]);
+  fillCircle(g, -40, 8, 4, new Color(255, 196, 72, 255));
 }
 
 export function drawCrate(graphics: Graphics): void {
   const g = graphics;
   g.clear();
-  fillEllipse(g, 0, -28, 46, 8, new Color(12, 32, 44, 140));
-  g.fillColor = new Color(138, 88, 42, 255);
-  g.roundRect(-42, -26, 84, 52, 6);
+  fillEllipse(g, 0, -30, 52, 10, new Color(8, 28, 40, 160));
+  g.fillColor = new Color(156, 92, 38, 255);
+  g.roundRect(-46, -28, 92, 58, 8);
   g.fill();
-  g.fillColor = new Color(176, 124, 64, 255);
-  g.roundRect(-42, 10, 84, 16, 5);
+  g.fillColor = new Color(204, 138, 64, 255);
+  g.roundRect(-46, 12, 92, 18, 6);
   g.fill();
-  g.fillColor = new Color(214, 168, 96, 255);
-  g.roundRect(-38, 16, 76, 6, 2);
+  g.fillColor = new Color(236, 186, 96, 255);
+  g.roundRect(-40, 18, 80, 7, 3);
   g.fill();
-  g.fillColor = new Color(110, 70, 34, 255);
+  g.fillColor = new Color(110, 64, 28, 255);
   for (let i = 0; i < 4; i++) {
-    g.rect(-34 + i * 20, -20, 4, 30);
+    g.rect(-36 + i * 22, -20, 5, 32);
     g.fill();
   }
-  g.strokeColor = new Color(255, 220, 120, 200);
-  g.lineWidth = 3;
-  g.roundRect(-42, -26, 84, 52, 6);
+  g.strokeColor = new Color(255, 214, 96, 230);
+  g.lineWidth = 4;
+  g.roundRect(-46, -28, 92, 58, 8);
   g.stroke();
-  fillCircle(g, 0, 18, 4, new Color(255, 210, 90, 255));
+  fillCircle(g, 0, 20, 5, new Color(255, 214, 72, 255));
+  fillCircle(g, 0, 20, 2, new Color(255, 248, 200, 255));
 }
 
 function tint(rgb: Rgb, decoy: boolean, a = 255): Color {
@@ -442,20 +484,21 @@ export function drawFishBody(
     fillPoly(g, body, [-22 * s, 2 * s, -48 * s, 18 * s, -40 * s, 0, -48 * s, -16 * s]);
     return;
   }
-  fillPoly(g, accent, [-24 * s, 0, -62 * s, -18 * s, -50 * s, 0, -62 * s, 18 * s]);
-  fillPoly(g, accent, [8 * s, 8 * s, 26 * s, 32 * s, 30 * s, 6 * s]);
-  fillPoly(g, body, [6 * s, -6 * s, 2 * s, -26 * s, 16 * s, -8 * s]);
-  fillEllipse(g, 6 * s, 2 * s, 34 * s, 17 * s, body);
-  fillEllipse(g, 14 * s, 8 * s, 20 * s, 9 * s, belly);
+  fillPoly(g, accent, [-24 * s, 0, -68 * s, -20 * s, -52 * s, 0, -68 * s, 20 * s]);
+  fillPoly(g, accent, [8 * s, 8 * s, 28 * s, 36 * s, 34 * s, 6 * s]);
+  fillPoly(g, body, [6 * s, -6 * s, 0, -30 * s, 18 * s, -8 * s]);
+  fillEllipse(g, 6 * s, 2 * s, 36 * s, 18 * s, body);
+  fillEllipse(g, 16 * s, 8 * s, 22 * s, 10 * s, belly);
+  fillEllipse(g, 18 * s, -2 * s, 8 * s, 5 * s, new Color(255, 168, 140, decoy ? 80 : 160));
   g.strokeColor = accent;
-  g.lineWidth = 2;
-  g.moveTo(-4 * s, 2 * s);
-  g.bezierCurveTo(8 * s, 10 * s, 18 * s, 8 * s, 24 * s, 3 * s);
+  g.lineWidth = 2.4;
+  g.moveTo(-6 * s, 2 * s);
+  g.bezierCurveTo(8 * s, 12 * s, 20 * s, 10 * s, 26 * s, 3 * s);
   g.stroke();
-  fillCircle(g, 28 * s, 0, 4.6 * s, new Color(247, 255, 244, decoy ? 120 : 255));
-  fillCircle(g, 30 * s, -1 * s, 2.2 * s, new Color(20, 32, 24, decoy ? 120 : 255));
-  fillCircle(g, 31 * s, -2 * s, 0.8 * s, new Color(255, 255, 255, 230));
-  fillEllipse(g, 32 * s, 8 * s, 3.5 * s, 1.8 * s, new Color(26, 40, 32, decoy ? 90 : 220));
+  fillCircle(g, 30 * s, 1 * s, 6.2 * s, new Color(255, 252, 244, decoy ? 120 : 255));
+  fillCircle(g, 32 * s, 0, 3 * s, new Color(18, 28, 24, decoy ? 120 : 255));
+  fillCircle(g, 33.2 * s, -1.2 * s, 1.1 * s, new Color(255, 255, 255, 240));
+  fillEllipse(g, 34 * s, 10 * s, 4 * s, 2 * s, new Color(22, 40, 32, decoy ? 90 : 220));
 }
 
 export function drawFish(

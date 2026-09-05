@@ -22,8 +22,8 @@ export function yankStep(
 ): { x: number; y: number; landed: boolean } {
   const tx = -340;
   const ty = DECK_Y + 52;
-  const nx = x + (tx - x) * Math.min(1, dt * 1.15);
-  const ny = y + (ty - y) * Math.min(1, dt * 1.05);
+  const nx = x + (tx - x) * Math.min(1, dt * 1.55);
+  const ny = y + (ty - y) * Math.min(1, dt * 1.35);
   return { x: nx, y: ny, landed: nx <= DOCK_X };
 }
 
@@ -31,10 +31,10 @@ export function beginFlop(x: number, y: number): FlopBody {
   return {
     x,
     y: Math.max(y, DECK_Y + 12),
-    vx: -90,
-    vy: 520,
-    angle: 0.8,
-    spin: 18,
+    vx: -110,
+    vy: 640,
+    angle: 0.95,
+    spin: 22,
   };
 }
 
@@ -86,7 +86,7 @@ export function knock(
   const dx = body.x - fromX;
   const dy = body.y - fromY;
   const len = Math.hypot(dx, dy) || 1;
-  const punch = 320 + power * 22;
+  const punch = 380 + power * 26;
   return {
     ...body,
     vx: body.vx + (dx / len) * punch,
@@ -124,5 +124,5 @@ export function canPickUp(
   fishX: number,
   fishY: number,
 ): boolean {
-  return Math.hypot(playerX - fishX, playerY - fishY) < 140;
+  return Math.hypot(playerX - fishX, playerY - fishY) < 168;
 }

@@ -134,12 +134,20 @@ try {
   note(await tap(page, "捡起"), "捡起");
   await wait(250);
   await shot(page, "05-tutorial-carry");
+  const carryText = await page.evaluate(() => document.body.innerText);
+  const carryButtons = await page.evaluate(() =>
+    [...document.querySelectorAll("button.cta")].map(
+      (btn) => btn.dataset.name || btn.textContent,
+    ),
+  );
+  note(carryText.includes("左边鱼箱"), "扛鱼后指向鱼箱");
+  note(carryButtons.includes("丢掉入箱"), "入箱步底栏主橙是丢掉入箱");
   note(
-    (await page.evaluate(() => document.body.innerText)).includes("左边鱼箱"),
-    "扛鱼后指向鱼箱",
+    !carryButtons.includes("抛竿") && !carryButtons.includes("捡起"),
+    "入箱步不露抛竿/捡起主操作",
   );
 
-  note(await tap(page, "鱼箱"), "入箱");
+  note((await tap(page, "丢掉入箱")) || (await tap(page, "鱼箱")), "入箱");
   await wait(280);
   await shot(page, "06-tutorial-inbox");
   const inboxText = await page.evaluate(() => document.body.innerText);
@@ -165,15 +173,21 @@ try {
   note(after.includes("再出1局后图鉴"), "图鉴仍锁到第二局");
   note(after.includes("+") && after.includes("金"), "金币跳字");
   note(after.includes("图鉴新纪录") || after.includes("卖出"), "卖出/图鉴新纪录反馈");
-  note(after.includes("再出海") || after.includes("还差"), "卖完指向再出海攒升级");
+  note(
+    after.includes("目标：攒够") || after.includes("11/90") || after.includes("再出海"),
+    "卖完主目标写攒够升级进度",
+  );
+  note(!after.includes("适度游戏"), "卖完不叠健康忠告");
   note(!after.includes("泡沫湾 · 教学后"), "教学后选岛不再写教学后");
 
   note(await tap(page, "升级弹力鱼竿"), "点升级（首局金币不够）");
   await wait(200);
   await shot(page, "09-upgrade-broke");
+  const broke = await page.evaluate(() => document.body.innerText);
+  note(broke.includes("金币不足"), "买不起升级给短反馈");
   note(
-    (await page.evaluate(() => document.body.innerText)).includes("金币不足"),
-    "买不起升级不抢主 CTA，点次要升级仍提示金币不足",
+    broke.includes("目标：攒够") || broke.includes("11/90") || broke.includes("再出海"),
+    "升级失败不盖掉主目标",
   );
 
   fs.writeFileSync(
