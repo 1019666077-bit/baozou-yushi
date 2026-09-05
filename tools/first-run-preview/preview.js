@@ -206,20 +206,114 @@ function setStatus(value) {
   statusFlash = value;
 }
 
-function paintSea(ctx, look) {
+function paintPalm(ctx, x, y, s, look) {
+  ctx.fillStyle = rgb(look.accent);
+  ctx.fillRect(x - 3 * s, y, 6 * s, 28 * s);
+  ctx.fillStyle = rgb(look.landDark);
+  ctx.beginPath();
+  ctx.moveTo(x, y + 30 * s);
+  ctx.lineTo(x - 22 * s, y + 18 * s);
+  ctx.lineTo(x - 8 * s, y + 24 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x, y + 30 * s);
+  ctx.lineTo(x + 22 * s, y + 16 * s);
+  ctx.lineTo(x + 6 * s, y + 24 * s);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function paintFoamIsle(ctx, x, y, s, look) {
+  ctx.fillStyle = rgb(look.landDark, 0.7);
+  ctx.beginPath();
+  ctx.ellipse(x, y, 78 * s, 22 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = rgb(look.land);
+  ctx.beginPath();
+  ctx.ellipse(x, y - 8 * s, 70 * s, 18 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  paintPalm(ctx, x - 18 * s, y - 10 * s, s, look);
+  paintPalm(ctx, x + 16 * s, y - 8 * s, 0.75 * s, look);
+}
+
+function paintPrismIsle(ctx, x, y, s, look) {
+  ctx.fillStyle = rgb(look.landDark, 0.63);
+  ctx.beginPath();
+  ctx.ellipse(x, y, 70 * s, 16 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = rgb(look.land);
+  ctx.beginPath();
+  ctx.moveTo(x - 40 * s, y - 6 * s);
+  ctx.lineTo(x - 8 * s, y - 54 * s);
+  ctx.lineTo(x + 18 * s, y - 6 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = rgb(look.accent);
+  ctx.beginPath();
+  ctx.moveTo(x - 6 * s, y - 6 * s);
+  ctx.lineTo(x + 16 * s, y - 62 * s);
+  ctx.lineTo(x + 34 * s, y - 6 * s);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function paintStormIsle(ctx, x, y, s, look) {
+  ctx.fillStyle = rgb(look.landDark, 0.78);
+  ctx.beginPath();
+  ctx.ellipse(x, y, 88 * s, 20 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = rgb(look.land);
+  ctx.beginPath();
+  ctx.moveTo(x - 48 * s, y - 4 * s);
+  ctx.lineTo(x, y - 58 * s);
+  ctx.lineTo(x + 48 * s, y - 4 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = rgb(look.accent);
+  ctx.beginPath();
+  ctx.ellipse(x, y - 58 * s, 12 * s, 6 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function paintSun(ctx, x, y, look) {
+  ctx.fillStyle = rgb(look.accent, 0.31);
+  ctx.beginPath();
+  ctx.arc(x, y, 36, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = rgb(look.accent);
+  ctx.beginPath();
+  ctx.arc(x, y, 22, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function paintPier(ctx) {
+  ctx.fillStyle = "rgba(16,42,58,0.78)";
+  ctx.beginPath();
+  ctx.roundRect(120, 568, 260, 18, 4);
+  ctx.fill();
+  ctx.fillStyle = "#8a6c40";
+  for (let i = 0; i < 5; i += 1) ctx.fillRect(140 + i * 48, 548, 10, 28);
+  ctx.fillStyle = "#b0844e";
+  ctx.beginPath();
+  ctx.roundRect(120, 576, 260, 10, 3);
+  ctx.fill();
+}
+
+function paintSea(ctx, look, harbor = false) {
   const sky = ctx.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0, rgb(look.skyTop));
-  sky.addColorStop(0.28, rgb(look.sky));
-  sky.addColorStop(0.42, rgb(look.haze));
-  sky.addColorStop(0.5, rgb(look.far));
-  sky.addColorStop(0.68, rgb(look.mid));
-  sky.addColorStop(0.84, rgb(look.near));
+  sky.addColorStop(0.22, rgb(look.sky));
+  sky.addColorStop(0.38, rgb(look.haze));
+  sky.addColorStop(0.48, rgb(look.far));
+  sky.addColorStop(0.66, rgb(look.mid));
+  sky.addColorStop(0.82, rgb(look.near));
   sky.addColorStop(1, rgb(look.deep));
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = rgb([255, 236, 210], 0.14);
+  ctx.fillStyle = rgb([255, 236, 210], 0.16);
   ctx.beginPath();
-  ctx.ellipse(560, 192, 220, 22, 0, 0, Math.PI * 2);
+  ctx.ellipse(1060, 168, 220, 22, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = rgb(look.haze, 0.43);
   ctx.lineWidth = 4;
@@ -227,24 +321,33 @@ function paintSea(ctx, look) {
   ctx.moveTo(0, 316);
   ctx.lineTo(W, 316);
   ctx.stroke();
-  ctx.strokeStyle = "rgba(255,252,236,0.14)";
+  ctx.strokeStyle = "rgba(255,252,236,0.16)";
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(0, 322);
   ctx.lineTo(W, 322);
   ctx.stroke();
-  ctx.fillStyle = rgb(look.landDark, 0.88);
-  ctx.beginPath();
-  ctx.ellipse(210, 448, 210, 36, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = rgb(look.land);
-  ctx.beginPath();
-  ctx.ellipse(218, 436, 176, 26, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = rgb(look.landDark, 0.7);
-  ctx.beginPath();
-  ctx.ellipse(980, 500, 140, 22, 0, 0, Math.PI * 2);
-  ctx.fill();
+  if (harbor) {
+    paintSun(ctx, 1060, 110, look);
+    paintFoamIsle(ctx, sx(-160), 282, 1, COPY.looks.foam);
+    paintPrismIsle(ctx, sx(170), 278, 1, COPY.looks.prism);
+    paintStormIsle(ctx, sx(470), 284, 0.85, COPY.looks.storm);
+    paintPier(ctx);
+  } else {
+    paintSun(ctx, 1100, 112, look);
+    paintFoamIsle(ctx, 1020, 280, 1.05, look);
+    paintFoamIsle(ctx, 220, 286, 0.7, look);
+    ctx.fillStyle = "rgba(176,124,70,0.92)";
+    ctx.beginPath();
+    ctx.roundRect(0, 478, 430, 98, 12);
+    ctx.fill();
+    ctx.fillStyle = "rgba(214,168,104,0.95)";
+    ctx.beginPath();
+    ctx.roundRect(0, 478, 430, 16, 8);
+    ctx.fill();
+    ctx.fillStyle = "rgba(142,96,52,0.9)";
+    for (let i = 0; i < 8; i += 1) ctx.fillRect(8 + i * 52, 498, 5, 70);
+  }
 }
 
 function paintBoat(ctx, x, y) {
@@ -448,7 +551,7 @@ function nextCtaHarbor() {
 function renderHarbor() {
   const look = COPY.looks.harbor;
   const ctx = bg.getContext("2d");
-  paintSea(ctx, look);
+  paintSea(ctx, look, true);
   const next = nextCtaHarbor();
   const complete = save.tutorialComplete;
   const displayIsland = complete ? COPY.islands[0].id : COPY.tutorialIsland.id;
@@ -474,7 +577,7 @@ function renderHarbor() {
         : COPY.harborPrompts.newSail;
   plate(0, 248, 820, 48, !complete);
   label(statusFlash || line, 20, 0, 248, 1100, rgb(COPY.colors.cream));
-  if (complete && COPY.firstRun.discovery) {
+  if (complete && COPY.firstRun.discovery && statusFlash !== COPY.firstRun.discovery) {
     label(COPY.firstRun.discovery, 24, 0, 206, 720, rgb(COPY.colors.gold));
   }
   for (const island of COPY.islands) {
@@ -539,7 +642,7 @@ function renderHarbor() {
 
 function renderSea() {
   const ctx = bg.getContext("2d");
-  paintSea(ctx, COPY.looks.tutorial);
+  paintSea(ctx, COPY.looks.tutorial, false);
   paintCrate(ctx);
   paintBoat(ctx, carrying ? -430 : -400, -90);
   if (tutorialStep !== "settle") {
@@ -606,7 +709,7 @@ function renderSea() {
 
 function renderSettle() {
   const ctx = bg.getContext("2d");
-  paintSea(ctx, COPY.looks.harbor);
+  paintSea(ctx, COPY.looks.harbor, true);
   paintGuide(ctx, "sell");
   hud.innerHTML = "";
   buttons.innerHTML = "";
@@ -769,7 +872,7 @@ function tick(now) {
   }
   if (surface === "settle" && settleGuide) {
     const ctx = bg.getContext("2d");
-    paintSea(ctx, COPY.looks.harbor);
+    paintSea(ctx, COPY.looks.harbor, true);
     paintGuide(ctx, "sell");
   }
   requestAnimationFrame(tick);

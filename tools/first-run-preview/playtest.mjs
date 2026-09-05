@@ -103,7 +103,11 @@ try {
   const castText = await page.evaluate(() => document.body.innerText);
   note(castText.includes("练潮码头") && castText.includes("潮汐猎场"), "教学猎场标题");
   note(castText.includes("抛竿") && castText.includes("捡起"), "抛竿/捡起按钮");
-  note(castText.includes("抛竿") && !castText.includes("热身潮"), "教学旁白不被潮汐句覆盖");
+  const castState = await page.evaluate(() => window.proxyState());
+  note(
+    castState.status.includes("抛竿") && !castState.status.includes("热身潮"),
+    "教学旁白不被潮汐句覆盖",
+  );
 
   note(await tap(page, "回港"), "教学中点回港");
   await wait(150);

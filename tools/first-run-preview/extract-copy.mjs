@@ -210,6 +210,9 @@ function snapshot() {
     looks: {
       harbor: GrayLook.islandLook("island_foam_bay", true),
       tutorial: GrayLook.islandLook(TutorialFlow.TUTORIAL_ISLAND_ID),
+      foam: GrayLook.islandLook("island_foam_bay"),
+      prism: GrayLook.islandLook("island_prism_reef"),
+      storm: GrayLook.islandLook("island_storm_eye"),
       bayfin: GrayLook.fishLook("fish_bayfin"),
     },
     islands: GrayLook.harborIslandIds().map((id) => {
