@@ -104,9 +104,9 @@ function snapshot() {
 
   const data = {
     proxy: true,
-    disclaimer: "非 Cocos 实机，仅 2D 辅助体验代理。2D/辅助 ≠ Creator 3D · 不是港湾真机画面 · 可浏览器代验玩法/画面 · 真机 4 张只认 docs/stage3d/creator-shots/",
-    sourceStamp: "baozou-flop-v31",
-    harborTitle: "暴走鱼市 · 潮汐港口 v28",
+    disclaimer: `非 Cocos 实机，仅 2D 辅助体验代理。2D/辅助 ≠ Creator 3D · 不是港湾真机画面 · 可浏览器代验玩法/画面 · ${SfxFeel.sfxPlaceholderNote()} · 真机 4 张只认 docs/stage3d/creator-shots/`,
+    sourceStamp: "baozou-flop-v32",
+    harborTitle: "暴走鱼市 · 潮汐港口 v32",
     huntSuffix: "潮汐猎场",
     castButton: "抛竿",
     pickButton: "捡起",
@@ -189,6 +189,8 @@ function snapshot() {
       fillIdle: GameFeel.plateFillRgba(false),
       stroke: GameFeel.plateStrokeRgba(true),
       size: GameFeel.plateSize(),
+      inner: GameFeel.plateInnerHighlightRgba(),
+      sheen: GameFeel.primarySheenRgba(),
     },
     coinJumpSeconds: GameFeel.coinJumpSeconds(),
     tutorialTones: {
@@ -375,6 +377,9 @@ function snapshot() {
       inboxStatus: `${bayfin.name} ×${sold.styleMultiplier.toFixed(2)} → ${sold.price}金，丢进鱼箱。回港才卖。`,
       discovery: SettleCopy.discoveryToast(bayfin.name),
       sellPopup: StyleCallout.sellPopup(summary.totalCoins),
+      sellBridge: StyleCallout.sellGoalBridge(summary.totalCoins, after.coins, nextRod?.upgradeCost ?? 90),
+      sellHarborBridge: TutorialFlow.harborSellBridgeLine(after.coins, nextRod?.upgradeCost ?? 90),
+      progressRatio: TutorialFlow.upgradeProgressRatio(after.coins, nextRod?.upgradeCost ?? 90),
       castSnap: StyleCallout.castSnapCaption(),
     },
     crate: {
@@ -384,7 +389,17 @@ function snapshot() {
     weakHint: {
       x: TutorialFlow.TUTORIAL_WEAK_HINT_X,
       y: TutorialFlow.TUTORIAL_WEAK_HINT_Y,
+      caption: TutorialFlow.weakHintCaption(),
+      tickPx: HitJuice.weakReticleTickPx(),
     },
+    motion: {
+      tailAmp: ArtRecipe.TAIL_WAG_AMP,
+      tailMs: ArtRecipe.TAIL_WAG_MS,
+      blinkPeriod: ArtRecipe.BLINK_PERIOD_MS,
+      blinkShut: ArtRecipe.BLINK_SHUT_MS,
+      weakPulseMs: ArtRecipe.WEAK_PULSE_MS,
+    },
+    sfxNote: SfxFeel.sfxPlaceholderNote(),
     guideTargets: {
       cast: TutorialFlow.tutorialGuideTarget("cast"),
       weakPoint: TutorialFlow.tutorialGuideTarget("weakPoint"),
@@ -425,6 +440,9 @@ function snapshot() {
       catch: SfxFeel.sfxTone("catch"),
       sell: SfxFeel.sfxTone("sell"),
       ui: SfxFeel.sfxTone("ui"),
+      smash: SfxFeel.sfxTone("smash"),
+      splash: SfxFeel.sfxTone("splash"),
+      yank: SfxFeel.sfxTone("yank"),
     },
   };
 

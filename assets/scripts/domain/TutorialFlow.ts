@@ -238,6 +238,20 @@ export function harborUpgradeProgressLine(
   return `目标：攒够 ${nextUpgradeCost} 升级竿（${coins}/${nextUpgradeCost}）`;
 }
 
+export function upgradeProgressRatio(coins: number, nextUpgradeCost: number): number {
+  if (nextUpgradeCost <= 0) return 1;
+  return Math.min(1, Math.max(0, coins / nextUpgradeCost));
+}
+
+/** 卖出跳字接到回港目标，不改经济。 */
+export function harborSellBridgeLine(coins: number, nextUpgradeCost: number): string {
+  return `卖出已入账 · ${coins}/${nextUpgradeCost}`;
+}
+
+export function weakHintCaption(): string {
+  return "弱点";
+}
+
 export type HarborHudPhase = "justSold" | "toast" | "idle";
 
 /** 卖完金币雨优先；短反馈次之；平时才露云档/忠告。 */

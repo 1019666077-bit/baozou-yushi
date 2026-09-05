@@ -26,6 +26,15 @@ export function sellPopup(gained: number): string {
   return gained > 0 ? `卖出 +${gained}金` : "卖出";
 }
 
+export function sellGoalBridge(gained: number, coins: number, cost: number): string {
+  if (gained <= 0) return harborish(coins, cost);
+  return `卖出 +${gained}金 · ${coins}/${cost}`;
+}
+
+function harborish(coins: number, cost: number): string {
+  return `${coins}/${cost}`;
+}
+
 export function liveQuote(
   fish: Pick<FishConfig, "name" | "basePrice" | "rarityMultiplier">,
   multiplier: number,

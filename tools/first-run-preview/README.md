@@ -7,9 +7,11 @@
 本目录是给没有 Creator / `build/web-desktop` 时用的临时轻量灰盒：单页 DOM+canvas，复刻 `RuntimeHome` → `RuntimePrototype` 新档第一局（港口 → 教学四步 → 卖鱼 → 回港）。
 
 - 旁白、按钮标签、引导圈、结算行、金币跳字、首次角标都从源码常量/函数生成，不另写一套文案。
-- 主 CTA 暖橙、次要深青，色板/圆角/描边取自 `GameFeel`（与 RuntimeHome/Prototype 共用）。
-- 海景/船/鱼/码头/鱼箱跟 Runtime 自绘同一套更饱和的卡通皮肤，不是外部立绘包。
-- 命中/入箱/卖出跳字取自 `StyleCallout`；粒子、线闪、金币雨取自 `HitJuice`。
+- 主 CTA 暖橙、次要深青，色板/圆角/描边取自 `GameFeel`（与 RuntimeHome/Prototype 共用）。底板、字重、主橙渐变仍自绘。
+- 海景/船/鱼/码头/鱼箱跟 Runtime 自绘同一套更饱和的卡通皮肤，不是外部立绘包。港口有远景剪影、水面高光、灯笼闪烁、市集灯带/烟火。
+- 湾鳍 idle 摆尾眨眼，弱点准星脉冲可读。
+- 命中/入箱/卖出跳字取自 `StyleCallout`；粒子、线闪、金币雨取自 `HitJuice`。抛竿→命中→翻扑→砸甲板→捡起→入箱按同一套时长。
+- WebAudio beep/噪声是**占位音效**，标明 ≠ 真机。
 - 教学旁白用 `battleWaveNarration`，不被潮汐句盖住；底栏主橙只给当前步。
 - 买不起升级不抢港口主 CTA（与 `harborNextCta` 一致）；卖完主目标写攒够进度（11/90）。
 - 卖完回港只留主目标一句；云档/忠告/发现 toast 降权或延迟，失败反馈不盖主目标。

@@ -78,15 +78,23 @@ export function creamInkRgb(): [number, number, number] {
 }
 
 export function plateFillRgba(tutorial = false): [number, number, number, number] {
-  return tutorial ? [12, 24, 34, 228] : [12, 24, 34, 200];
+  return tutorial ? [10, 20, 30, 236] : [10, 20, 30, 214];
 }
 
 export function plateStrokeRgba(tutorial = false): [number, number, number, number] {
-  return tutorial ? [255, 206, 64, 230] : [110, 196, 196, 110];
+  return tutorial ? [255, 210, 78, 240] : [110, 196, 196, 130];
 }
 
 export function plateSize(): { width: number; height: number; radius: number } {
-  return { width: 780, height: 52, radius: 14 };
+  return { width: 780, height: 56, radius: 16 };
+}
+
+export function plateInnerHighlightRgba(): [number, number, number, number] {
+  return [255, 226, 150, 70];
+}
+
+export function primarySheenRgba(): [number, number, number, number] {
+  return [255, 220, 150, 90];
 }
 
 export function coinJumpSeconds(): number {

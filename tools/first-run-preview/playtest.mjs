@@ -83,6 +83,7 @@ try {
   const disclaimer = await page.$eval("#disclaimer", (el) => el.textContent);
   note(disclaimer.includes("非 Cocos 实机"), `disclaimer ${disclaimer}`);
   note(disclaimer.includes("2D/辅助") && disclaimer.includes("Creator 3D"), "disclaimer marks 2D/辅助 ≠ Creator 3D");
+  note(disclaimer.includes("占位音效") && disclaimer.includes("≠ 真机"), "disclaimer marks WebAudio 占位");
   await shot(page, "01-harbor-new");
 
   const harborText = await page.evaluate(() => document.body.innerText);
@@ -123,6 +124,7 @@ try {
   await shot(page, "03-tutorial-weak");
   const weakText = await page.evaluate(() => document.body.innerText);
   note(weakText.includes("发光鳍") || weakText.includes("弱点"), "弱点旁白");
+  note(weakText.includes("弱点"), "弱点提示可读");
   note(weakText.includes("湾鳍"), "目标是湾鳍鱼");
 
   note(await tap(page, "弱点"), "点发光鳍");
@@ -167,7 +169,8 @@ try {
   await wait(350);
   await shot(page, "08-harbor-after");
   const after = await page.evaluate(() => document.body.innerText);
-  note(after.includes("潮汐港口 v28"), "回到港口");
+  note(after.includes("潮汐港口 v32"), "回到港口");
+  note(after.includes("11/90") || after.includes("卖出已入账"), "卖出接到攒够进度");
   note(after.includes("出海捕鱼"), "第二局 CTA 文案");
   note(after.includes("● 泡沫湾"), "教学后默认泡沫湾");
   note(!after.includes("开始教学"), "开始教学已消失");

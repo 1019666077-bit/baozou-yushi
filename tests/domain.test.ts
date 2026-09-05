@@ -84,6 +84,8 @@ import {
   castTipNudgePx,
   smashSquashAt,
   smashSquashSeconds,
+  weakReticleRadius,
+  weakReticleTickPx,
 } from "../assets/scripts/domain/HitJuice";
 import {
   BOSS_SECONDS,
@@ -98,6 +100,7 @@ import {
   comboHud,
   inboxPopup,
   liveQuote,
+  sellGoalBridge,
   sellPopup,
   styleCallout,
 } from "../assets/scripts/domain/StyleCallout";
@@ -219,8 +222,11 @@ import {
   harborHudToastText,
   harborToastHoldSeconds,
   harborIslandChipCaption,
+  harborSellBridgeLine,
+  upgradeProgressRatio,
+  weakHintCaption,
 } from "../assets/scripts/domain/TutorialFlow";
-import { sfxTone, shouldPlaySfx } from "../assets/scripts/domain/SfxFeel";
+import { sfxPlaceholderNote, sfxTone, shouldPlaySfx } from "../assets/scripts/domain/SfxFeel";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -241,8 +247,10 @@ import {
   crateOps,
   fishOps,
   islandSetOps,
+  lanternFlickerAt,
   recipeHasTag,
   recipeKindCount,
+  tailWagRad,
 } from "../assets/scripts/domain/ArtRecipe";
 import {
   CAM_FEEL,
@@ -885,6 +893,7 @@ describe("style HUD punch and discovery toast", () => {
     expect(discoveryToastLine(["湾鳍鱼", "焰鳗"])).toContain("等2种");
     expect(castSnapCaption().length).toBeLessThan(8);
     expect(sellPopup(36)).toBe("卖出 +36金");
+    expect(sellGoalBridge(11, 11, 90)).toBe("卖出 +11金 · 11/90");
     expect(inboxPopup(12)).toBe("入箱 +12");
   });
 });
@@ -938,6 +947,10 @@ describe("SfxFeel", () => {
     expect(sfxTone("weak").freq).toBeGreaterThan(sfxTone("hit").freq);
     expect(sfxTone("perfect").freq).toBeGreaterThan(sfxTone("catch").freq);
     expect(sfxTone("shot").ms).toBeLessThan(sfxTone("perfect").ms);
+    expect(sfxTone("smash").noise).toBe(true);
+    expect(sfxTone("splash").noise).toBe(true);
+    expect(sfxPlaceholderNote()).toContain("占位");
+    expect(sfxPlaceholderNote()).toContain("≠ 真机");
   });
 });
 
@@ -1282,6 +1295,9 @@ describe("TutorialFlow", () => {
       }),
     ).toBe("目标：攒够 90 升级竿（11/90）");
     expect(harborUpgradeProgressLine(11, 90)).toContain("11/90");
+    expect(upgradeProgressRatio(11, 90)).toBeCloseTo(11 / 90);
+    expect(harborSellBridgeLine(11, 90)).toBe("卖出已入账 · 11/90");
+    expect(weakHintCaption()).toBe("弱点");
     expect(
       harborGoalPrompt({
         tutorialComplete: true,
@@ -1592,6 +1608,12 @@ describe("ArtRecipe", () => {
     expect(recipeHasTag(sea, "gull")).toBe(true);
     expect(recipeHasTag(sea, "foam")).toBe(true);
     expect(recipeHasTag(sea, "lantern")).toBe(true);
+    expect(recipeHasTag(sea, "silhouette")).toBe(true);
+    expect(recipeHasTag(sea, "lamp")).toBe(true);
+    expect(recipeHasTag(sea, "firework")).toBe(true);
+    expect(recipeHasTag(sea, "sheen")).toBe(true);
+    expect(lanternFlickerAt(0.2, -456)).not.toBe(lanternFlickerAt(1.1, -320));
+    expect(tailWagRad(150)).not.toBe(tailWagRad(0));
     expect(recipeKindCount(sea, "rect")).toBeGreaterThan(8);
     expect(crateOps().length).toBeGreaterThan(6);
     expect(boatOps().some((op) => op.t === "poly")).toBe(true);
@@ -1605,6 +1627,10 @@ describe("ArtRecipe", () => {
     });
     expect(fish.length).toBeGreaterThan(8);
     expect(recipeHasTag(fish, "scale")).toBe(true);
+    expect(recipeHasTag(fish, "tail")).toBe(true);
+    expect(recipeHasTag(fish, "weak")).toBe(true);
+    expect(weakReticleRadius(0)).toBeGreaterThan(16);
+    expect(weakReticleTickPx()).toBeGreaterThan(6);
   });
 });
 

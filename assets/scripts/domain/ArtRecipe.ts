@@ -30,7 +30,7 @@ export type DrawOp =
       r?: number;
       fill: Rgba;
     }
-  | { t: "poly"; pts: number[]; fill: Rgba }
+  | { t: "poly"; pts: number[]; fill: Rgba; tag?: string }
   | {
       t: "line";
       x1: number;
@@ -85,7 +85,47 @@ export const MARKET = {
   lantern: [255, 168, 56] as Rgb,
   glow: [255, 214, 118] as Rgb,
   sign: [255, 226, 140] as Rgb,
+  lamp: [255, 196, 88] as Rgb,
+  strip: [255, 168, 72] as Rgb,
 };
+
+/** 代理/Runtime 共用的灯火与鱼活节奏，避免预览另写一套。 */
+export const TAIL_WAG_AMP = 0.3;
+export const TAIL_WAG_MS = 150;
+export const BLINK_PERIOD_MS = 2600;
+export const BLINK_SHUT_MS = 100;
+export const WEAK_PULSE_MS = 128;
+
+export function lanternFlickerAt(phase: number, x: number): number {
+  const slow = 0.5 + 0.5 * Math.sin(phase * 2.35 + x * 0.034);
+  const tick = 0.72 + 0.28 * Math.sin(phase * 8.4 + x * 0.17);
+  return Math.min(1.18, slow * 0.72 + tick * 0.4);
+}
+
+export function lampFlickerAt(phase: number, x: number): number {
+  return 0.42 + 0.58 * (0.5 + 0.5 * Math.sin(phase * 5.4 + x * 0.09));
+}
+
+export function fireworkLiftPx(phase: number, x: number): number {
+  const t = (Math.sin(phase * 1.15 + x * 0.045) + 1) * 0.5;
+  return t * 42;
+}
+
+export function sheenDriftPx(phase: number): number {
+  return Math.sin(phase * 0.9) * 32;
+}
+
+export function tailWagRad(nowMs: number): number {
+  return Math.sin(nowMs / TAIL_WAG_MS) * TAIL_WAG_AMP;
+}
+
+export function blinkClosed(nowMs: number): boolean {
+  return nowMs % BLINK_PERIOD_MS < BLINK_SHUT_MS;
+}
+
+export function weakPulseK(nowMs: number): number {
+  return 0.58 + 0.42 * (0.5 + 0.5 * Math.sin(nowMs / WEAK_PULSE_MS));
+}
 
 export function rgba(rgb: Rgb, a = 255): Rgba {
   return [rgb[0], rgb[1], rgb[2], a];
@@ -122,8 +162,11 @@ export function skyWaterOps(look: IslandLook, phase = 0): DrawOp[] {
     { t: "rect", x: -640, y: 110, w: 1280, h: 110, fill: rgba(look.sky) },
     { t: "rect", x: -640, y: 36, w: 1280, h: 78, fill: rgba(look.far) },
     { t: "rect", x: -640, y: 18, w: 1280, h: 20, fill: rgba([255, 244, 210], 48) },
+    { t: "rect", x: -640, y: -8, w: 1280, h: 34, fill: rgba(mix(look.far, look.mid, 0.45)) },
     { t: "rect", x: -640, y: -36, w: 1280, h: 82, fill: rgba(look.mid) },
+    { t: "rect", x: -640, y: -96, w: 1280, h: 42, fill: rgba(mix(look.mid, look.near, 0.5), 210) },
     { t: "rect", x: -640, y: -176, w: 1280, h: 148, fill: rgba(look.near) },
+    { t: "rect", x: -640, y: -248, w: 1280, h: 56, fill: rgba(mix(look.near, look.deep, 0.4)) },
     { t: "rect", x: -640, y: -360, w: 1280, h: 196, fill: rgba(look.deep) },
   ];
   if ((look.skyTop[0] ?? 0) > 240) {
@@ -305,6 +348,10 @@ export function skyWaterOps(look: IslandLook, phase = 0): DrawOp[] {
     [340, -170],
     [-120, -210],
     [200, -80],
+    [-460, -126],
+    [480, -70],
+    [20, -250],
+    [-200, -280],
   ] as Array<[number, number]>) {
     push(ops, {
       t: "circle",
@@ -315,7 +362,157 @@ export function skyWaterOps(look: IslandLook, phase = 0): DrawOp[] {
       tag: "spark",
     });
   }
+  const sheen = sheenDriftPx(phase);
+  push(
+    ops,
+    {
+      t: "ellipse",
+      x: 300 + sheen,
+      y: -20,
+      rx: 70,
+      ry: 160,
+      fill: rgba([255, 236, 180], 28),
+      tag: "sheen",
+    },
+    {
+      t: "ellipse",
+      x: 310 + sheen * 0.6,
+      y: -90,
+      rx: 36,
+      ry: 90,
+      fill: rgba([255, 248, 220], 36),
+      tag: "sheen",
+    },
+    {
+      t: "ellipse",
+      x: 318 + sheen * 0.4,
+      y: -170,
+      rx: 18,
+      ry: 50,
+      fill: rgba([255, 252, 236], 44),
+      tag: "sheen",
+    },
+    {
+      t: "bezier",
+      x1: -520,
+      y1: 8,
+      c1x: -200,
+      c1y: 22,
+      c2x: 80,
+      c2y: -6,
+      x2: 360,
+      y2: 12,
+      color: rgba([255, 248, 220], 70),
+      width: 2.4,
+      tag: "ripple",
+    },
+  );
   return ops;
+}
+
+export function farRidgeOps(look: IslandLook): DrawOp[] {
+  const ink = mix(look.deep, [18, 22, 40], 0.55);
+  return [
+    {
+      t: "poly",
+      pts: [-640, 40, -520, 78, -400, 52, -280, 92, -140, 58, 20, 88, 180, 50, 320, 96, 480, 62, 640, 86, 640, 36, -640, 36],
+      fill: rgba(ink, 210),
+      tag: "silhouette",
+    },
+    {
+      t: "poly",
+      pts: [-640, 36, -480, 58, -300, 42, -80, 70, 140, 44, 360, 66, 540, 40, 640, 54, 640, 32, -640, 32],
+      fill: rgba(mix(ink, look.far, 0.25), 160),
+      tag: "silhouette",
+    },
+  ];
+}
+
+export function farBoatOps(): DrawOp[] {
+  const hull = [16, 22, 36] as Rgb;
+  return [
+    { t: "ellipse", x: -280, y: 28, rx: 28, ry: 5, fill: rgba(hull, 180), tag: "silhouette" },
+    { t: "rect", x: -292, y: 28, w: 26, h: 8, r: 2, fill: rgba(hull, 200) },
+    { t: "rect", x: -274, y: 34, w: 3, h: 14, fill: rgba(hull, 210) },
+    { t: "poly", pts: [-274, 48, -258, 40, -274, 38], fill: rgba([40, 28, 22], 180), tag: "silhouette" },
+    { t: "ellipse", x: 210, y: 24, rx: 22, ry: 4, fill: rgba(hull, 160), tag: "silhouette" },
+    { t: "rect", x: 198, y: 24, w: 20, h: 6, r: 2, fill: rgba(hull, 180) },
+    { t: "rect", x: 210, y: 28, w: 2, h: 10, fill: rgba(hull, 190) },
+    { t: "ellipse", x: 520, y: 22, rx: 16, ry: 3, fill: rgba(hull, 140), tag: "silhouette" },
+  ];
+}
+
+export function lightStripOps(): DrawOp[] {
+  const ops: DrawOp[] = [
+    {
+      t: "bezier",
+      x1: -500,
+      y1: -112,
+      c1x: -430,
+      c1y: -96,
+      c2x: -360,
+      c2y: -120,
+      x2: -280,
+      y2: -104,
+      color: rgba(WOOD.rope, 190),
+      width: 2,
+    },
+    {
+      t: "bezier",
+      x1: -360,
+      y1: -108,
+      c1x: -300,
+      c1y: -92,
+      c2x: -250,
+      c2y: -118,
+      x2: -210,
+      y2: -100,
+      color: rgba(WOOD.rope, 160),
+      width: 1.6,
+    },
+  ];
+  const lamps: Array<[number, number]> = [
+    [-490, -110],
+    [-460, -104],
+    [-430, -100],
+    [-400, -108],
+    [-370, -114],
+    [-340, -106],
+    [-310, -100],
+    [-280, -106],
+    [-340, -98],
+    [-300, -94],
+    [-260, -108],
+    [-230, -102],
+  ];
+  for (const [x, y] of lamps) {
+    ops.push(
+      { t: "circle", x, y, r: 8, fill: rgba(MARKET.glow, 40), tag: "lamp" },
+      { t: "circle", x, y, r: 3.2, fill: rgba(MARKET.lamp), tag: "lamp" },
+    );
+  }
+  return ops;
+}
+
+export function fireworkOps(): DrawOp[] {
+  const sparks: Array<[number, number, number]> = [
+    [-430, -40, 3],
+    [-390, -8, 2.4],
+    [-350, -28, 2.8],
+    [-310, 6, 2.2],
+    [-270, -18, 2.6],
+    [-410, 20, 2],
+    [-330, 28, 2.2],
+    [-360, 48, 1.8],
+  ];
+  return sparks.map(([x, y, r]) => ({
+    t: "circle" as const,
+    x,
+    y,
+    r,
+    fill: rgba(MARKET.sign, 200),
+    tag: "firework",
+  }));
 }
 
 export function sunOps(x: number, y: number, look: IslandLook): DrawOp[] {
@@ -533,6 +730,12 @@ export function pierMarketOps(look: IslandLook): DrawOp[] {
     { t: "circle", x: -324, y: -118, r: 12, fill: rgba(MARKET.glow, 48), tag: "lantern" },
     { t: "ellipse", x: -250, y: -196, rx: 9, ry: 4, fill: rgba([255, 214, 96]) },
     { t: "ellipse", x: -232, y: -192, rx: 7, ry: 3.4, fill: rgba([46, 186, 168]) },
+    { t: "ellipse", x: -456, y: -210, rx: 22, ry: 6, fill: rgba(MARKET.glow, 36), tag: "lantern" },
+    { t: "ellipse", x: -324, y: -208, rx: 18, ry: 5, fill: rgba(MARKET.glow, 28), tag: "lantern" },
+    { t: "circle", x: -400, y: -124, r: 5, fill: rgba(MARKET.lantern), tag: "lantern" },
+    { t: "circle", x: -400, y: -124, r: 13, fill: rgba(MARKET.glow, 42), tag: "lantern" },
+    ...lightStripOps(),
+    ...fireworkOps(),
   );
   return ops;
 }
@@ -604,6 +807,10 @@ export function harborAmbienceOps(look: IslandLook): DrawOp[] {
     },
     { t: "rect", x: 232, y: -198, w: 28, h: 10, r: 3, fill: rgba(WOOD.highlight) },
     { t: "poly", pts: [246, -188, 268, -168, 246, -176], fill: rgba(look.accent) },
+    { t: "ellipse", x: 80, y: 220, rx: 110, ry: 16, fill: rgba([255, 232, 200], 24), tag: "cloud" },
+    { t: "ellipse", x: 340, y: 242, rx: 80, ry: 12, fill: rgba([255, 244, 214], 22), tag: "cloud" },
+    ...gullOps(320, 196, 0.7),
+    ...gullOps(-200, 188, 0.55),
   ];
 }
 
@@ -650,6 +857,10 @@ export function dockOps(): DrawOp[] {
     { t: "ellipse", x: -400, y: -248, rx: 80, ry: 7, fill: rgba([255, 248, 230], 32), tag: "foam" },
     { t: "circle", x: -200, y: -156, r: 5, fill: rgba(MARKET.lantern), tag: "lantern" },
     { t: "circle", x: -200, y: -156, r: 11, fill: rgba(MARKET.glow, 40), tag: "lantern" },
+    { t: "circle", x: -320, y: -144, r: 6, fill: rgba(MARKET.lantern), tag: "lantern" },
+    { t: "circle", x: -320, y: -144, r: 14, fill: rgba(MARKET.glow, 46), tag: "lantern" },
+    { t: "ellipse", x: -248, y: -228, rx: 20, ry: 5, fill: rgba(MARKET.glow, 30), tag: "lantern" },
+    { t: "ellipse", x: -320, y: -226, rx: 16, ry: 4, fill: rgba(MARKET.glow, 24), tag: "lantern" },
   );
   return ops;
 }
@@ -769,6 +980,7 @@ function faceOps(
       rx: 4 * s,
       ry: 2 * s,
       fill: rgba([22, 40, 32], decoy ? 90 : 220),
+      tag: "lid",
     });
   }
   return ops;
@@ -891,7 +1103,7 @@ export function fishBodyOps(
   }
   return [
     { t: "ellipse", x: 2 * s, y: -10 * s, rx: 40 * s, ry: 10 * s, fill: rgba(WOOD.shadow, decoy ? 50 : 90) },
-    { t: "poly", pts: [-24 * s, 0, -68 * s, -20 * s, -52 * s, 0, -68 * s, 20 * s], fill: rgba(accent) },
+    { t: "poly", pts: [-24 * s, 0, -68 * s, -20 * s, -52 * s, 0, -68 * s, 20 * s], fill: rgba(accent), tag: "tail" },
     { t: "poly", pts: [8 * s, 8 * s, 28 * s, 36 * s, 34 * s, 6 * s], fill: rgba(accent) },
     { t: "poly", pts: [6 * s, -6 * s, 0, -30 * s, 18 * s, -8 * s], fill: rgba(body) },
     { t: "ellipse", x: 6 * s, y: 2 * s, rx: 36 * s, ry: 18 * s, fill: rgba(body) },
@@ -999,16 +1211,25 @@ export function fishOps(
       t: "circle",
       x: look.weakX * s,
       y: look.weakY * s,
-      r: (state.flashing ? 14 : 9) * s,
-      fill: rgba(glow),
+      r: (state.flashing ? 16 : 11) * s,
+      fill: rgba(glow, state.flashing ? 255 : 230),
+      tag: "weak",
+    },
+    {
+      t: "circle",
+      x: look.weakX * s,
+      y: look.weakY * s,
+      r: (state.flashing ? 24 : 18) * s,
+      fill: rgba([255, 236, 120], state.flashing ? 70 : 40),
+      tag: "weak",
     },
     {
       t: "ring",
       x: look.weakX * s,
       y: look.weakY * s,
-      r: (state.flashing ? 20 : 13) * s,
-      color: rgba([255, 255, 255], state.flashing ? 255 : 220),
-      width: state.flashing ? 5 : 3,
+      r: (state.flashing ? 22 : 15) * s,
+      color: rgba([255, 255, 255], state.flashing ? 255 : 230),
+      width: state.flashing ? 5 : 3.4,
     },
   );
   return ops;
@@ -1024,6 +1245,8 @@ export function islandSetOps(
   if (harbor) {
     ops.push(
       ...sunOps(420, 250, look),
+      ...farRidgeOps(look),
+      ...farBoatOps(),
       ...foamIsleOps(-160, 78, 1, islandLook("island_foam_bay")),
       ...prismIsleOps(170, 82, 1, islandLook("island_prism_reef")),
       ...stormIsleOps(470, 76, 0.85, islandLook("island_storm_eye")),

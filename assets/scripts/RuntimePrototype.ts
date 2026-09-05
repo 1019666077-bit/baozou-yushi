@@ -955,10 +955,11 @@ export class RuntimePrototype extends Component {
       const fx = fish.takeLandFx();
       if (fx.splash) {
         this.burst("splash", fish.node.position.x, fish.node.position.y + 24);
+        SfxPlayer.play("splash");
       }
       if (fx.bounce) {
         this.burst("smash", fish.node.position.x, fish.node.position.y);
-        SfxPlayer.play("hit");
+        SfxPlayer.play("smash");
       }
     }
   }

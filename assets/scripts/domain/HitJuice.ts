@@ -28,7 +28,7 @@ export function juiceCount(kind: JuiceKind, lowPower: boolean): number {
   if (lowPower) return kind === "miss" ? 2 : 3;
   if (kind === "miss") return 4;
   if (kind === "splash") return 10;
-  if (kind === "smash") return 12;
+  if (kind === "smash") return 16;
   if (kind === "hit") return 9;
   if (kind === "catch") return 8;
   return 9;
@@ -121,7 +121,7 @@ export function juiceShakePx(kind: JuiceKind, lowPower: boolean): number {
 }
 
 export function juiceShakeSeconds(lowPower: boolean): number {
-  return lowPower ? 0 : 0.1;
+  return lowPower ? 0 : 0.12;
 }
 
 export function juiceWantsPunch(kind: JuiceKind, lowPower: boolean): boolean {
@@ -273,7 +273,7 @@ export function crateBounceScaleAt(elapsed: number, lowPower: boolean): number {
 
 /** 砸甲板短挤压：横向撑开、纵向压扁，低配关掉。 */
 export function smashSquashSeconds(lowPower = false): number {
-  return lowPower ? 0 : 0.18;
+  return lowPower ? 0 : 0.22;
 }
 
 export function smashSquashAt(
@@ -285,7 +285,16 @@ export function smashSquashAt(
     return { sx: 1, sy: 1 };
   }
   const t = 1 - elapsed / duration;
-  return { sx: 1 + 0.24 * t, sy: 1 - 0.3 * t };
+  return { sx: 1 + 0.34 * t, sy: 1 - 0.38 * t };
+}
+
+/** 弱点准星半径：读得出窗口，不挡点。 */
+export function weakReticleRadius(nowMs: number): number {
+  return 17 + 7 * (0.5 + 0.5 * Math.sin(nowMs / 130));
+}
+
+export function weakReticleTickPx(): number {
+  return 10;
 }
 
 export function popupLiftPx(elapsed: number, duration = 0.45): number {

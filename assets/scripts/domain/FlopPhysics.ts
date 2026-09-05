@@ -14,8 +14,8 @@ export const YANK_FEEL = {
   targetY: DECK_Y + 52,
   /** 1.85：后半段像线突然绷直。dt=0.05 从海里仍不落地。 */
   pullRate: 1.85,
-  /** 中段抬高，避免直线传送。略抬一点，甩上来能读出弧。 */
-  arcPx: 60,
+  /** 中段抬高，避免直线传送。再抬一点，甩上来能读出弧。 */
+  arcPx: 72,
   liftRate: 1.55,
   /** 用当前位置估拽程，420 覆盖教学湾鳍的海里起点。 */
   span: 420,
@@ -24,7 +24,7 @@ export const YANK_FEEL = {
 export const FLOP_FEEL = {
   /** 第一下要看见抛物线，不是贴地滑。 */
   launchVx: -128,
-  launchVy: 900,
+  launchVy: 980,
   launchAngle: 1.18,
   launchSpin: 32,
   /** 未砸晕：砸甲板要弹得开，才读得出「砸」。 */
@@ -50,7 +50,7 @@ export const CARRY_FEEL = {
   freqX: 9,
   freqY: 11,
   ampX: 3,
-  ampY: 7,
+  ampY: 9,
 };
 
 export interface FlopBody {

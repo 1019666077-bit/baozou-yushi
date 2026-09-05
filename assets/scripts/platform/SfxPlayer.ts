@@ -74,7 +74,8 @@ export class SfxPlayer {
     try {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = id === "shot" || id === "hit" ? "triangle" : "sine";
+      osc.type =
+        id === "smash" ? "sawtooth" : id === "shot" || id === "hit" || id === "weak" ? "triangle" : "sine";
       osc.frequency.value = tone.freq;
       const now = ctx.currentTime;
       gain.gain.setValueAtTime(tone.gain, now);

@@ -58,8 +58,11 @@ export function paintPlate(
   graphics.fillColor = new Color(fill[0], fill[1], fill[2], fill[3]);
   graphics.roundRect(-width / 2, -height / 2, width, height, radius);
   graphics.fill();
+  graphics.fillColor = new Color(255, 226, 150, tutorial ? 50 : 28);
+  graphics.roundRect(-width / 2 + 4, height / 2 - 10, width - 8, 8, 6);
+  graphics.fill();
   graphics.strokeColor = new Color(stroke[0], stroke[1], stroke[2], stroke[3]);
-  graphics.lineWidth = tutorial ? 2.5 : 1.5;
+  graphics.lineWidth = tutorial ? 3 : 1.8;
   graphics.roundRect(-width / 2, -height / 2, width, height, radius);
   graphics.stroke();
 }
@@ -168,8 +171,14 @@ function paintButtonChrome(
   graphics.roundRect(-width / 2, -height / 2, width, height, radius);
   graphics.fill();
   if (tone === "primary") {
-    graphics.fillColor = new Color(255, 214, 140, 70);
-    graphics.roundRect(-width / 2 + 6, height / 2 - 18, width - 12, 12, 8);
+    graphics.fillColor = new Color(255, 168, 48, 255);
+    graphics.roundRect(-width / 2 + 3, -height / 2 + 3, width - 6, height - 6, Math.max(8, radius - 4));
+    graphics.fill();
+    graphics.fillColor = new Color(255, 220, 150, 95);
+    graphics.roundRect(-width / 2 + 8, height / 2 - 22, width - 16, 14, 8);
+    graphics.fill();
+    graphics.fillColor = new Color(180, 72, 16, 70);
+    graphics.roundRect(-width / 2 + 8, -height / 2 + 6, width - 16, 10, 6);
     graphics.fill();
   }
   const stroke = buttonStrokeRgb(tone);

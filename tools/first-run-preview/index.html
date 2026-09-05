@@ -69,8 +69,17 @@
         text-align: center;
         white-space: nowrap;
         pointer-events: none;
-        text-shadow: 0 2px 0 rgba(20, 12, 4, 0.45), 0 0 12px rgba(8, 20, 28, 0.35);
-        letter-spacing: 0.01em;
+        font-weight: 700;
+        text-shadow: 0 2px 0 rgba(20, 12, 4, 0.5), 0 0 12px rgba(8, 20, 28, 0.35);
+        letter-spacing: 0.02em;
+      }
+      .label.title {
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-shadow: 0 2px 0 rgba(40, 16, 0, 0.45), 0 0 16px rgba(255, 180, 64, 0.28);
+      }
+      .label.goldchip {
+        font-weight: 800;
       }
       .label.wrap {
         white-space: normal;
@@ -80,9 +89,29 @@
       .plate {
         position: absolute;
         transform: translate(-50%, -50%);
-        border-radius: 12px;
+        border-radius: 16px;
         pointer-events: none;
-        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+        box-shadow: inset 0 1px 0 rgba(255, 226, 150, 0.32), 0 8px 22px rgba(0, 0, 0, 0.32);
+      }
+      .plate.plate-live {
+        box-shadow: inset 0 1px 0 rgba(255, 230, 160, 0.45), 0 0 0 1px rgba(255, 210, 80, 0.28),
+          0 10px 24px rgba(0, 0, 0, 0.36);
+      }
+      .progress {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        height: 14px;
+        border-radius: 8px;
+        background: rgba(8, 18, 26, 0.72);
+        box-shadow: inset 0 0 0 1px rgba(255, 210, 80, 0.35);
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .progress > i {
+        display: block;
+        height: 100%;
+        border-radius: 8px;
+        background: linear-gradient(180deg, #ffe27a 0%, #ffb432 55%, #e88912 100%);
       }
       button.cta {
         position: absolute;
@@ -92,11 +121,14 @@
         cursor: pointer;
         font-family: inherit;
         font-weight: 700;
-        letter-spacing: 0.02em;
+        letter-spacing: 0.03em;
         box-shadow: 0 4px 0 rgba(0, 0, 0, 0.18);
       }
       button.cta.primary {
-        box-shadow: 0 0 0 3px rgba(255, 236, 180, 0.9), 0 5px 0 rgba(0, 0, 0, 0.2);
+        font-weight: 800;
+        text-shadow: 0 1px 0 rgba(255, 236, 200, 0.4), 0 2px 0 rgba(90, 32, 0, 0.35);
+        box-shadow: 0 0 0 3px rgba(255, 228, 150, 0.95), 0 6px 0 #b85a10, 0 12px 18px rgba(0, 0, 0, 0.3),
+          inset 0 10px 0 rgba(255, 236, 190, 0.28);
         animation: ctaPulse 1.15s ease-in-out infinite;
       }
       button.cta:active {

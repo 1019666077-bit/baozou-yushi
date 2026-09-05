@@ -11,7 +11,7 @@ const hud = document.getElementById("hud");
 const buttons = document.getElementById("buttons");
 const disclaimer = document.getElementById("disclaimer");
 
-disclaimer.textContent = `${COPY.disclaimer} · 文案镜像 TutorialFlow / RuntimeHome / RuntimePrototype · ${COPY.sourceStamp}`;
+disclaimer.textContent = `${COPY.disclaimer} · 文案镜像 TutorialFlow / RuntimeHome / RuntimePrototype · ${COPY.sourceStamp} · ${COPY.sfxNote ?? ""}`;
 
 const W = 1280;
 const H = 720;
@@ -73,6 +73,9 @@ let smashElapsed = 0;
 let castFlashLeft = 0;
 let castFlashElapsed = 0;
 let splashRings = [];
+let hitStopLeft = 0;
+let sellBridge = "";
+let ambientSparks = [];
 
 function rgb(arr, a = 1) {
   return `rgba(${arr[0]},${arr[1]},${arr[2]},${a})`;
@@ -86,9 +89,9 @@ function cssBtn(tone) {
   return { fill: rgb(fill), ink: rgb(ink), stroke: rgb(stroke), width };
 }
 
-function label(text, size, x, y, width = 900, color = rgb(COPY.colors.palette.hud)) {
+function label(text, size, x, y, width = 900, color = rgb(COPY.colors.palette.hud), extraClass = "") {
   const el = document.createElement("div");
-  el.className = "label";
+  el.className = extraClass ? `label ${extraClass}` : "label";
   el.textContent = text;
   el.style.left = `${sx(x)}px`;
   el.style.top = `${sy(y)}px`;
@@ -102,7 +105,7 @@ function label(text, size, x, y, width = 900, color = rgb(COPY.colors.palette.hu
 
 function plate(x, y, width, height, tutorial) {
   const el = document.createElement("div");
-  el.className = "plate";
+  el.className = tutorial ? "plate plate-live" : "plate";
   el.style.left = `${sx(x)}px`;
   el.style.top = `${sy(y)}px`;
   el.style.width = `${width}px`;
@@ -111,9 +114,22 @@ function plate(x, y, width, height, tutorial) {
   const stroke = COPY.plate.stroke;
   el.style.background = rgb(fill.slice(0, 3), fill[3] / 255);
   el.style.border = tutorial
-    ? `2px solid ${rgb(stroke.slice(0, 3), stroke[3] / 255)}`
-    : `1px solid ${rgb(COPY.colors.strokeSecondary, 0.35)}`;
+    ? `2.5px solid ${rgb(stroke.slice(0, 3), stroke[3] / 255)}`
+    : `1px solid ${rgb(COPY.colors.strokeSecondary, 0.4)}`;
   el.style.borderRadius = `${COPY.plate.size.radius}px`;
+  hud.appendChild(el);
+  return el;
+}
+
+function progressBar(x, y, width, ratio) {
+  const el = document.createElement("div");
+  el.className = "progress";
+  el.style.left = `${sx(x)}px`;
+  el.style.top = `${sy(y)}px`;
+  el.style.width = `${width}px`;
+  const fill = document.createElement("i");
+  fill.style.width = `${Math.round(Math.min(1, Math.max(0, ratio)) * 100)}%`;
+  el.appendChild(fill);
   hud.appendChild(el);
   return el;
 }
@@ -130,12 +146,15 @@ function cta(text, x, y, w, h, size, tone, onClick, name = text) {
   el.style.fontSize = `${size}px`;
   el.style.borderRadius = `${COPY.button.radius}px`;
   const skin = cssBtn(tone);
-  el.style.background = skin.fill;
   el.style.color = skin.ink;
-  el.style.boxShadow =
-    tone === "primary"
-      ? `0 0 0 ${skin.width}px ${skin.stroke}, 0 5px 0 rgba(0,0,0,0.2)`
-      : `0 0 0 ${skin.width}px ${skin.stroke}, 0 4px 0 rgba(0,0,0,0.16)`;
+  if (tone === "primary") {
+    el.style.background = "linear-gradient(180deg, #ffb452 0%, #ff8a20 46%, #e06a12 100%)";
+    el.style.fontWeight = "800";
+    el.style.boxShadow = `0 0 0 ${skin.width}px ${skin.stroke}, 0 6px 0 #b85a10, 0 12px 18px rgba(0,0,0,0.3), inset 0 10px 0 rgba(255,236,190,0.28)`;
+  } else {
+    el.style.background = `linear-gradient(180deg, ${rgb([28, 86, 100])} 0%, ${skin.fill} 70%)`;
+    el.style.boxShadow = `0 0 0 ${skin.width}px ${skin.stroke}, 0 4px 0 rgba(0,0,0,0.18)`;
+  }
   el.addEventListener("click", (event) => {
     event.stopPropagation();
     onClick();
@@ -201,13 +220,15 @@ function burst(kind, x, y) {
     };
   }
   if (kind === "weak" || kind === "catch" || kind === "sell" || kind === "smash") {
-    shakeLeft = COPY.juiceShakeSeconds ?? 0.08;
+    shakeLeft = COPY.juiceShakeSeconds ?? 0.12;
+    hitStopLeft = Math.max(hitStopLeft, kind === "weak" || kind === "smash" ? 0.08 : 0.05);
   }
   if (kind === "smash" || kind === "splash") {
-    splashRings.push({ x, y, life: 1, maxLife: kind === "smash" ? 0.28 : 0.34 });
+    splashRings.push({ x, y, life: 1, maxLife: kind === "smash" ? 0.32 : 0.38 });
+    splashRings.push({ x: x + 10, y: y - 6, life: 1, maxLife: kind === "smash" ? 0.22 : 0.26 });
   }
   if (kind === "smash") {
-    smashLeft = COPY.smashSquashSeconds ?? 0.18;
+    smashLeft = COPY.smashSquashSeconds ?? 0.22;
     smashElapsed = 0;
   }
 }
@@ -270,19 +291,45 @@ function playSfx(id) {
     if (!Ctor) return;
     if (!sfxCtx) sfxCtx = new Ctor();
     if (sfxCtx.state === "suspended") void sfxCtx.resume();
-    const osc = sfxCtx.createOscillator();
-    const gain = sfxCtx.createGain();
-    osc.type = id === "weak" ? "triangle" : "sine";
-    osc.frequency.value = tone.freq;
     const now = sfxCtx.currentTime;
+    const gain = sfxCtx.createGain();
     gain.gain.setValueAtTime(tone.gain, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + tone.ms / 1000);
-    osc.connect(gain);
     gain.connect(sfxCtx.destination);
+    const osc = sfxCtx.createOscillator();
+    osc.type = id === "smash" ? "sawtooth" : id === "weak" || id === "hit" ? "triangle" : "sine";
+    osc.frequency.value = tone.freq;
+    osc.connect(gain);
     osc.start();
     osc.stop(now + tone.ms / 1000 + 0.02);
+    if (id === "sell") {
+      const osc2 = sfxCtx.createOscillator();
+      const gain2 = sfxCtx.createGain();
+      osc2.type = "triangle";
+      osc2.frequency.value = tone.freq * 1.25;
+      gain2.gain.setValueAtTime(tone.gain * 0.7, now + 0.07);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc2.connect(gain2);
+      gain2.connect(sfxCtx.destination);
+      osc2.start(now + 0.07);
+      osc2.stop(now + 0.24);
+    }
+    if (tone.noise && sfxCtx.createBufferSource) {
+      const frames = Math.max(1, Math.floor(sfxCtx.sampleRate * (tone.ms / 1000)));
+      const buffer = sfxCtx.createBuffer(1, frames, sfxCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < frames; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
+      const src = sfxCtx.createBufferSource();
+      const ng = sfxCtx.createGain();
+      src.buffer = buffer;
+      ng.gain.setValueAtTime(tone.gain * 0.55, now);
+      ng.gain.exponentialRampToValueAtTime(0.001, now + tone.ms / 1000);
+      src.connect(ng);
+      ng.connect(sfxCtx.destination);
+      src.start();
+    }
   } catch {
-    // mute stub：无 AudioContext 时静音，不挡流程
+    // mute stub：无 AudioContext 时静音，不挡流程。WebAudio 占位 ≠ 真机。
   }
 }
 
@@ -290,33 +337,60 @@ function fillOf(arr) {
   return rgb(arr, (arr[3] ?? 255) / 255);
 }
 
-function paintOps(ctx, ops, phase = 0, local = false) {
+function lanternK(phase, x) {
+  const slow = 0.5 + 0.5 * Math.sin(phase * 2.35 + x * 0.034);
+  const tick = 0.72 + 0.28 * Math.sin(phase * 8.4 + x * 0.17);
+  return Math.min(1.18, slow * 0.72 + tick * 0.4);
+}
+
+function lampK(phase, x) {
+  return 0.42 + 0.58 * (0.5 + 0.5 * Math.sin(phase * 5.4 + x * 0.09));
+}
+
+function paintOps(ctx, ops, phase = 0, local = false, live = {}) {
   const px = (x, tag) => {
     const drift =
-      tag === "caustic" || tag === "shaft" || tag === "spark" || tag === "gull" || tag === "cloud"
-        ? Math.sin(phase + x * 0.01) * (tag === "gull" || tag === "cloud" ? 16 : 10)
-        : 0;
+      tag === "caustic" || tag === "shaft" || tag === "spark" || tag === "gull" || tag === "cloud" || tag === "sheen"
+        ? Math.sin(phase + x * 0.01) * (tag === "gull" || tag === "cloud" ? 18 : tag === "sheen" ? 28 : 10)
+        : tag === "foam"
+          ? Math.sin(phase * 0.8 + x * 0.02) * 8
+          : 0;
     return local ? x + drift : 640 + x + drift;
   };
-  const py = (y) => (local ? y : 360 - y);
-  const flicker = (tag, x = 0) =>
-    tag === "lantern" ? 0.68 + 0.32 * (0.5 + 0.5 * Math.sin(phase * 2.6 + x * 0.03)) : 1;
+  const py = (y, tag, x = 0) => {
+    const lift =
+      tag === "firework"
+        ? ((Math.sin(phase * 1.15 + x * 0.045) + 1) * 0.5) * 42
+        : tag === "ripple"
+          ? Math.sin(phase * 1.4 + x * 0.02) * 6
+          : 0;
+    return local ? y + lift : 360 - y - lift;
+  };
+  const flicker = (tag, x = 0) => {
+    if (tag === "lantern") return lanternK(phase, x);
+    if (tag === "lamp") return lampK(phase, x);
+    if (tag === "firework") return 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(phase * 3.2 + x * 0.08));
+    if (tag === "sheen") return 0.7 + 0.3 * (0.5 + 0.5 * Math.sin(phase * 1.6));
+    if (tag === "weak") return live.weakK ?? 1;
+    return 1;
+  };
   for (const op of ops) {
     if (op.t === "ellipse") {
       const k = flicker(op.tag, op.x);
       const fill = op.fill;
       ctx.fillStyle = rgb(fill.slice(0, 3), ((fill[3] ?? 255) / 255) * k);
       ctx.beginPath();
-      ctx.ellipse(px(op.x, op.tag), py(op.y), op.rx, op.ry, 0, 0, Math.PI * 2);
+      ctx.ellipse(px(op.x, op.tag), py(op.y, op.tag, op.x), op.rx, op.ry, 0, 0, Math.PI * 2);
       ctx.fill();
       continue;
     }
     if (op.t === "circle") {
       const k = flicker(op.tag, op.x);
       const fill = op.fill;
+      const grow = op.tag === "lantern" || op.tag === "lamp" || op.tag === "weak" ? 0.82 + 0.28 * k : 1;
       ctx.fillStyle = rgb(fill.slice(0, 3), ((fill[3] ?? 255) / 255) * k);
       ctx.beginPath();
-      ctx.arc(px(op.x, op.tag), py(op.y), op.r, 0, Math.PI * 2);
+      ctx.arc(px(op.x, op.tag), py(op.y, op.tag, op.x), op.r * grow, 0, Math.PI * 2);
       ctx.fill();
       continue;
     }
@@ -331,12 +405,19 @@ function paintOps(ctx, ops, phase = 0, local = false) {
       continue;
     }
     if (op.t === "poly") {
+      ctx.save();
+      if (op.tag === "tail" && live.tailWag) {
+        ctx.translate(px(-24), py(0));
+        ctx.rotate(live.tailWag);
+        ctx.translate(-px(-24), -py(0));
+      }
       ctx.fillStyle = fillOf(op.fill);
       ctx.beginPath();
       ctx.moveTo(px(op.pts[0]), py(op.pts[1]));
       for (let i = 2; i < op.pts.length; i += 2) ctx.lineTo(px(op.pts[i]), py(op.pts[i + 1]));
       ctx.closePath();
       ctx.fill();
+      ctx.restore();
       continue;
     }
     if (op.t === "line") {
@@ -349,10 +430,12 @@ function paintOps(ctx, ops, phase = 0, local = false) {
       continue;
     }
     if (op.t === "bezier") {
-      ctx.strokeStyle = fillOf(op.color);
+      const k = flicker(op.tag, op.x1);
+      const color = op.color;
+      ctx.strokeStyle = rgb(color.slice(0, 3), ((color[3] ?? 255) / 255) * k);
       ctx.lineWidth = op.width;
       ctx.beginPath();
-      ctx.moveTo(px(op.x1, op.tag), py(op.y1));
+      ctx.moveTo(px(op.x1, op.tag), py(op.y1, op.tag, op.x1));
       ctx.bezierCurveTo(px(op.c1x), py(op.c1y), px(op.c2x), py(op.c2y), px(op.x2), py(op.y2));
       ctx.stroke();
       continue;
@@ -361,7 +444,7 @@ function paintOps(ctx, ops, phase = 0, local = false) {
       ctx.strokeStyle = fillOf(op.color);
       ctx.lineWidth = op.width;
       ctx.beginPath();
-      ctx.arc(px(op.x), py(op.y), op.r, 0, Math.PI * 2);
+      ctx.arc(px(op.x), py(op.y), op.r * (op.tag === "weak" ? flicker("weak") : 1), 0, Math.PI * 2);
       ctx.stroke();
       continue;
     }
@@ -462,8 +545,8 @@ function carryBob(elapsed) {
 function paintSea(ctx, _look, harbor = false) {
   const ops = harbor ? COPY.art?.harbor : COPY.art?.tutorial;
   if (ops) {
-    paintOps(ctx, ops, performance.now() / 700);
-    if (!harbor && COPY.art?.dock) paintOps(ctx, COPY.art.dock, performance.now() / 700);
+    paintOps(ctx, ops, performance.now() / 520);
+    if (!harbor && COPY.art?.dock) paintOps(ctx, COPY.art.dock, performance.now() / 520);
     return;
   }
   ctx.fillStyle = "#0a5c7e";
@@ -489,13 +572,47 @@ function smashScale() {
   return { sx: 1 + (mid.sx - 1) * t, sy: 1 + (mid.sy - 1) * t };
 }
 
+function motionNow() {
+  return performance.now();
+}
+
+function tailWagNow() {
+  const amp = COPY.motion?.tailAmp ?? 0.3;
+  const ms = COPY.motion?.tailMs ?? 150;
+  if (fishFace === "stunned" || fishFace === "carry") return 0;
+  const boost = fishFace === "hooked" ? 1.35 : 1;
+  return Math.sin(motionNow() / ms) * amp * boost;
+}
+
+function blinkNow() {
+  if (fishFace !== "idle") return false;
+  const period = COPY.motion?.blinkPeriod ?? 2600;
+  const shut = COPY.motion?.blinkShut ?? 100;
+  return motionNow() % period < shut;
+}
+
+function weakKNow() {
+  const ms = COPY.motion?.weakPulseMs ?? 128;
+  return 0.58 + 0.42 * (0.5 + 0.5 * Math.sin(motionNow() / ms));
+}
+
 function paintFish(ctx, x, y) {
   const squash = smashScale();
   ctx.save();
   ctx.translate(sx(x), sy(y));
   ctx.scale(squash.sx, -squash.sy);
   ctx.rotate(fishAngle);
-  paintOps(ctx, bayfinOps(), 0, true);
+  paintOps(ctx, bayfinOps(), motionNow() / 700, true, {
+    tailWag: tailWagNow(),
+    blink: blinkNow(),
+    weakK: weakKNow(),
+  });
+  if (blinkNow()) {
+    ctx.fillStyle = "rgba(22, 40, 32, 0.95)";
+    ctx.beginPath();
+    ctx.ellipse(30, 1, 7.2, 1.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -634,14 +751,42 @@ function paintJuice(ctx) {
     ctx.ellipse(sx(ring.x), sy(ring.y), 16 + 36 * (1 - ring.life), 7 + 10 * (1 - ring.life), 0, 0, Math.PI * 2);
     ctx.stroke();
   }
-  if (hooked && tutorialStep === "weakPoint") {
-    const pulse = 0.65 + 0.35 * Math.sin(performance.now() / 140);
-    ctx.globalAlpha = pulse;
-    ctx.strokeStyle = "#ffe24a";
-    ctx.lineWidth = 4;
+  for (const spark of ambientSparks) {
+    ctx.globalAlpha = Math.max(0, spark.life);
+    ctx.fillStyle = "#ffe27a";
     ctx.beginPath();
-    ctx.arc(sx(fishX + COPY.looks.bayfin.weakX), sy(fishY + COPY.looks.bayfin.weakY), 16 + pulse * 6, 0, Math.PI * 2);
+    ctx.arc(sx(spark.x), sy(spark.y), spark.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const weakX = sx(fishX + COPY.looks.bayfin.weakX);
+  const weakY = sy(fishY + COPY.looks.bayfin.weakY);
+  if (surface === "sea" && tutorialStep !== "settle") {
+    const pulse = weakKNow();
+    const r = 16 + pulse * 10;
+    ctx.globalAlpha = tutorialStep === "weakPoint" ? pulse : 0.45 + 0.25 * pulse;
+    ctx.strokeStyle = "#ffe24a";
+    ctx.lineWidth = tutorialStep === "weakPoint" ? 5 : 3;
+    ctx.beginPath();
+    ctx.arc(weakX, weakY, r, 0, Math.PI * 2);
     ctx.stroke();
+    const tick = COPY.weakHint?.tickPx ?? 10;
+    ctx.beginPath();
+    ctx.moveTo(weakX, weakY - r - tick);
+    ctx.lineTo(weakX, weakY - r + 2);
+    ctx.moveTo(weakX, weakY + r + tick);
+    ctx.lineTo(weakX, weakY + r - 2);
+    ctx.moveTo(weakX - r - tick, weakY);
+    ctx.lineTo(weakX - r + 2, weakY);
+    ctx.moveTo(weakX + r + tick, weakY);
+    ctx.lineTo(weakX + r - 2, weakY);
+    ctx.stroke();
+    if (tutorialStep === "weakPoint") {
+      ctx.globalAlpha = 0.95;
+      ctx.fillStyle = "#ffe27a";
+      ctx.font = "800 20px PingFang SC, Noto Sans SC, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(COPY.weakHint?.caption ?? "弱点", weakX, weakY - r - 16);
+    }
   }
   ctx.globalAlpha = 1;
   if (shakeLeft > 0) ctx.restore();
@@ -661,15 +806,21 @@ function renderHarbor() {
   const displayIsland = complete ? COPY.islands[0].id : COPY.tutorialIsland.id;
   hud.innerHTML = "";
   buttons.innerHTML = "";
-  label(COPY.harborTitle, 34, 0, 310);
-  label(`金币 ${save.coins}`, 26, 470, 310, 280, rgb(COPY.colors.gold));
+  label(COPY.harborTitle, 36, 0, 310, 900, rgb(COPY.colors.palette.hud), "title");
+  label(`金币 ${save.coins}`, 26, 470, 310, 280, rgb(COPY.colors.gold), "goldchip");
   if (coinJump && coinJumpLeft > 0) {
     const t = 1 - coinJumpLeft / COPY.coinJumpSeconds;
-    label(coinJump, 28, 470, 274 + t * 46, 280, `rgba(255,220,72,${1 - t * 0.15})`);
+    label(coinJump, 28, 470, 274 + t * 46, 280, `rgba(255,220,72,${1 - t * 0.15})`, "goldchip");
   }
   if (sellPopup && coinJumpLeft > 0) {
     const t = 1 - coinJumpLeft / COPY.coinJumpSeconds;
-    label(sellPopup, 30, 0, 120 + t * 16, 520, rgb(COPY.colors.gold));
+    label(sellPopup, 32, 0, 128 + t * 18, 520, rgb(COPY.colors.gold), "goldchip");
+  }
+  if (sellBridge && coinJumpLeft > 0) {
+    label(sellBridge, 22, 0, 86, 640, rgb(COPY.colors.cream));
+  }
+  if (save.tutorialComplete && save.coins > 0 && COPY.nextUpgradeCost) {
+    progressBar(0, 222, 280, save.coins / COPY.nextUpgradeCost);
   }
   const phase = harborPhase();
   const showMeta = COPY.hudShowMeta?.[phase] ?? phase === "idle";
@@ -939,6 +1090,8 @@ function sail() {
   smashElapsed = 0;
   castFlashLeft = 0;
   splashRings = [];
+  ambientSparks = [];
+  hitStopLeft = 0;
   render();
 }
 
@@ -958,6 +1111,7 @@ function onCast() {
   castFlashLeft = COPY.castFlashSeconds ?? 0.26;
   castFlashElapsed = 0;
   playSfx("cast");
+  playSfx("yank");
   render();
 }
 
@@ -974,6 +1128,7 @@ function applyWeak(knockNow = true) {
     if (!flopBody) flopBody = beginFlopPreview(fishX, fishY);
     flopBody = knockPreview(flopBody, boatX, boatY, 20);
     burst("smash", fishX, fishY);
+    playSfx("smash");
   }
   playSfx("weak");
   status = COPY.tutorialPrompts.reel;
@@ -1045,6 +1200,7 @@ function confirmSettle() {
   save.selectedIslandId = COPY.islands[0].id;
   coinJump = COPY.firstRun.coinJump;
   sellPopup = COPY.firstRun.sellPopup;
+  sellBridge = COPY.firstRun.sellHarborBridge ?? COPY.firstRun.sellBridge ?? "";
   coinJumpLeft = COPY.coinJumpSeconds;
   burst("gold", 470, 300);
   burst("sell", 0, 120);
@@ -1063,8 +1219,12 @@ stage.addEventListener("click", (event) => {
 });
 
 function tick(now) {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  let dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  if (hitStopLeft > 0) {
+    hitStopLeft = Math.max(0, hitStopLeft - dt);
+    dt *= 0.18;
+  }
   tickParticles(dt);
   if (smashLeft > 0) {
     smashElapsed += dt;
@@ -1078,10 +1238,26 @@ function tick(now) {
     .map((ring) => ({ ...ring, life: ring.life - dt / ring.maxLife }))
     .filter((ring) => ring.life > 0);
   if (surface === "sea" && tutorialStep === "cast" && !yanking && !flopBody && !carrying) {
-    fishX = 210 + Math.sin(now / 420) * 10;
-    fishY = 20 + Math.sin(now / 310) * 7;
-    fishAngle = Math.sin(now / 360) * 0.14;
+    fishX = 210 + Math.sin(now / 380) * 16;
+    fishY = 20 + Math.sin(now / 260) * 10;
+    fishAngle = Math.sin(now / 320) * 0.22 + tailWagNow() * 0.15;
   }
+  if ((surface === "harbor" || surface === "settle") && ambientSparks.length < 10 && Math.random() < dt * 3) {
+    ambientSparks.push({
+      x: -430 + Math.random() * 180,
+      y: -40 + Math.random() * 90,
+      life: 1,
+      maxLife: 0.7 + Math.random() * 0.4,
+      size: 2 + Math.random() * 2,
+    });
+  }
+  ambientSparks = ambientSparks
+    .map((spark) => ({
+      ...spark,
+      y: spark.y + 38 * dt,
+      life: spark.life - dt / spark.maxLife,
+    }))
+    .filter((spark) => spark.life > 0);
   if (yanking) {
     const next = yankStepPreview(fishX, fishY, dt);
     fishX = next.x;
@@ -1091,10 +1267,12 @@ function tick(now) {
       yanking = false;
       flopBody = beginFlopPreview(next.x, next.y);
       burst("splash", next.x, next.y + 24);
+      playSfx("splash");
       if (pendingWeak) {
         pendingWeak = false;
         flopBody = knockPreview(flopBody, boatX, boatY, 20);
         burst("smash", next.x, next.y);
+        playSfx("smash");
       }
     }
   } else if (flopBody && !carrying) {
@@ -1103,6 +1281,7 @@ function tick(now) {
     flopBody = stepFlopPreview(flopBody, dt, stunned);
     if (prevVy < -90 && flopBody.y <= (flopFeel().deckY ?? -118) + 2 && prevY > flopBody.y - 2) {
       burst("smash", flopBody.x, flopBody.y);
+      playSfx("smash");
     }
     fishX = flopBody.x;
     fishY = flopBody.y;
@@ -1127,6 +1306,7 @@ function tick(now) {
     if (coinJumpLeft === 0) {
       coinJump = "";
       sellPopup = "";
+      sellBridge = "";
       if (statusFlash && toastLeft <= 0) toastLeft = COPY.harborToastHoldSeconds ?? 1.25;
       if (surface === "harbor") renderHarbor();
     }

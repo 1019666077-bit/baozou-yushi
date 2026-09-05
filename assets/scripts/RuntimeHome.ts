@@ -150,7 +150,7 @@ export class RuntimeHome extends Component {
         DEFAULT_SAIL_ISLAND_ID,
       );
       this.selectedToolId = save.tools[0]?.toolId ?? "tool_rod";
-      console.log("baozou-flop-v28");
+      console.log("baozou-flop-v32");
       SfxPlayer.setEnabled(save.settings.sfx);
       this.showHarbor();
       void this.bootstrapCloud();
@@ -201,7 +201,7 @@ export class RuntimeHome extends Component {
       save.tutorialComplete,
       this.selectedIslandId,
     );
-    makeLabel(layer, "暴走鱼市 · 潮汐港口 v28", 34, 0, 310);
+    makeLabel(layer, "暴走鱼市 · 潮汐港口 v32", 36, 0, 310);
     this.coinsLabel = tintGold(makeLabel(layer, `金币 ${save.coins}`, 26, 470, 310, 280));
     this.settleGuide = undefined;
     this.goldGfx = undefined;
