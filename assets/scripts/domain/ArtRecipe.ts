@@ -1872,9 +1872,9 @@ export function islandSetOps(
       ...sunOps(420, 250, look),
       ...farRidgeOps(look),
       ...farBoatOps(),
-      ...foamIsleOps(-160, 78, 1, islandLook("island_foam_bay")),
-      ...prismIsleOps(170, 82, 1, islandLook("island_prism_reef")),
-      ...stormIsleOps(470, 76, 0.85, islandLook("island_storm_eye")),
+      ...foamIsleOps(-160, 70, 1.22, islandLook("island_foam_bay")),
+      ...prismIsleOps(170, 74, 1.18, islandLook("island_prism_reef")),
+      ...stormIsleOps(470, 68, 1.02, islandLook("island_storm_eye")),
       ...pierMarketOps(look),
       ...harborAmbienceOps(look),
       ...harborForegroundOps(),
@@ -1899,8 +1899,8 @@ export function islandSetOps(
   }
   ops.push(
     ...sunOps(460, 248, look),
-    ...foamIsleOps(380, 80, 1.1, look),
-    ...foamIsleOps(-420, 74, 0.7, look),
+    ...foamIsleOps(380, 86, 1.42, look),
+    ...foamIsleOps(-420, 78, 1.02, look),
     ...harborForegroundOps(),
   );
   return ops;

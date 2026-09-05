@@ -137,9 +137,9 @@ const ISLANDS: Record<string, IslandLook> = {
     mid: [18, 148, 176],
     near: [12, 112, 146],
     deep: [8, 58, 86],
-    land: [236, 210, 118],
-    landDark: [72, 168, 112],
-    accent: [36, 168, 108],
+    land: [246, 214, 108],
+    landDark: [46, 132, 86],
+    accent: [28, 176, 96],
   },
   island_prism_reef: {
     skyTop: [176, 186, 246],
@@ -173,9 +173,9 @@ const ISLANDS: Record<string, IslandLook> = {
     mid: [20, 136, 168],
     near: [14, 104, 138],
     deep: [8, 52, 76],
-    land: [210, 186, 118],
-    landDark: [86, 138, 112],
-    accent: [255, 176, 72],
+    land: [226, 196, 108],
+    landDark: [64, 124, 92],
+    accent: [255, 168, 64],
   },
 };
 

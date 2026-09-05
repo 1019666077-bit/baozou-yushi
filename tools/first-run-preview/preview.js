@@ -680,7 +680,7 @@ function paintFish(ctx, x, y) {
   const wet = x > -150 && y < 80 && !carrying;
   ctx.save();
   ctx.translate(sx(x), sy(y));
-  ctx.scale(squash.sx, -squash.sy);
+  ctx.scale(squash.sx * 1.32, -squash.sy * 1.32);
   ctx.rotate(fishAngle);
   if (wet) {
     ctx.fillStyle = "rgba(70, 210, 220, 0.16)";
@@ -1003,16 +1003,16 @@ function paintJuice(ctx) {
     ctx.globalAlpha = Math.min(1, slamMark);
     ctx.fillStyle = "rgba(186,132,64,0.55)";
     ctx.beginPath();
-    ctx.ellipse(sx(x), sy(deckY + 4), 78, 22, 0, 0, Math.PI * 2);
+    ctx.ellipse(sx(x), sy(deckY + 4), 110, 32, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "rgba(255,214,140,0.35)";
+    ctx.fillStyle = "rgba(255,214,140,0.42)";
     ctx.beginPath();
-    ctx.ellipse(sx(x), sy(deckY + 8), 46, 12, 0, 0, Math.PI * 2);
+    ctx.ellipse(sx(x), sy(deckY + 10), 64, 16, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "rgba(255,236,180,0.7)";
-    ctx.lineWidth = 5;
+    ctx.strokeStyle = "rgba(255,236,180,0.85)";
+    ctx.lineWidth = 7;
     ctx.beginPath();
-    ctx.ellipse(sx(x), sy(deckY + 6), 64, 16, 0, 0, Math.PI * 2);
+    ctx.ellipse(sx(x), sy(deckY + 6), 88, 22, 0, 0, Math.PI * 2);
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
@@ -1504,7 +1504,7 @@ function tick(now) {
     smashElapsed += dt;
     smashLeft = Math.max(0, smashLeft - dt);
   }
-  if (slamMark > 0) slamMark = Math.max(0, slamMark - dt * 0.7);
+  if (slamMark > 0) slamMark = Math.max(0, slamMark - dt * 0.28);
   if (castFlashLeft > 0) {
     castFlashElapsed += dt;
     castFlashLeft = Math.max(0, castFlashLeft - dt);

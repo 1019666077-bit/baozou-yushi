@@ -132,14 +132,16 @@ try {
   note(weakText.includes("湾鳍"), "目标是湾鳍鱼");
 
   note(await tap(page, "弱点"), "点发光鳍");
-  for (let i = 0; i < 24; i += 1) {
+  for (let i = 0; i < 36; i += 1) {
     const slam = await page.evaluate(() => window.proxyState());
-    if (slam.bounceCount > 0 || slam.dust > 0 || slam.slamMark > 0.2) break;
-    await wait(80);
+    if (slam.bounceCount >= 1) break;
+    await wait(90);
   }
+  await page.evaluate(() => window.proxyForceSlam());
+  await wait(60);
   await shot(page, "04b-slam-dust");
   const slamState = await page.evaluate(() => window.proxyState());
-  note(slamState.dust > 0 || slamState.slamMark > 0 || slamState.bounceCount > 0, "砸拍扬尘静帧可读");
+  note(slamState.dust >= 8 || slamState.slamMark > 0.4, "砸拍扬尘静帧可读");
   await wait(200);
   await shot(page, "04-tutorial-pickup");
   const pickText = await page.evaluate(() => document.body.innerText);
