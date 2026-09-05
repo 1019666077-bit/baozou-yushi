@@ -186,9 +186,10 @@ function snapshot() {
     rodName: rod.name,
     nextUpgradeCost: nextRod?.upgradeCost ?? 90,
     bookTotal: fish.length,
-    fishCountLabel: (n) => `图鉴 ${n}/${fish.length}`,
-    sailLine: (islandName, complete) =>
-      `出航：${islandName} · ${rod.name} Lv1${nextRod ? ` · 下级${nextRod.upgradeCost}金` : " · 满级"}`,
+    fishCountNew: `图鉴 0/${fish.length}`,
+    fishCountAfter: `图鉴 1/${fish.length}`,
+    sailLineNew: `出航：${tutorialIsland.name} · ${rod.name} Lv1${nextRod ? ` · 下级${nextRod.upgradeCost}金` : " · 满级"}`,
+    sailLineAfter: `出航：${foam.name} · ${rod.name} Lv1${nextRod ? ` · 下级${nextRod.upgradeCost}金` : " · 满级"}`,
     firstRun: {
       sold,
       summary,

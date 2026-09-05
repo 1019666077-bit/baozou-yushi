@@ -168,22 +168,17 @@ function paintSea(ctx, look) {
   sky.addColorStop(1, rgb(look.deep));
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = rgb(look.landDark, 0.9);
+  ctx.fillStyle = rgb(look.landDark, 0.88);
   ctx.beginPath();
-  ctx.ellipse(180, 430, 220, 46, 0, 0, Math.PI * 2);
+  ctx.ellipse(210, 448, 210, 36, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = rgb(look.land);
   ctx.beginPath();
-  ctx.ellipse(190, 418, 190, 34, 0, 0, Math.PI * 2);
+  ctx.ellipse(218, 436, 176, 26, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = rgb(look.accent);
-  ctx.fillRect(168, 360, 10, 62);
+  ctx.fillStyle = rgb(look.landDark, 0.7);
   ctx.beginPath();
-  ctx.moveTo(173, 352);
-  ctx.lineTo(148, 378);
-  ctx.lineTo(173, 368);
-  ctx.lineTo(198, 376);
-  ctx.closePath();
+  ctx.ellipse(980, 500, 140, 22, 0, 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -328,7 +323,6 @@ function renderHarbor() {
   const next = nextCtaHarbor();
   const complete = save.tutorialComplete;
   const displayIsland = complete ? COPY.islands[0].id : COPY.tutorialIsland.id;
-  const islandName = complete ? COPY.foamName : COPY.tutorialIsland.name;
   hud.innerHTML = "";
   buttons.innerHTML = "";
   fx.innerHTML = "";
@@ -366,8 +360,8 @@ function renderHarbor() {
       render();
     });
   });
-  label(COPY.sailLine(islandName, complete), 22, 0, -40, 1100);
-  label(COPY.fishCountLabel(save.discovered), 20, 0, -90, 1100);
+  label(complete ? COPY.sailLineAfter : COPY.sailLineNew, 22, 0, -40, 1100);
+  label(complete ? COPY.fishCountAfter : COPY.fishCountNew, 20, 0, -90, 1100);
   const labels = complete ? COPY.featureLabelsAfter : COPY.featureLabelsNew;
   cta(
     complete ? COPY.sailCaptionAfter : COPY.sailCaptionNew,
