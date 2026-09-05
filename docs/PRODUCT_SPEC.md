@@ -26,7 +26,7 @@
 
 ## 新手流程
 
-教学关默认开启。新玩家未完成 `tutorialComplete` 时进入练潮码头（`island_tutorial`），只开放基础鱼竿；完成首次弱点击破并入箱后，才进入泡沫湾等正常岛。教学完成前，港口升级/图鉴/榜按 `TutorialFlow.harborUnlocks` 锁定。
+教学关默认开启。新玩家未完成 `tutorialComplete` 时进入练潮码头（`island_tutorial`），只开放基础鱼竿；完成首次弱点击破并入箱后，才进入泡沫湾等正常岛。教学完成前，港口升级/图鉴/榜按 `TutorialFlow.harborUnlocks` 锁定。卖完教学鱼约 11 金，竿 2 级 90；主目标写还差多少，主按钮仍是再出海。
 
 ## 成功指标
 

@@ -1,5 +1,9 @@
 import type { ButtonTone } from "./GameFeel";
 import { CRATE_X, CRATE_Y } from "./FlopPhysics";
+import {
+  FIRST_ROD_UPGRADE_COST,
+  upgradeGapRemaining,
+} from "./PriceCalculator";
 
 export type TutorialStep =
   | "cast"
@@ -231,11 +235,18 @@ export function harborNextPrompt(
 }
 
 /** 主目标一句：攒够升级价，带进度，不灌金币。 */
+export { FIRST_ROD_UPGRADE_COST, upgradeGapRemaining };
+
+/** 主目标一句：还差多少、进度、再出海能补。不灌金币。 */
 export function harborUpgradeProgressLine(
   coins: number,
   nextUpgradeCost: number,
 ): string {
-  return `目标：攒够 ${nextUpgradeCost} 升级竿（${coins}/${nextUpgradeCost}）`;
+  const left = upgradeGapRemaining(coins, nextUpgradeCost);
+  if (left <= 0) {
+    return `目标：已够 ${nextUpgradeCost} 升级竿（${coins}/${nextUpgradeCost}）`;
+  }
+  return `还差 ${left} 金升级竿（${coins}/${nextUpgradeCost}）· 再出海能补`;
 }
 
 export function upgradeProgressRatio(coins: number, nextUpgradeCost: number): number {
@@ -243,9 +254,11 @@ export function upgradeProgressRatio(coins: number, nextUpgradeCost: number): nu
   return Math.min(1, Math.max(0, coins / nextUpgradeCost));
 }
 
-/** 卖出跳字接到回港目标，不改经济。 */
+/** 卖出跳字接到回港目标：入账 + 进度 + 还差。不改经济。 */
 export function harborSellBridgeLine(coins: number, nextUpgradeCost: number): string {
-  return `卖出已入账 · ${coins}/${nextUpgradeCost}`;
+  const left = upgradeGapRemaining(coins, nextUpgradeCost);
+  if (left <= 0) return `卖出已入账 · ${coins}/${nextUpgradeCost}`;
+  return `卖出已入账 · ${coins}/${nextUpgradeCost} · 还差 ${left}`;
 }
 
 export function weakHintCaption(): string {
@@ -353,15 +366,49 @@ export function shouldAutoReel(
   battleMs: number,
 ): boolean {
   if (step !== "reel") return false;
-  return reelReadyForMs >= 8_000 || battleMs >= 55_000;
+  return reelReadyForMs >= 8_000 || battleMs >= TUTORIAL_BATTLE_FALLBACK_MS;
 }
 
-/** 砸晕可捡后：先短提示，再兜底；玩家刚点过则不抢。 */
+/** 首次入箱中位预算。教学路径与兜底都压进这个窗口。 */
+export const FIRST_CRATE_BUDGET_MS = 60_000;
+/** 教学跟提示走：抛+拽 / 弱点 / 拖箱，各留余量。 */
+export const TUTORIAL_CAST_HOOK_BUDGET_MS = 16_000;
+export const TUTORIAL_WEAK_BUDGET_MS = 12_000;
+export const TUTORIAL_PICK_DRAG_BUDGET_MS = 12_000;
+/** 已到捡起步仍不动：40s 兜底开捡，再加 10+10 入箱，刚好 ≤60s。改前 55s 会把晚晕鱼推过 60。 */
+export const TUTORIAL_BATTLE_FALLBACK_MS = 40_000;
+
 export const PICKABLE_HINT_MS = 4_000;
 export const PICKABLE_AUTO_MS = 10_000;
 /** 已扛起但未走到鱼箱时：先提示再自动入箱。 */
 export const CARRIED_HINT_MS = 4_000;
 export const CARRIED_AUTO_MS = 10_000;
+
+export function firstCrateTaughtBudgetMs(): number {
+  return (
+    TUTORIAL_CAST_HOOK_BUDGET_MS +
+    TUTORIAL_WEAK_BUDGET_MS +
+    TUTORIAL_PICK_DRAG_BUDGET_MS
+  );
+}
+
+export function firstCrateFallbackBudgetMs(): number {
+  return TUTORIAL_BATTLE_FALLBACK_MS + PICKABLE_AUTO_MS + CARRIED_AUTO_MS;
+}
+
+/** 买不起下一级才露进度条，避免满额还挡海景。 */
+export function harborUpgradeBarVisible(input: {
+  tutorialComplete: boolean;
+  coins: number;
+  nextUpgradeCost?: number;
+}): boolean {
+  return (
+    input.tutorialComplete &&
+    input.nextUpgradeCost != null &&
+    input.coins < input.nextUpgradeCost
+  );
+}
+
 /** 入箱后提醒回港，再兜底进结算。 */
 export const SETTLE_LEAVE_HINT_MS = 800;
 export const SETTLE_LEAVE_AUTO_MS = 4_500;
@@ -483,4 +530,26 @@ export function harborFeatureButtonLabel(
   }
   if (unlocks.upgrade) return "查看升级";
   return save.tutorialComplete ? "再出1局后升级" : "教学后升级";
+}
+
+/** 买得起才写「升级竿」；买不起写还差多少，且调用方必须保持 secondary。 */
+export function harborUpgradeCtaLabel(input: {
+  tutorialComplete: boolean;
+  completedRuns: number;
+  coins: number;
+  nextUpgradeCost?: number;
+  toolName?: string;
+}): string {
+  const save = {
+    tutorialComplete: input.tutorialComplete,
+    completedRuns: input.completedRuns,
+  };
+  if (!harborUnlocksForSave(save).upgrade) {
+    return harborFeatureButtonLabel("upgrade", save);
+  }
+  if (input.nextUpgradeCost == null) return "查看升级";
+  if (canAffordNextUpgrade(input.coins, input.nextUpgradeCost)) {
+    return input.toolName ? `升级${input.toolName}` : "查看升级";
+  }
+  return `还差${upgradeGapRemaining(input.coins, input.nextUpgradeCost)}`;
 }

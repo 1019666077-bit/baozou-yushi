@@ -20,7 +20,7 @@ import {
   sellPunchSeconds,
   settingCaption,
 } from "./domain/GameFeel";
-import { sellPopup } from "./domain/StyleCallout";
+import { sellGoalBridge, sellPopup } from "./domain/StyleCallout";
 import {
   spawnGoldRain,
   tickJuice,
@@ -50,6 +50,7 @@ import {
   makeButton,
   makeLabel,
   makePlate,
+  makeProgressBar,
   replacePlayLayer,
   tintGold,
 } from "./ui/RuntimeUi";
@@ -92,8 +93,11 @@ import {
   harborSailCaption,
   harborToastHoldSeconds,
   harborUnlocksForSave,
+  harborUpgradeBarVisible,
+  harborUpgradeCtaLabel,
   resolveHarborIsland,
   tutorialGuideRing,
+  upgradeProgressRatio,
 } from "./domain/TutorialFlow";
 import { RuntimePrototype } from "./RuntimePrototype";
 import { HarborStage } from "./world/HarborStage";
@@ -201,6 +205,13 @@ export class RuntimeHome extends Component {
       save.tutorialComplete,
       this.selectedIslandId,
     );
+    const unlocks = harborUnlocksForSave(save);
+    const island = ConfigService.islandById(this.selectedIslandId);
+    const tool = ConfigService.toolById(this.selectedToolId);
+    const ownedTool = save.tools.find((entry) => entry.toolId === tool.id);
+    const nextLevel = tool.levels.find(
+      (level) => level.level === (ownedTool?.level ?? 0) + 1,
+    );
     makeLabel(layer, "暴走鱼市 · 潮汐港口 v33", 36, 0, 310);
     this.coinsLabel = tintGold(makeLabel(layer, `金币 ${save.coins}`, 26, 470, 310, 280));
     this.settleGuide = undefined;
@@ -209,9 +220,10 @@ export class RuntimeHome extends Component {
       this.coinJumpLabel = tintGold(
         makeLabel(layer, coinJumpCaption(this.coinJumpGained), 28, 470, 274, 280),
       );
-      this.sellCallout = tintGold(
-        makeLabel(layer, sellPopup(this.coinJumpGained), 30, 0, 120, 520),
-      );
+      const sellLine = nextLevel
+        ? sellGoalBridge(this.coinJumpGained, save.coins, nextLevel.upgradeCost)
+        : sellPopup(this.coinJumpGained);
+      this.sellCallout = tintGold(makeLabel(layer, sellLine, 28, 0, 120, 640));
       const juiceNode = new Node("GoldRain");
       juiceNode.layer = layer.layer;
       juiceNode.parent = layer;
@@ -221,13 +233,6 @@ export class RuntimeHome extends Component {
       this.sellCallout = undefined;
     }
     makeButton(layer, "设置", -530, 310, () => this.showSettings(), 140, 52, 22);
-    const unlocks = harborUnlocksForSave(save);
-    const island = ConfigService.islandById(this.selectedIslandId);
-    const tool = ConfigService.toolById(this.selectedToolId);
-    const ownedTool = save.tools.find((entry) => entry.toolId === tool.id);
-    const nextLevel = tool.levels.find(
-      (level) => level.level === (ownedTool?.level ?? 0) + 1,
-    );
     const nextCta = harborNextCta({
       tutorialComplete: save.tutorialComplete,
       completedRuns: save.completedRuns,
@@ -271,6 +276,23 @@ export class RuntimeHome extends Component {
     }
     makePlate(layer, 0, 248, !save.tutorialComplete, 820, 48);
     this.status = makeLabel(layer, goal, 20, 0, 248);
+    const nextCost = nextLevel?.upgradeCost;
+    if (
+      nextCost != null &&
+      harborUpgradeBarVisible({
+        tutorialComplete: save.tutorialComplete,
+        coins: save.coins,
+        nextUpgradeCost: nextCost,
+      })
+    ) {
+      makeProgressBar(
+        layer,
+        0,
+        214,
+        380,
+        upgradeProgressRatio(save.coins, nextCost),
+      );
+    }
     this.status.color = new Color(255, 252, 236, 255);
     const toastText = harborHudToastText({
       phase,
@@ -313,7 +335,7 @@ export class RuntimeHome extends Component {
         layer,
         caption,
         harborIslandX(island.id),
-        188,
+        164,
         () => void this.onIsland(island.id),
         240,
         56,
@@ -370,11 +392,13 @@ export class RuntimeHome extends Component {
     );
     makeButton(
       layer,
-      !unlocks.upgrade
-        ? harborFeatureButtonLabel("upgrade", save)
-        : ownedTool && nextLevel
-          ? `升级${tool.name}`
-          : "查看升级",
+      harborUpgradeCtaLabel({
+        tutorialComplete: save.tutorialComplete,
+        completedRuns: save.completedRuns,
+        coins: save.coins,
+        nextUpgradeCost: nextLevel?.upgradeCost,
+        toolName: tool.name,
+      }),
       -470,
       -230,
       () => void this.onUpgrade(),

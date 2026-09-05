@@ -1382,10 +1382,12 @@ describe("TutorialFlow", () => {
         nextUpgradeCost: 90,
         upgradeUnlocked: true,
       }),
-    ).toBe("目标：攒够 90 升级竿（11/90）");
+    ).toBe("还差 79 金升级竿（11/90）· 再出海能补");
     expect(harborUpgradeProgressLine(11, 90)).toContain("11/90");
+    expect(harborUpgradeProgressLine(11, 90)).toContain("还差 79");
+    expect(harborUpgradeProgressLine(11, 90)).toContain("再出海能补");
     expect(upgradeProgressRatio(11, 90)).toBeCloseTo(11 / 90);
-    expect(harborSellBridgeLine(11, 90)).toBe("卖出已入账 · 11/90");
+    expect(harborSellBridgeLine(11, 90)).toBe("卖出已入账 · 11/90 · 还差 79");
     expect(weakHintCaption()).toBe("弱点");
     expect(
       harborGoalPrompt({
@@ -1563,9 +1565,9 @@ describe("TutorialFlow", () => {
     expect(SETTLE_LEAVE_AUTO_MS).toBeLessThan(6_000);
   });
 
-  it("keeps the 55s tutorial battle fallback without treating a fresh stun as ready", () => {
-    expect(shouldAutoReel("reel", 0, 54_999)).toBe(false);
-    expect(shouldAutoReel("reel", 0, 55_000)).toBe(true);
+  it("keeps the 40s tutorial battle fallback without treating a fresh stun as ready", () => {
+    expect(shouldAutoReel("reel", 0, 39_999)).toBe(false);
+    expect(shouldAutoReel("reel", 0, 40_000)).toBe(true);
     expect(shouldAutoReel("weakPoint", 20_000, 60_000)).toBe(false);
   });
 });

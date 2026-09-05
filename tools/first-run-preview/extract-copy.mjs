@@ -75,6 +75,7 @@ function snapshot() {
   const SaveMerge = load("SaveMerge");
   const HitJuice = load("HitJuice");
   const SfxFeel = load("SfxFeel");
+  const PriceCalculator = load("PriceCalculator");
   const { RunSession } = load("RunSession");
 
   const islands = JSON.parse(
@@ -159,7 +160,13 @@ function snapshot() {
       board: TutorialFlow.harborFeatureButtonLabel("board", newSave),
     },
     featureLabelsAfter: {
-      upgrade: nextRod ? `升级${rod.name}` : TutorialFlow.harborFeatureButtonLabel("upgrade", afterSave),
+      upgrade: TutorialFlow.harborUpgradeCtaLabel({
+        tutorialComplete: after.tutorialComplete,
+        completedRuns: after.completedRuns,
+        coins: after.coins,
+        nextUpgradeCost: nextRod?.upgradeCost,
+        toolName: rod.name,
+      }),
       book: TutorialFlow.harborFeatureButtonLabel("book", afterSave),
       board: TutorialFlow.harborFeatureButtonLabel("board", afterSave),
     },
@@ -414,6 +421,17 @@ function snapshot() {
       sellBridge: StyleCallout.sellGoalBridge(summary.totalCoins, after.coins, nextRod?.upgradeCost ?? 90),
       sellHarborBridge: TutorialFlow.harborSellBridgeLine(after.coins, nextRod?.upgradeCost ?? 90),
       progressRatio: TutorialFlow.upgradeProgressRatio(after.coins, nextRod?.upgradeCost ?? 90),
+      gapRemaining: TutorialFlow.upgradeGapRemaining(after.coins, nextRod?.upgradeCost ?? 90),
+      upgradeBar: TutorialFlow.harborUpgradeBarVisible({
+        tutorialComplete: after.tutorialComplete,
+        coins: after.coins,
+        nextUpgradeCost: nextRod?.upgradeCost,
+      }),
+      crateBudgetMs: TutorialFlow.FIRST_CRATE_BUDGET_MS,
+      taughtMs: TutorialFlow.firstCrateTaughtBudgetMs(),
+      fallbackMs: TutorialFlow.firstCrateFallbackBudgetMs(),
+      typicalFoam: PriceCalculator.foamBayTypicalRunCoins(),
+      tripsToRod: PriceCalculator.tripsToFillUpgrade(after.coins),
       castSnap: StyleCallout.castSnapCaption(),
     },
     crate: {

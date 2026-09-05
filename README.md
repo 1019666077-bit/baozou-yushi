@@ -62,7 +62,7 @@ CI 只跑 `validate` 与 `simulate`，见 `.github/workflows/ci.yml`。
 
 ## 试玩流程
 
-新玩家默认开启教学：未完成 `tutorialComplete` 时，出航进入练潮码头（`island_tutorial` / TutorialFlow），只开放基础鱼竿。完成首次弱点击破并入箱后，教学完成，才进入泡沫湾等正常岛。教学完成前，港口升级/图鉴/榜按 `TutorialFlow.harborUnlocks` 锁定。
+新玩家默认开启教学：未完成 `tutorialComplete` 时，出航进入练潮码头（`island_tutorial` / TutorialFlow），只开放基础鱼竿。完成首次弱点击破并入箱后，教学完成，才进入泡沫湾等正常岛。教学完成前，港口升级/图鉴/榜按 `TutorialFlow.harborUnlocks` 锁定。教学首售约 11 金、竿 2 级 90，买不起升级时主 CTA 仍是出海捕鱼。
 
 三座岛依次解锁，最终挑战“潮鸣巨鲲”。完整首轮进度约30–45分钟。
 

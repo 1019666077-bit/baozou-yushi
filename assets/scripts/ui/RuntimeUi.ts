@@ -112,6 +112,39 @@ export function tintGold(label: Label): Label {
   return label;
 }
 
+/** 港口升级缺口条：读得出 11/90，不靠特效。 */
+export function makeProgressBar(
+  parent: Node,
+  x: number,
+  y: number,
+  width: number,
+  ratio: number,
+  height = 14,
+): Node {
+  const node = new Node("UpgradeProgress");
+  node.layer = parent.layer;
+  node.parent = parent;
+  node.setPosition(x, y);
+  node.addComponent(UITransform).setContentSize(width, height);
+  const graphics = node.addComponent(Graphics);
+  const gold = goldHudRgb();
+  const clamped = Math.min(1, Math.max(0, ratio));
+  graphics.fillColor = new Color(18, 28, 36, 220);
+  graphics.roundRect(-width / 2, -height / 2, width, height, height / 2);
+  graphics.fill();
+  const fillW = Math.max(clamped > 0 ? 10 : 0, width * clamped);
+  if (fillW > 0) {
+    graphics.fillColor = new Color(gold[0], gold[1], gold[2], 240);
+    graphics.roundRect(-width / 2, -height / 2, fillW, height, height / 2);
+    graphics.fill();
+  }
+  graphics.strokeColor = new Color(gold[0], gold[1], gold[2], 170);
+  graphics.lineWidth = 2;
+  graphics.roundRect(-width / 2, -height / 2, width, height, height / 2);
+  graphics.stroke();
+  return node;
+}
+
 export function makeButton(
   parent: Node,
   text: string,

@@ -192,7 +192,10 @@ try {
   note(after.includes("+") && after.includes("金"), "金币跳字");
   note(after.includes("图鉴新纪录") || after.includes("卖出"), "卖出/图鉴新纪录反馈");
   note(
-    after.includes("目标：攒够") || after.includes("11/90") || after.includes("再出海"),
+    after.includes("目标：攒够") ||
+      after.includes("11/90") ||
+      after.includes("再出海") ||
+      after.includes("还差"),
     "卖完主目标写攒够升级进度",
   );
   note(!after.includes("适度游戏"), "卖完不叠健康忠告");
@@ -204,7 +207,10 @@ try {
   const broke = await page.evaluate(() => document.body.innerText);
   note(broke.includes("金币不足"), "买不起升级给短反馈");
   note(
-    broke.includes("目标：攒够") || broke.includes("11/90") || broke.includes("再出海"),
+    broke.includes("目标：攒够") ||
+      broke.includes("11/90") ||
+      broke.includes("再出海") ||
+      broke.includes("还差"),
     "升级失败不盖掉主目标",
   );
 
