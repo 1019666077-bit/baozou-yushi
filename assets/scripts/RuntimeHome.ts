@@ -1,10 +1,12 @@
-import { _decorator, Component, Label } from "cc";
+import { _decorator, Color, Component, Graphics, Label, Node } from "cc";
 import { fishIdsForIsland } from "./content/IslandFishPool";
 import { ConfigService } from "./data/ConfigService";
 import type { PlayerSave, RemoteConfig, RunSummary } from "./data/types";
 import {
   applyRunRewards,
   bookLines,
+  coinJumpCaption,
+  firstCatchIds,
   settleHeadline,
   settleRows,
   settleSlogan,
@@ -32,7 +34,9 @@ import {
   makeButton,
   makeLabel,
   replacePlayLayer,
+  tintGold,
 } from "./ui/RuntimeUi";
+import { drawGuideHole } from "./ui/GrayArt";
 import { harborIslandIds, harborIslandX } from "./domain/GrayLook";
 import { FriendBoardView } from "./ui/FriendBoardView";
 import { ensureIslandPack } from "./content/IslandPackLoader";
@@ -60,9 +64,12 @@ import {
   harborChipSelected,
   harborFeatureButtonLabel,
   harborFeatureLockedHint,
+  harborNextCta,
+  harborNextPrompt,
   harborSailCaption,
   harborUnlocksForSave,
   resolveHarborIsland,
+  tutorialGuideRing,
 } from "./domain/TutorialFlow";
 import { RuntimePrototype } from "./RuntimePrototype";
 
@@ -88,6 +95,12 @@ export class RuntimeHome extends Component {
     | "board"
     | "settle"
     | "sea" = "harbor";
+  private justDiscovered: string[] = [];
+  private coinJumpLabel?: Label;
+  private coinJumpGained = 0;
+  private coinJumpLeft = 0;
+  private settleGuide?: Graphics;
+  private settleGuideAt = { x: 0, y: -230 };
 
   protected onLoad(): void {
     try {
@@ -146,19 +159,35 @@ export class RuntimeHome extends Component {
       this.selectedIslandId,
     );
     makeLabel(layer, "暴走鱼市 · 潮汐港口 v28", 34, 0, 310);
-    this.coinsLabel = makeLabel(layer, `金币 ${save.coins}`, 24, 470, 310, 280);
+    this.coinsLabel = tintGold(makeLabel(layer, `金币 ${save.coins}`, 26, 470, 310, 280));
+    this.settleGuide = undefined;
+    if (this.coinJumpGained > 0) {
+      this.coinJumpLabel = tintGold(
+        makeLabel(layer, coinJumpCaption(this.coinJumpGained), 26, 470, 274, 280),
+      );
+    } else {
+      this.coinJumpLabel = undefined;
+    }
     makeButton(layer, "设置", -530, 310, () => this.showSettings(), 140, 52, 22);
     makeLabel(layer, cloudStatusLine(this.cloudKind), 18, 0, 278, 900);
     makeLabel(layer, healthAdviceLines()[1] ?? healthAdviceLines()[0], 16, 0, 262, 1100);
     const unlocks = harborUnlocksForSave(save);
+    const nextCta = harborNextCta({
+      tutorialComplete: save.tutorialComplete,
+      completedRuns: save.completedRuns,
+      pendingSell: false,
+      upgradeUnlocked: unlocks.upgrade,
+    });
     this.status = makeLabel(
       layer,
       this.statusFlash ??
-        (this.lastSummary
-          ? `${settleHeadline(this.lastSummary)}。${settleSlogan(this.lastSummary)}`
-          : save.tutorialComplete
-            ? harborNotice(ConfigService.remoteConfig().notice)
-            : "先完成练潮码头教学，再自由出航。"),
+        (nextCta !== "sail"
+          ? harborNextPrompt(nextCta, save.tutorialComplete)
+          : this.lastSummary
+            ? `${settleHeadline(this.lastSummary)}。${settleSlogan(this.lastSummary)}`
+            : save.tutorialComplete
+              ? harborNotice(ConfigService.remoteConfig().notice)
+              : harborNextPrompt("sail", false)),
       20,
       0,
       248,
@@ -240,9 +269,10 @@ export class RuntimeHome extends Component {
       -80,
       -230,
       () => this.sail(),
-      220,
-      88,
-      28,
+      230,
+      90,
+      30,
+      nextCta === "sail" ? "primary" : "secondary",
     );
     makeButton(
       layer,
@@ -254,9 +284,10 @@ export class RuntimeHome extends Component {
       -470,
       -230,
       () => void this.onUpgrade(),
-      200,
-      72,
-      20,
+      nextCta === "upgrade" ? 220 : 200,
+      nextCta === "upgrade" ? 84 : 72,
+      nextCta === "upgrade" ? 26 : 20,
+      nextCta === "upgrade" ? "primary" : "secondary",
     );
     makeButton(
       layer,
@@ -301,12 +332,23 @@ export class RuntimeHome extends Component {
     drawOcean(layer, { harbor: true });
     makeLabel(layer, "潮汐鱼市结算", 34, 0, 300);
     makeLabel(layer, settleHeadline(summary), 26, 0, 236);
-    settleRows(summary, (id) => ConfigService.fishById(id).name).forEach(
-      (row, index) => {
-        makeLabel(layer, row, 22, 0, 170 - index * 36);
-      },
+    const knownBefore = playerSave.get().discoveredFish;
+    settleRows(
+      summary,
+      (id) => ConfigService.fishById(id).name,
+      knownBefore,
+    ).forEach((row, index) => {
+      makeLabel(layer, row, 22, 0, 170 - index * 36);
+    });
+    makeLabel(
+      layer,
+      summary.fish.length > 0
+        ? harborNextPrompt("sell")
+        : settleSlogan(summary),
+      22,
+      0,
+      -80,
     );
-    makeLabel(layer, settleSlogan(summary), 22, 0, -80);
     const caption = summary.fish.length > 0 ? "卖到鱼市" : "回到港口";
     makeButton(
       layer,
@@ -314,10 +356,20 @@ export class RuntimeHome extends Component {
       0,
       -230,
       () => void this.confirmSettle(summary),
-      280,
-      88,
-      28,
+      300,
+      92,
+      30,
+      "primary",
     );
+    this.settleGuideAt = { x: 0, y: -230 };
+    if (summary.fish.length > 0) {
+      const guideNode = new Node("SellGuide");
+      guideNode.layer = layer.layer;
+      guideNode.parent = layer;
+      this.settleGuide = guideNode.addComponent(Graphics);
+    } else {
+      this.settleGuide = undefined;
+    }
   }
 
   private showBook(): void {
@@ -333,7 +385,7 @@ export class RuntimeHome extends Component {
       0,
       246,
     );
-    bookLines(ConfigService.allFish(), save.discoveredFish).forEach(
+    bookLines(ConfigService.allFish(), save.discoveredFish, this.justDiscovered).forEach(
       (line, index) => {
         const col = index % 2;
         const row = Math.floor(index / 2);
@@ -549,7 +601,14 @@ export class RuntimeHome extends Component {
     if (!run || this.settling) return;
     this.settling = true;
     try {
-      const next = applyRunRewards(playerSave.get(), run);
+      const before = playerSave.get();
+      const next = applyRunRewards(before, run);
+      this.justDiscovered = firstCatchIds(
+        run.fish.map((item) => item.fishId),
+        before.discoveredFish,
+      );
+      this.coinJumpGained = run.totalCoins;
+      this.coinJumpLeft = run.totalCoins > 0 ? 1.1 : 0;
       await playerSave.save(next);
       this.cloudKind = playerSave.cloudKind();
       if (run.fish.length > 0) SfxPlayer.play("sell");
@@ -668,6 +727,32 @@ export class RuntimeHome extends Component {
   private setStatus(value: string): void {
     this.statusFlash = value;
     if (this.status) this.status.string = value;
-    if (this.coinsLabel) this.coinsLabel.string = `金币 ${playerSave.get().coins}`;
+    if (this.coinsLabel) {
+      this.coinsLabel.string = `金币 ${playerSave.get().coins}`;
+      tintGold(this.coinsLabel);
+    }
+  }
+
+  protected update(dt: number): void {
+    if (this.coinJumpLabel?.isValid && this.coinJumpLeft > 0) {
+      this.coinJumpLeft = Math.max(0, this.coinJumpLeft - dt);
+      const t = 1 - this.coinJumpLeft / 1.1;
+      this.coinJumpLabel.node.setPosition(470, 274 + t * 40);
+      const fade = Math.round(255 * Math.max(0, 1 - t));
+      this.coinJumpLabel.color = new Color(255, 220, 72, fade);
+      if (this.coinJumpLeft <= 0) {
+        this.coinJumpGained = 0;
+        this.coinJumpLabel.string = "";
+      }
+    }
+    if (!this.settleGuide?.isValid || this.surface !== "settle") return;
+    const ring = tutorialGuideRing(Date.now());
+    drawGuideHole(
+      this.settleGuide,
+      this.settleGuideAt.x,
+      this.settleGuideAt.y,
+      92 + ring.pulse * 0.25,
+      ring,
+    );
   }
 }

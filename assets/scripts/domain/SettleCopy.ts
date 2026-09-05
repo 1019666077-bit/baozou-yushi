@@ -6,14 +6,37 @@ export function settleHeadline(summary: RunSummary): string {
   return `本局卖出${summary.totalCoins}金 · 最高×${summary.bestMultiplier.toFixed(2)}`;
 }
 
+export function isFirstCatch(fishId: string, knownBefore: string[]): boolean {
+  return !knownBefore.includes(fishId);
+}
+
+export function firstCatchIds(
+  fishIds: string[],
+  knownBefore: string[],
+): string[] {
+  const seen = new Set<string>();
+  const first: string[] = [];
+  for (const id of fishIds) {
+    if (seen.has(id) || !isFirstCatch(id, knownBefore)) continue;
+    seen.add(id);
+    first.push(id);
+  }
+  return first;
+}
+
+export function coinJumpCaption(gained: number): string {
+  return gained > 0 ? `+${gained}金` : "";
+}
+
 export function settleRows(
   summary: RunSummary,
   nameOf: (fishId: string) => string,
+  knownBefore: string[] = [],
 ): string[] {
-  const rows = summary.fish.map(
-    (item) =>
-      `${nameOf(item.fishId)} ×${item.styleMultiplier.toFixed(2)} → ${item.price}金`,
-  );
+  const rows = summary.fish.map((item) => {
+    const mark = isFirstCatch(item.fishId, knownBefore) ? "【首次】" : "";
+    return `${mark}${nameOf(item.fishId)} ×${item.styleMultiplier.toFixed(2)} → ${item.price}金`;
+  });
   if (rows.length <= 6) return rows;
   return [...rows.slice(0, 5), `还有${rows.length - 5}条入箱`];
 }
@@ -27,11 +50,15 @@ export function settleSlogan(summary: RunSummary): string {
 export function bookLines(
   all: Array<{ id: string; name: string }>,
   discovered: string[],
+  firstIds: string[] = [],
 ): string[] {
   const known = new Set(discovered);
-  return all.map((fish) =>
-    known.has(fish.id) ? `${fish.name} 已收` : `${fish.name} 未收`,
-  );
+  const first = new Set(firstIds);
+  return all.map((fish) => {
+    if (!known.has(fish.id)) return `${fish.name} 未收`;
+    if (first.has(fish.id)) return `${fish.name} 首次`;
+    return `${fish.name} 已收`;
+  });
 }
 
 export function applyRunRewards(

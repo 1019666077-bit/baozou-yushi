@@ -61,7 +61,7 @@ export class TutorialController extends Component {
     const focus = tutorialGuideTarget(this.step);
     if (this.castHighlight) this.castHighlight.active = focus === "cast";
     if (this.weakPointHighlight) {
-      this.weakPointHighlight.active = this.step === "weakPoint";
+      this.weakPointHighlight.active = focus === "weakPoint";
     }
     if (this.reelHighlight) this.reelHighlight.active = focus === "pickUp";
   }

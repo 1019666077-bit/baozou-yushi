@@ -103,8 +103,11 @@ export function inWater(body: Pick<FlopBody, "x" | "y">): boolean {
   return body.x > WATER_X && body.y < -18;
 }
 
+export const CRATE_X = -520;
+export const CRATE_Y = -150;
+
 export function crateDrop(x: number, y: number): boolean {
-  return Math.hypot(x - -520, y - -150) < 92;
+  return Math.hypot(x - CRATE_X, y - CRATE_Y) < 92;
 }
 
 export function bouncedOnDeck(prev: FlopBody, next: FlopBody): boolean {

@@ -6,14 +6,20 @@ export function styleCallout(parts: {
   airborne: boolean;
   combo: number;
   perfect?: boolean;
+  bag?: boolean;
 }): string {
-  if (parts.perfect) return "入箱";
+  if (parts.perfect || parts.bag) return "入箱";
   const bits: string[] = [];
   if (parts.combo > 1) bits.push(`${parts.combo}连`);
   if (parts.airborne) bits.push("浮空");
   if (parts.weakPoint) bits.push("弱点");
   if (bits.length === 0) return "命中";
   return bits.join("·");
+}
+
+export function inboxPopup(price?: number): string {
+  if (price != null && price > 0) return `入箱 +${price}`;
+  return "入箱";
 }
 
 export function liveQuote(

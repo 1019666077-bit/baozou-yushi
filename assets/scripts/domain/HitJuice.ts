@@ -54,6 +54,91 @@ export function spawnJuice(
   });
 }
 
+export interface JuiceFlash {
+  x: number;
+  y: number;
+  life: number;
+  maxLife: number;
+  kind: JuiceKind;
+}
+
+export function juiceShakePx(kind: JuiceKind, lowPower: boolean): number {
+  if (lowPower) return 0;
+  if (kind === "weak" || kind === "perfect") return 6;
+  if (kind === "hit" || kind === "catch") return 4;
+  return 0;
+}
+
+export function juiceWantsPunch(kind: JuiceKind, lowPower: boolean): boolean {
+  if (lowPower) return false;
+  return kind === "hit" || kind === "weak" || kind === "catch" || kind === "perfect";
+}
+
+export function juicePunchPeak(kind: JuiceKind, lowPower: boolean): number {
+  if (!juiceWantsPunch(kind, lowPower)) return 1;
+  if (kind === "weak" || kind === "perfect") return 1.26;
+  if (kind === "catch") return 1.18;
+  return 1.14;
+}
+
+export function juicePunchSeconds(kind: JuiceKind, lowPower: boolean): number {
+  if (!juiceWantsPunch(kind, lowPower)) return 0;
+  return kind === "weak" || kind === "perfect" || kind === "catch" ? 0.16 : 0.11;
+}
+
+export function juicePunchScaleAt(
+  kind: JuiceKind,
+  elapsed: number,
+  lowPower: boolean,
+): number {
+  const duration = juicePunchSeconds(kind, lowPower);
+  const peak = juicePunchPeak(kind, lowPower);
+  if (duration <= 0 || peak <= 1) return 1;
+  const t = Math.min(1, Math.max(0, elapsed / duration));
+  const env = t < 0.35 ? t / 0.35 : 1 - (t - 0.35) / 0.65;
+  return 1 + (peak - 1) * Math.max(0, env);
+}
+
+export function spawnJuiceFlash(
+  kind: JuiceKind,
+  x: number,
+  y: number,
+  lowPower: boolean,
+): JuiceFlash | undefined {
+  if (kind === "miss" || kind === "splash") return undefined;
+  if (lowPower && kind !== "weak" && kind !== "perfect" && kind !== "catch") {
+    return undefined;
+  }
+  const maxLife =
+    kind === "catch" || kind === "perfect"
+      ? 0.22
+      : kind === "weak"
+        ? 0.18
+        : 0.12;
+  return {
+    x,
+    y,
+    life: 1,
+    maxLife: lowPower ? Math.min(0.12, maxLife) : maxLife,
+    kind,
+  };
+}
+
+export function tickJuiceFlash(
+  flash: JuiceFlash | undefined,
+  dt: number,
+): JuiceFlash | undefined {
+  if (!flash) return undefined;
+  const life = flash.life - dt / flash.maxLife;
+  if (life <= 0) return undefined;
+  return { ...flash, life };
+}
+
+export function juiceFlashRadius(flash: JuiceFlash): number {
+  const grow = flash.kind === "catch" || flash.kind === "perfect" ? 56 : 42;
+  return 18 + grow * (1 - flash.life);
+}
+
 export function tickJuice(
   particles: JuiceParticle[],
   dt: number,

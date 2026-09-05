@@ -462,8 +462,30 @@ export function drawJuice(
     kind: "bubble" | "star";
     size: number;
   }>,
+  flashes: Array<{
+    x: number;
+    y: number;
+    life: number;
+    kind: string;
+  }> = [],
 ): void {
   g.clear();
+  for (const flash of flashes) {
+    const alpha = Math.max(0, Math.round(210 * flash.life));
+    const grow = flash.kind === "catch" || flash.kind === "perfect" ? 56 : 42;
+    const r = 18 + grow * (1 - flash.life);
+    g.strokeColor = new Color(255, 236, 120, alpha);
+    g.lineWidth = flash.kind === "catch" || flash.kind === "perfect" ? 8 : 6;
+    g.circle(flash.x, flash.y, r);
+    g.stroke();
+    fillCircle(
+      g,
+      flash.x,
+      flash.y,
+      r * 0.42,
+      new Color(255, 250, 200, Math.round(80 * flash.life)),
+    );
+  }
   for (const particle of particles) {
     const alpha = Math.max(40, Math.round(255 * particle.life));
     const r = particle.size * (0.65 + 0.35 * particle.life);
@@ -499,4 +521,61 @@ export function drawJuice(
       new Color(255, 255, 255, Math.round(alpha * 0.7)),
     );
   }
+}
+
+export function drawGuideHole(
+  g: Graphics,
+  cx: number,
+  cy: number,
+  holeRadius: number,
+  spec: {
+    lineWidth: number;
+    fillAlpha: number;
+    maskAlpha: number;
+    stroke: [number, number, number, number];
+  },
+): void {
+  g.clear();
+  const left = -640;
+  const right = 640;
+  const top = 360;
+  const bottom = -360;
+  const holeL = Math.max(left, cx - holeRadius);
+  const holeR = Math.min(right, cx + holeRadius);
+  const holeB = Math.max(bottom, cy - holeRadius);
+  const holeT = Math.min(top, cy + holeRadius);
+  g.fillColor = new Color(6, 14, 22, spec.maskAlpha);
+  if (holeT < top) {
+    g.rect(left, holeT, right - left, top - holeT);
+    g.fill();
+  }
+  if (holeB > bottom) {
+    g.rect(left, bottom, right - left, holeB - bottom);
+    g.fill();
+  }
+  if (holeL > left && holeT > holeB) {
+    g.rect(left, holeB, holeL - left, holeT - holeB);
+    g.fill();
+  }
+  if (holeR < right && holeT > holeB) {
+    g.rect(holeR, holeB, right - holeR, holeT - holeB);
+    g.fill();
+  }
+  g.fillColor = new Color(
+    spec.stroke[0],
+    spec.stroke[1],
+    spec.stroke[2],
+    spec.fillAlpha,
+  );
+  g.circle(cx, cy, holeRadius);
+  g.fill();
+  g.strokeColor = new Color(
+    spec.stroke[0],
+    spec.stroke[1],
+    spec.stroke[2],
+    spec.stroke[3],
+  );
+  g.lineWidth = spec.lineWidth;
+  g.circle(cx, cy, holeRadius);
+  g.stroke();
 }

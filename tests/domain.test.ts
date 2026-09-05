@@ -48,6 +48,9 @@ import { RunSession } from "../assets/scripts/domain/RunSession";
 import {
   applyRunRewards,
   bookLines,
+  coinJumpCaption,
+  firstCatchIds,
+  isFirstCatch,
   settleHeadline,
   settleRows,
   settleSlogan,
@@ -61,6 +64,13 @@ import {
   spawnJuice,
   tickJuice,
   juiceCount,
+  juicePunchPeak,
+  juicePunchScaleAt,
+  juicePunchSeconds,
+  juiceShakePx,
+  juiceWantsPunch,
+  spawnJuiceFlash,
+  tickJuiceFlash,
 } from "../assets/scripts/domain/HitJuice";
 import {
   BOSS_SECONDS,
@@ -71,6 +81,7 @@ import {
 } from "../assets/scripts/domain/IslandClock";
 import {
   comboHud,
+  inboxPopup,
   liveQuote,
   styleCallout,
 } from "../assets/scripts/domain/StyleCallout";
@@ -79,6 +90,8 @@ import {
   spawnCap,
   shouldVibrate,
   hitStopSeconds,
+  buttonFillRgb,
+  goldHudRgb,
 } from "../assets/scripts/domain/GameFeel";
 import {
   bestStyleLine,
@@ -141,8 +154,13 @@ import {
   CARRIED_HINT_MS,
   resolveHarborIsland,
   shouldAutoReel,
+  tutorialCanLeave,
+  tutorialGuideAnchor,
+  tutorialGuideRing,
   tutorialGuideTarget,
   tutorialPrompt,
+  harborNextCta,
+  harborNextPrompt,
 } from "../assets/scripts/domain/TutorialFlow";
 import { sfxTone, shouldPlaySfx } from "../assets/scripts/domain/SfxFeel";
 import {
@@ -542,6 +560,12 @@ describe("SettleCopy", () => {
     const summary = session.finish(30);
     expect(settleHeadline(summary)).toContain("本局卖出");
     expect(settleRows(summary, () => "测试鱼")[0]).toContain("测试鱼");
+    expect(settleRows(summary, () => "测试鱼", [])[0]).toContain("【首次】");
+    expect(settleRows(summary, () => "测试鱼", ["fish_test"])[0]).not.toContain("首次");
+    expect(isFirstCatch("fish_test", [])).toBe(true);
+    expect(firstCatchIds(["fish_test", "fish_test"], [])).toEqual(["fish_test"]);
+    expect(coinJumpCaption(36)).toBe("+36金");
+    expect(coinJumpCaption(0)).toBe("");
     expect(settleSlogan(summary).length).toBeGreaterThan(0);
     const next = applyRunRewards(save, summary);
     expect(next.coins).toBe(save.coins + summary.totalCoins);
@@ -556,6 +580,7 @@ describe("SettleCopy", () => {
     expect(settleHeadline(summary)).toBe("空手回港");
     expect(applyRunRewards(save, summary).coins).toBe(0);
     expect(bookLines([{ id: "fish_test", name: "测试鱼" }], []).join()).toContain("未收");
+    expect(bookLines([{ id: "fish_test", name: "测试鱼" }], ["fish_test"], ["fish_test"]).join()).toContain("首次");
   });
 
   it("marks tutorial complete only after a tutorial island capture", () => {
@@ -625,6 +650,11 @@ describe("StyleCallout", () => {
     expect(styleCallout({ weakPoint: false, airborne: false, combo: 1, perfect: true })).toBe(
       "入箱",
     );
+    expect(styleCallout({ weakPoint: false, airborne: false, combo: 1, bag: true })).toBe(
+      "入箱",
+    );
+    expect(inboxPopup(42)).toBe("入箱 +42");
+    expect(inboxPopup()).toBe("入箱");
   });
 
   it("shows the live quote going up with style", () => {
@@ -671,6 +701,20 @@ describe("HitJuice", () => {
     expect(mid[0].life).toBeLessThan(1);
     expect(juiceCount("splash", false)).toBe(16);
     expect(spawnJuice("splash", 0, 0).every((p) => p.kind === "bubble")).toBe(true);
+    expect(juiceWantsPunch("weak", false)).toBe(true);
+    expect(juiceWantsPunch("hit", true)).toBe(false);
+    expect(juicePunchPeak("weak", false)).toBeGreaterThan(1);
+    expect(juicePunchSeconds("catch", false)).toBeGreaterThan(0);
+    expect(juicePunchSeconds("weak", true)).toBe(0);
+    expect(juicePunchScaleAt("weak", 0.05, false)).toBeGreaterThan(1);
+    expect(juicePunchScaleAt("hit", 0, true)).toBe(1);
+    expect(juiceShakePx("weak", false)).toBeGreaterThan(0);
+    expect(juiceShakePx("hit", true)).toBe(0);
+    const flash = spawnJuiceFlash("catch", 8, 12, false);
+    expect(flash?.kind).toBe("catch");
+    expect(tickJuiceFlash(flash, 1)).toBeUndefined();
+    expect(spawnJuiceFlash("miss", 0, 0, false)).toBeUndefined();
+    expect(spawnJuiceFlash("hit", 0, 0, true)).toBeUndefined();
   });
 });
 
@@ -856,13 +900,69 @@ describe("TutorialFlow", () => {
   });
 
   it("teaches pick-up into the crate instead of the old green reel zone", () => {
+    expect(tutorialPrompt("cast")).toContain("抛竿");
+    expect(tutorialPrompt("cast")).toContain("湾鳍");
+    expect(tutorialPrompt("weakPoint")).toContain("弱点");
     expect(tutorialPrompt("reel")).toContain("捡起");
     expect(tutorialPrompt("reel")).toContain("鱼箱");
     expect(tutorialPrompt("reel")).not.toMatch(/绿|收杆/);
+    expect(tutorialPrompt("reel", { carrying: true })).toContain("鱼箱");
+    expect(tutorialPrompt("settle")).toContain("入箱");
+    expect(tutorialPrompt("settle")).toContain("卖");
     expect(tutorialGuideTarget("cast")).toBe("cast");
     expect(tutorialGuideTarget("reel")).toBe("pickUp");
-    expect(tutorialGuideTarget("weakPoint")).toBe("none");
-    expect(tutorialGuideTarget("settle")).toBe("none");
+    expect(tutorialGuideTarget("reel", { carrying: true })).toBe("crate");
+    expect(tutorialGuideTarget("weakPoint")).toBe("weakPoint");
+    expect(tutorialGuideTarget("settle")).toBe("crate");
+    expect(tutorialCanLeave("cast")).toBe(false);
+    expect(tutorialCanLeave("reel")).toBe(false);
+    expect(tutorialCanLeave("settle")).toBe(true);
+    expect(tutorialGuideAnchor("crate")?.x).toBe(-520);
+    const ring = tutorialGuideRing(0);
+    expect(ring.lineWidth).toBeGreaterThanOrEqual(8);
+    expect(ring.maskAlpha).toBeGreaterThan(0);
+    expect(tutorialGuideRing(400).pulse).not.toBe(ring.pulse);
+  });
+
+  it("points the harbor to sail, sell, then upgrade after the first sale", () => {
+    expect(
+      harborNextCta({
+        tutorialComplete: false,
+        completedRuns: 0,
+        pendingSell: false,
+        upgradeUnlocked: false,
+      }),
+    ).toBe("sail");
+    expect(
+      harborNextCta({
+        tutorialComplete: false,
+        completedRuns: 0,
+        pendingSell: true,
+        upgradeUnlocked: false,
+      }),
+    ).toBe("sell");
+    expect(
+      harborNextCta({
+        tutorialComplete: true,
+        completedRuns: 1,
+        pendingSell: false,
+        upgradeUnlocked: true,
+      }),
+    ).toBe("upgrade");
+    expect(
+      harborNextCta({
+        tutorialComplete: true,
+        completedRuns: 2,
+        pendingSell: false,
+        upgradeUnlocked: true,
+      }),
+    ).toBe("sail");
+    expect(harborNextPrompt("sell")).toContain("卖到鱼市");
+    expect(harborNextPrompt("sail", false)).toContain("开始教学");
+    expect(harborNextPrompt("upgrade")).toContain("升级");
+    expect(buttonFillRgb("primary")[0]).toBeGreaterThan(buttonFillRgb("secondary")[0]);
+    expect(goldHudRgb()[0]).toBe(255);
+    expect(goldHudRgb()[1]).toBeGreaterThan(180);
   });
 
   it("locks harbor upgrade/book/board until the tutorial is finished", () => {

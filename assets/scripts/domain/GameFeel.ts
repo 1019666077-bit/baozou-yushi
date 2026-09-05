@@ -1,3 +1,18 @@
+export type ButtonTone = "primary" | "secondary";
+
+/** 主 CTA 暖色，次要按钮深青，拉开层级。 */
+export function buttonFillRgb(tone: ButtonTone): [number, number, number] {
+  return tone === "primary" ? [255, 156, 56] : [16, 78, 90];
+}
+
+export function buttonLabelRgb(tone: ButtonTone): [number, number, number] {
+  return tone === "primary" ? [255, 252, 240] : [220, 238, 244];
+}
+
+export function goldHudRgb(): [number, number, number] {
+  return [255, 220, 72];
+}
+
 export function spawnCap(lowPower: boolean): number {
   return lowPower ? 2 : 3;
 }

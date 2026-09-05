@@ -39,6 +39,9 @@ import {
   isTutorialRun,
   shouldAutoReel,
   pickupAssistDecision,
+  tutorialCanLeave,
+  tutorialGuideAnchor,
+  tutorialGuideRing,
   tutorialGuideTarget,
   tutorialPrompt,
   TUTORIAL_ISLAND_ID,
@@ -50,6 +53,7 @@ import {
 } from "./domain/FishBehavior";
 import {
   comboHud,
+  inboxPopup,
   liveQuote,
   styleCallout,
 } from "./domain/StyleCallout";
@@ -70,8 +74,14 @@ import {
   type Shot,
 } from "./domain/ShotFlight";
 import {
+  juicePunchScaleAt,
+  juicePunchSeconds,
+  juiceShakePx,
   spawnJuice,
+  spawnJuiceFlash,
   tickJuice,
+  tickJuiceFlash,
+  type JuiceFlash,
   type JuiceKind,
   type JuiceParticle,
 } from "./domain/HitJuice";
@@ -85,8 +95,9 @@ import {
   makeButton,
   makeLabel,
   replacePlayLayer,
+  tintGold,
 } from "./ui/RuntimeUi";
-import { drawJuice, drawShots } from "./ui/GrayArt";
+import { drawGuideHole, drawJuice, drawShots } from "./ui/GrayArt";
 import { DeckStage } from "./world/DeckStage";
 import { deckFlag } from "./world/deckFlag";
 
@@ -144,6 +155,14 @@ export class RuntimePrototype extends Component {
   private hazard!: Graphics;
   private juiceGfx!: Graphics;
   private juice: JuiceParticle[] = [];
+  private juiceFlash?: JuiceFlash;
+  private punchKind: JuiceKind = "hit";
+  private punchElapsed = 0;
+  private punchLeft = 0;
+  private cratePunchLeft = 0;
+  private shakeLeft = 0;
+  private shakePx = 0;
+  private crateLabel?: Label;
   private aimStartedAt = 0;
   private waveY = 0;
   private boatIFrame = 0;
@@ -261,22 +280,38 @@ export class RuntimePrototype extends Component {
     const island = ConfigService.islandById(this.launch.islandId);
     makeLabel(this.layer, `${island.name} · 潮汐猎场`, 32, 0, 318);
     this.multiplier = makeLabel(this.layer, "精彩 ×1.00", 22, -470, 318, 280);
-    this.coinsLabel = makeLabel(this.layer, "本局 0", 22, 470, 318, 280);
+    this.coinsLabel = tintGold(makeLabel(this.layer, "本局 0", 24, 470, 318, 280));
+    const plate = new Node("NarrationPlate");
+    plate.layer = this.layer.layer;
+    plate.parent = this.layer;
+    plate.setPosition(0, 268);
+    const plateGfx = plate.addComponent(Graphics);
+    plateGfx.fillColor = new Color(8, 22, 32, 176);
+    plateGfx.roundRect(-380, -22, 760, 44, 12);
+    plateGfx.fill();
+    if (this.tutorial) {
+      plateGfx.strokeColor = new Color(255, 214, 32, 160);
+      plateGfx.lineWidth = 2;
+      plateGfx.roundRect(-380, -22, 760, 44, 12);
+      plateGfx.stroke();
+    }
     this.status = makeLabel(
       this.layer,
       this.tutorial
         ? tutorialPrompt("cast")
         : "抛竿拽上岸。在甲板上砸晕，搬进左边鱼箱。空中打更值钱。",
-      20,
+      22,
       0,
       268,
-      1100,
+      760,
     );
+    this.status.color = new Color(255, 252, 236, 255);
     this.fishName = makeLabel(this.layer, "等待抛竿", 24, 0, 228);
     this.callout = makeLabel(this.layer, "", 28, 0, 188, 900);
     this.callout.color = new Color(255, 236, 120, 255);
     this.clockLabel = makeLabel(this.layer, "热身潮 1:40", 20, -470, 268, 280);
-    makeLabel(this.layer, "鱼箱", 18, -520, -118, 120);
+    this.crateLabel = makeLabel(this.layer, "鱼箱", 20, -520, -118, 120);
+    this.crateLabel.color = new Color(255, 236, 180, 255);
 
     this.bindPad("MovePad", -320, 0, 640, 420, {
       start: (event) => this.onMoveStart(event),
@@ -336,8 +371,28 @@ export class RuntimePrototype extends Component {
     juiceNode.parent = this.layer;
     this.juiceGfx = juiceNode.addComponent(Graphics);
 
-    this.castButton = makeButton(this.layer, "抛竿", -390, -292, () => this.cast());
-    this.reelButton = makeButton(this.layer, "捡起", 390, -292, () => this.pickUp());
+    this.castButton = makeButton(
+      this.layer,
+      "抛竿",
+      -390,
+      -292,
+      () => this.cast(),
+      200,
+      86,
+      28,
+      "primary",
+    );
+    this.reelButton = makeButton(
+      this.layer,
+      "捡起",
+      390,
+      -292,
+      () => this.pickUp(),
+      200,
+      86,
+      28,
+      "primary",
+    );
     makeButton(this.layer, "暂停", -530, 268, () => this.togglePause(), 150, 56, 22);
     makeButton(this.layer, "回港", 530, 268, () => this.returnHarbor(), 150, 56, 22);
   }
@@ -818,7 +873,11 @@ export class RuntimePrototype extends Component {
     near.startCarry();
     this.carried = near;
     if (this.hooked === near) this.hooked = undefined;
-    this.setStatus("扛上了。搬去左边鱼箱。");
+    this.setStatus(
+      this.tutorial
+        ? tutorialPrompt("reel", { carrying: true })
+        : "扛上了。搬去左边鱼箱。",
+    );
   }
 
   private stashCarried(): void {
@@ -844,15 +903,11 @@ export class RuntimePrototype extends Component {
       price: sold.price,
       multiplier: sold.styleMultiplier,
     });
-    this.burst(airborneBag ? "perfect" : "catch", atX, atY);
-    this.showCallout(
-      styleCallout({
-        weakPoint: false,
-        airborne: airborneBag,
-        combo: 1,
-        perfect: airborneBag,
-      }),
-    );
+    const juice: JuiceKind = airborneBag ? "perfect" : "catch";
+    this.burst(juice, atX, atY);
+    this.beginHitStop(hitStopSeconds(juice, this.lowPower));
+    this.showCallout(inboxPopup(sold.price));
+    this.cratePunchLeft = juicePunchSeconds("catch", this.lowPower);
     SfxPlayer.play(airborneBag ? "perfect" : "catch");
     this.setStatus(
       `${captured.name} ×${sold.styleMultiplier.toFixed(2)} → ${sold.price}金，丢进鱼箱。回港才卖。`,
@@ -1103,7 +1158,11 @@ export class RuntimePrototype extends Component {
     near.startCarry();
     this.carried = near;
     if (this.hooked === near) this.hooked = undefined;
-    this.setStatus("扛上了。搬去左边鱼箱。");
+    this.setStatus(
+      this.tutorial
+        ? tutorialPrompt("reel", { carrying: true })
+        : "扛上了。搬去左边鱼箱。",
+    );
   }
 
   private tickTutorial(): void {
@@ -1250,23 +1309,39 @@ export class RuntimePrototype extends Component {
   private drawGuide(): void {
     this.guide.clear();
     if (!this.tutorial) return;
-    const focus = tutorialGuideTarget(this.tutorialStep);
-    const target =
+    const focus = tutorialGuideTarget(this.tutorialStep, {
+      carrying: !!this.carried?.node.active,
+    });
+    const live =
       focus === "cast"
         ? this.castButton
         : focus === "pickUp"
           ? this.reelButton
           : undefined;
-    if (!target) return;
-    const pulse = 18 + Math.sin(Date.now() / 180) * 8;
-    this.guide.strokeColor = new Color(255, 236, 120, 230);
-    this.guide.lineWidth = 6;
-    this.guide.circle(target.position.x, target.position.y, 70 + pulse);
-    this.guide.stroke();
+    const fallback = tutorialGuideAnchor(focus);
+    const hooked = this.hooked?.node?.position;
+    const x = live
+      ? live.position.x
+      : focus === "weakPoint" && hooked
+        ? hooked.x
+        : fallback?.x;
+    const y = live
+      ? live.position.y
+      : focus === "weakPoint" && hooked
+        ? hooked.y
+        : fallback?.y;
+    if (x == null || y == null) return;
+    const ring = tutorialGuideRing(Date.now());
+    const hole = (fallback?.radius ?? 78) + ring.pulse * 0.35;
+    drawGuideHole(this.guide, x, y, hole, ring);
   }
 
   private returnHarbor(): void {
     if (this.closing) return;
+    if (this.tutorial && !tutorialCanLeave(this.tutorialStep)) {
+      this.setStatus("先抛竿、打中、入箱，再回港卖。");
+      return;
+    }
     this.closing = true;
     this.deck?.dispose();
     this.deck = undefined;
@@ -1328,17 +1403,79 @@ export class RuntimePrototype extends Component {
 
   private burst(kind: JuiceKind, x: number, y: number): void {
     this.juice = this.juice.concat(spawnJuice(kind, x, y, this.lowPower));
+    const flash = spawnJuiceFlash(kind, x, y, this.lowPower);
+    if (flash) this.juiceFlash = flash;
+    const punch = juicePunchSeconds(kind, this.lowPower);
+    if (punch > 0) {
+      this.punchKind = kind;
+      this.punchElapsed = 0;
+      this.punchLeft = punch;
+    }
+    const shake = juiceShakePx(kind, this.lowPower);
+    if (shake > 0) {
+      this.shakePx = shake;
+      this.shakeLeft = 0.12;
+    }
     this.drawJuiceFx();
   }
 
   private tickJuiceFx(dt: number): void {
-    if (this.juice.length === 0) return;
-    this.juice = tickJuice(this.juice, dt);
+    this.juiceFlash = tickJuiceFlash(this.juiceFlash, dt);
+    if (this.juice.length > 0) this.juice = tickJuice(this.juice, dt);
+    this.tickPunch(dt);
+    this.tickShake(dt);
+    if (
+      this.juice.length === 0 &&
+      !this.juiceFlash &&
+      this.punchLeft <= 0 &&
+      this.shakeLeft <= 0 &&
+      this.cratePunchLeft <= 0
+    ) {
+      if (this.juiceGfx) this.juiceGfx.clear();
+      return;
+    }
     this.drawJuiceFx();
   }
 
+  private tickPunch(dt: number): void {
+    if (this.punchLeft > 0) {
+      this.punchElapsed += dt;
+      this.punchLeft = Math.max(0, this.punchLeft - dt);
+      const scale = juicePunchScaleAt(
+        this.punchKind,
+        this.punchElapsed,
+        this.lowPower,
+      );
+      this.callout?.node.setScale(scale, scale, 1);
+    } else {
+      this.callout?.node.setScale(1, 1, 1);
+    }
+    if (this.cratePunchLeft > 0) {
+      this.cratePunchLeft = Math.max(0, this.cratePunchLeft - dt);
+      const duration = juicePunchSeconds("catch", this.lowPower) || 0.16;
+      const elapsed = duration - this.cratePunchLeft;
+      const scale = juicePunchScaleAt("catch", elapsed, this.lowPower);
+      this.crateLabel?.node.setScale(scale, scale, 1);
+    } else if (this.crateLabel) {
+      this.crateLabel.node.setScale(1, 1, 1);
+    }
+  }
+
+  private tickShake(dt: number): void {
+    if (!this.layer?.isValid) return;
+    if (this.shakeLeft <= 0) {
+      this.layer.setPosition(0, 0, 0);
+      return;
+    }
+    this.shakeLeft = Math.max(0, this.shakeLeft - dt);
+    const mag = this.shakePx * (this.shakeLeft / 0.12);
+    this.layer.setPosition((Math.random() - 0.5) * 2 * mag, (Math.random() - 0.5) * 2 * mag, 0);
+  }
+
   private drawJuiceFx(): void {
-    if (this.juiceGfx) drawJuice(this.juiceGfx, this.juice);
+    if (this.juiceGfx) {
+      drawJuice(this.juiceGfx, this.juice, this.juiceFlash ? [this.juiceFlash] : []);
+    }
   }
 
   private showCallout(value: string): void {

@@ -1,6 +1,14 @@
 import { Color, Graphics, JsonAsset, Label, Node, UITransform, resources } from "cc";
+import {
+  buttonFillRgb,
+  buttonLabelRgb,
+  goldHudRgb,
+  type ButtonTone,
+} from "../domain/GameFeel";
 import { SfxPlayer } from "../platform/SfxPlayer";
 import { drawBoat as paintBoat, drawDock as paintDock, drawSeascape } from "./GrayArt";
+
+export type { ButtonTone };
 
 export function loadJson<T>(path: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -48,6 +56,12 @@ export function makeLabel(
   return label;
 }
 
+export function tintGold(label: Label): Label {
+  const rgb = goldHudRgb();
+  label.color = new Color(rgb[0], rgb[1], rgb[2], 255);
+  return label;
+}
+
 export function makeButton(
   parent: Node,
   text: string,
@@ -57,16 +71,26 @@ export function makeButton(
   width = 190,
   height = 82,
   fontSize = 26,
+  tone: ButtonTone = "secondary",
 ): Node {
   const node = new Node(text);
   node.parent = parent;
   node.setPosition(x, y);
   node.addComponent(UITransform).setContentSize(width, height);
   const graphics = node.addComponent(Graphics);
-  graphics.fillColor = new Color(24, 154, 170, 255);
+  const fill = buttonFillRgb(tone);
+  graphics.fillColor = new Color(fill[0], fill[1], fill[2], 255);
   graphics.roundRect(-width / 2, -height / 2, width, height, 16);
   graphics.fill();
-  makeLabel(node, text, fontSize, 0, 0, width - 12);
+  if (tone === "primary") {
+    graphics.strokeColor = new Color(255, 236, 180, 230);
+    graphics.lineWidth = 3;
+    graphics.roundRect(-width / 2, -height / 2, width, height, 16);
+    graphics.stroke();
+  }
+  const label = makeLabel(node, text, fontSize, 0, 0, width - 12);
+  const ink = buttonLabelRgb(tone);
+  label.color = new Color(ink[0], ink[1], ink[2], 255);
   node.on(Node.EventType.TOUCH_END, () => {
     SfxPlayer.unlock();
     // Rebuilding PlayLayer during TOUCH_END destroys the button mid-dispatch.

@@ -1,3 +1,5 @@
+import { CRATE_X, CRATE_Y } from "./FlopPhysics";
+
 export type TutorialStep =
   | "cast"
   | "weakPoint"
@@ -11,7 +13,7 @@ export type TutorialEvent =
   | "reelReady"
   | "captured";
 
-export type TutorialGuideTarget = "cast" | "pickUp" | "none";
+export type TutorialGuideTarget = "cast" | "weakPoint" | "pickUp" | "crate" | "none";
 
 export type HarborFeature = "upgrade" | "book" | "board";
 
@@ -27,17 +29,96 @@ export function isTutorialRun(
   return !tutorialComplete && islandId === TUTORIAL_ISLAND_ID;
 }
 
-export function tutorialPrompt(step: TutorialStep): string {
-  if (step === "cast") return "点击抛竿，锁定湾鳍鱼";
-  if (step === "weakPoint") return "瞄准发光鳍部，触发弱点击破";
-  if (step === "reel") return "砸晕后点捡起，搬进左边鱼箱";
-  return "漂亮！精彩动作会让鱼更值钱";
+export function tutorialPrompt(
+  step: TutorialStep,
+  extras: { carrying?: boolean } = {},
+): string {
+  if (step === "cast") return "点「抛竿」，锁定湾鳍鱼。";
+  if (step === "weakPoint") return "点右半屏发光鳍，打弱点。";
+  if (step === "reel") {
+    if (extras.carrying) return "走到左边鱼箱，丢掉入箱。";
+    return "点「捡起」，搬进左边鱼箱。";
+  }
+  return "入箱了！回港点卖，换成金币。";
 }
 
-export function tutorialGuideTarget(step: TutorialStep): TutorialGuideTarget {
+export function tutorialGuideTarget(
+  step: TutorialStep,
+  extras: { carrying?: boolean } = {},
+): TutorialGuideTarget {
   if (step === "cast") return "cast";
-  if (step === "reel") return "pickUp";
+  if (step === "weakPoint") return "weakPoint";
+  if (step === "reel") return extras.carrying ? "crate" : "pickUp";
+  if (step === "settle") return "crate";
   return "none";
+}
+
+/** 鱼箱中心，与 FlopPhysics.crateDrop 一致。 */
+export const TUTORIAL_CRATE_X = CRATE_X;
+export const TUTORIAL_CRATE_Y = CRATE_Y;
+/** 弱点步没有按钮时，圈右半屏瞄准区。 */
+export const TUTORIAL_WEAK_HINT_X = 260;
+export const TUTORIAL_WEAK_HINT_Y = 36;
+
+export function tutorialGuideAnchor(target: TutorialGuideTarget): {
+  x: number;
+  y: number;
+  radius: number;
+} | undefined {
+  if (target === "crate") {
+    return { x: TUTORIAL_CRATE_X, y: TUTORIAL_CRATE_Y, radius: 88 };
+  }
+  if (target === "weakPoint") {
+    return { x: TUTORIAL_WEAK_HINT_X, y: TUTORIAL_WEAK_HINT_Y, radius: 96 };
+  }
+  return undefined;
+}
+
+/** 半透明遮罩挖洞 + 粗描边脉动。决策可单测，绘制在 RuntimePrototype。 */
+export function tutorialGuideRing(nowMs: number): {
+  pulse: number;
+  lineWidth: number;
+  fillAlpha: number;
+  maskAlpha: number;
+  stroke: [number, number, number, number];
+} {
+  return {
+    pulse: 24 + Math.sin(nowMs / 150) * 14,
+    lineWidth: 10,
+    fillAlpha: 52,
+    maskAlpha: 96,
+    stroke: [255, 214, 32, 255],
+  };
+}
+
+/** 首局未入箱前不许提前回港，强制走通甩钩→命中→入箱。 */
+export function tutorialCanLeave(step: TutorialStep): boolean {
+  return step === "settle" || step === "complete";
+}
+
+export type HarborCta = "sail" | "sell" | "upgrade";
+
+/** 港口下一步：教学出航 / 卖鱼 / 首局后升级鱼竿。 */
+export function harborNextCta(input: {
+  tutorialComplete: boolean;
+  completedRuns: number;
+  pendingSell: boolean;
+  upgradeUnlocked: boolean;
+}): HarborCta {
+  if (input.pendingSell) return "sell";
+  if (!input.tutorialComplete) return "sail";
+  if (input.completedRuns === 1 && input.upgradeUnlocked) return "upgrade";
+  return "sail";
+}
+
+export function harborNextPrompt(
+  cta: HarborCta,
+  tutorialComplete = true,
+): string {
+  if (cta === "sell") return "点「卖到鱼市」，换成金币。";
+  if (cta === "upgrade") return "点升级，卖掉的鱼换成更好的竿。";
+  if (!tutorialComplete) return "点「开始教学」，甩钩打中再入箱。";
+  return "点「出海捕鱼」，再甩一竿。";
 }
 
 export function advanceTutorial(

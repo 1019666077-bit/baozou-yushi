@@ -183,7 +183,7 @@ export class FishController extends Component {
             toolKind: kind,
           })
         : 1) * (context?.damageBonus ?? 1);
-    this.hitPulse = FishController.lowPower ? 0 : 0.18;
+    this.hitPulse = FishController.lowPower ? 0 : weakPoint ? 0.22 : 0.16;
     const result = this.capture.hit(tool, accuracy, weakPoint, charge, scale);
     if (context?.originX != null) {
       this.knockFrom(context.originX, this.node.position.y, tool.power);
@@ -192,6 +192,7 @@ export class FishController extends Component {
       this.mode = "stunned";
       this.stunnedNow = true;
     }
+    this.applyFacingScale();
     this.present();
     return result;
   }
@@ -330,7 +331,7 @@ export class FishController extends Component {
       this.patternStun = Math.max(0, this.patternStun - dt);
       this.stunnedNow = true;
       this.airborneNow = false;
-      this.node.setScale(this.facing * this.depth(), this.depth(), 1);
+      this.applyFacingScale();
       this.present();
       return;
     }
@@ -352,7 +353,7 @@ export class FishController extends Component {
     }
     this.body = createFlopBody(this.node.position.x, this.node.position.y);
     this.node.angle = 0;
-    this.node.setScale(this.facing * this.depth(), this.depth(), 1);
+    this.applyFacingScale();
     this.present();
   }
 
@@ -361,7 +362,16 @@ export class FishController extends Component {
     this.node.angle = (this.body.angle * 180) / Math.PI;
     const flip = this.body.vx < -8 ? -1 : 1;
     this.facing = flip;
-    this.node.setScale(this.facing * this.depth(), this.depth(), 1);
+    this.applyFacingScale();
+  }
+
+  private applyFacingScale(): void {
+    const punch =
+      this.hitPulse > 0 && !FishController.lowPower
+        ? 1 + 0.24 * (this.hitPulse / 0.22)
+        : 1;
+    const d = this.depth() * punch;
+    this.node.setScale(this.facing * d, d, 1);
   }
 
   private depth(): number {
