@@ -218,6 +218,13 @@ export function paintNearPier(ctx, phase, harbor) {
 }
 
 export function paintSkyBloom(ctx, phase, harbor) {
+  if (!harbor) {
+    const dusk = ctx.createLinearGradient(0, 0, 0, 220);
+    dusk.addColorStop(0, "rgba(255,140,64,0.28)");
+    dusk.addColorStop(1, "rgba(255,140,64,0)");
+    ctx.fillStyle = dusk;
+    ctx.fillRect(0, 0, 1280, 240);
+  }
   const sunX = harbor ? 1040 : 168;
   const sunY = harbor ? 108 : 88;
   for (let i = 0; i < 7; i += 1) {

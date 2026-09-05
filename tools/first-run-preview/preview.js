@@ -1150,7 +1150,7 @@ function paintJuice(ctx) {
     }
   }
   ctx.globalAlpha = 1;
-  if (slamMark > 0) {
+  if (surface === "sea" && slamMark > 0) {
     const deckY = flopFeel().deckY ?? -118;
     const x = flopBody ? flopBody.x : fishX;
     const cx = sx(x);
@@ -1177,6 +1177,7 @@ function paintJuice(ctx) {
     ctx.fillText(COPY.firstRun.beatSlam ?? "砸！", cx, cy - 86);
     ctx.restore();
     ctx.globalAlpha = 1;
+    paintFish(ctx, fishX, fishY);
   }
   if (shakeLeft > 0) ctx.restore();
 }
@@ -1260,18 +1261,20 @@ function renderHarbor() {
     const chip = cta(caption, -220 + index * 220, 210, 148, 32, 14, "secondary", () => onIsland(island));
     chip.classList.add("chip");
   });
-  COPY.tools.forEach((tool, index) => {
-    const owned = tool.id === "tool_rod";
-    const selected = owned;
-    const caption = owned
-      ? `${selected ? "● " : ""}${tool.name} Lv1`
-      : `买${tool.name}`;
-    const toolBtn = cta(caption, -520, -8 - index * 48, 148, 36, 14, "secondary", () => {
-      if (!owned) setStatus(COPY.coinFail);
-      render();
+  if (complete) {
+    COPY.tools.forEach((tool, index) => {
+      const owned = tool.id === "tool_rod";
+      const selected = owned;
+      const caption = owned
+        ? `${selected ? "● " : ""}${tool.name} Lv1`
+        : `买${tool.name}`;
+      const toolBtn = cta(caption, -520, -8 - index * 48, 148, 36, 14, "secondary", () => {
+        if (!owned) setStatus(COPY.coinFail);
+        render();
+      });
+      toolBtn.classList.add("chip");
     });
-    toolBtn.classList.add("chip");
-  });
+  }
   label(complete ? COPY.sailLineAfter : COPY.sailLineNew, 18, 200, -86, 520);
   label(complete ? COPY.fishCountAfter : COPY.fishCountNew, 18, 200, -112, 520);
   const labels = complete ? COPY.featureLabelsAfter : COPY.featureLabelsNew;
@@ -1630,6 +1633,10 @@ function goSettle() {
   surface = "settle";
   settleGuide = true;
   status = COPY.harborPrompts.sell;
+  slamMark = 0;
+  smashLeft = 0;
+  splashRings = [];
+  particles = particles.filter((p) => p.kind === "coin" || p.kind === "star");
   render();
 }
 
