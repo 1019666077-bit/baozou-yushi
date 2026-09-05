@@ -3,7 +3,7 @@
 ## 结果
 
 - TypeScript领域层类型检查：通过。
-- Vitest：3个测试文件、79个测试通过（含教学旁白不被潮汐句覆盖、教学底栏单主橙、买不起升级不抢港口主 CTA、命中入箱 juice 决策、港口下一步 CTA、首次角标与金币跳字、教学开关、港口解锁、捡起超时、岛分包失败留港、微信登录桩）。
+- Vitest：3个测试文件、82个测试通过（含抛竿 cast juice/线闪低配减弱、精彩倍率 HUD 只在上涨时跳动、图鉴新纪录 toast、教学旁白不被潮汐句覆盖、教学底栏单主橙、买不起升级不抢港口主 CTA、命中入箱 juice 决策、港口下一步 CTA、首次角标与金币跳字、教学开关、港口解锁、捡起超时、岛分包失败留港、微信登录桩）。
 - 云函数与开放数据域JavaScript语法检查：通过。
 - 预检：4个配置JSON有效；`assets/config` 与 `assets/resources/config` / `bundledConfig` 一致；主包候选源码低于4MiB红线。
 - `tools/playtest-live.mjs`：`node --check` 通过；本环境无 web 构建，脚本按设计清晰失败，未实跑浏览器。

@@ -761,6 +761,34 @@ describe("HitJuice", () => {
     expect(castRodScaleAt(0.04, 0.16, false)).toBeGreaterThan(1);
     expect(castRodScaleAt(0.04, 0.16, true)).toBe(1);
   });
+
+  it("keeps cast juice lighter than a hit and weaker on low power", () => {
+    expect(juiceCount("cast", false)).toBeLessThan(juiceCount("hit", false));
+    expect(castFlashSeconds(true)).toBeLessThan(castFlashSeconds(false));
+    expect(castLineWidth(0, castFlashSeconds(false), false)).toBeGreaterThan(6);
+    expect(castTipNudgePx(0, 0.16, false)).toBeGreaterThan(0);
+    expect(castRodScaleAt(0.05, 0.16, true)).toBe(1);
+  });
+});
+
+describe("style HUD punch and discovery toast", () => {
+  it("only punches when multiplier or combo rises", () => {
+    expect(
+      styleHudShouldPunch({ multiplier: 1, combo: 1 }, { multiplier: 1.12, combo: 2 }),
+    ).toBe(true);
+    expect(
+      styleHudShouldPunch({ multiplier: 1.4, combo: 3 }, { multiplier: 1, combo: 0 }),
+    ).toBe(false);
+    expect(styleHudPunchScaleAt(0.04, false)).toBeGreaterThan(
+      styleHudPunchScaleAt(0.04, true),
+    );
+  });
+
+  it("prints a short atlas toast without becoming a collection system", () => {
+    expect(discoveryToast("湾鳍鱼")).toBe("图鉴新纪录：湾鳍鱼");
+    expect(discoveryToastLine(["湾鳍鱼", "焰鳗"])).toContain("等2种");
+    expect(castSnapCaption().length).toBeLessThan(8);
+  });
 });
 
 describe("GrayLook", () => {
