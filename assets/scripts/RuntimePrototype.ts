@@ -210,6 +210,7 @@ export class RuntimePrototype extends Component {
   private juiceGfx!: Graphics;
   private juice: JuiceParticle[] = [];
   private juiceFlash?: JuiceFlash;
+  private slamMarks: Array<{ x: number; y: number; life: number }> = [];
   private punchKind: JuiceKind = "hit";
   private punchElapsed = 0;
   private punchLeft = 0;
@@ -1716,6 +1717,7 @@ export class RuntimePrototype extends Component {
 
   private burst(kind: JuiceKind, x: number, y: number): void {
     this.juice = this.juice.concat(spawnJuice(kind, x, y, this.lowPower));
+    if (kind === "smash") this.slamMarks.push({ x, y, life: 1 });
     const flash = spawnJuiceFlash(kind, x, y, this.lowPower);
     if (flash) this.juiceFlash = flash;
     const punch = juicePunchSeconds(kind, this.lowPower);
@@ -1735,12 +1737,18 @@ export class RuntimePrototype extends Component {
   private tickJuiceFx(dt: number): void {
     this.juiceFlash = tickJuiceFlash(this.juiceFlash, dt);
     if (this.juice.length > 0) this.juice = tickJuice(this.juice, dt);
+    if (this.slamMarks.length > 0) {
+      this.slamMarks = this.slamMarks
+        .map((mark) => ({ ...mark, life: mark.life - dt * 0.12 }))
+        .filter((mark) => mark.life > 0);
+    }
     this.tickCastFlash(dt);
     this.tickPunch(dt);
     this.tickShake(dt);
     if (
       this.juice.length === 0 &&
       !this.juiceFlash &&
+      this.slamMarks.length === 0 &&
       this.punchLeft <= 0 &&
       this.shakeLeft <= 0 &&
       this.cratePunchLeft <= 0 &&
@@ -1825,7 +1833,12 @@ export class RuntimePrototype extends Component {
 
   private drawJuiceFx(): void {
     if (this.juiceGfx) {
-      drawJuice(this.juiceGfx, this.juice, this.juiceFlash ? [this.juiceFlash] : []);
+      drawJuice(
+        this.juiceGfx,
+        this.juice,
+        this.juiceFlash ? [this.juiceFlash] : [],
+        this.slamMarks,
+      );
     }
   }
 

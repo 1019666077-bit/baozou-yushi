@@ -140,6 +140,31 @@ function opsToSvg(ops, { width, height, viewBox, local = false }) {
       parts.push(
         `<ellipse cx="${svgX(op.x, local)}" cy="${svgY(op.y, height, local)}" rx="${op.rx}" ry="${op.ry}" fill="${hex(op.fill, op.fill[3] ?? 255)}"/>`,
       );
+      continue;
+    }
+    if (op.t === "grain") {
+      for (const stroke of Art.grainStrokes(op)) {
+        parts.push(
+          `<line x1="${svgX(stroke.x1, local)}" y1="${svgY(stroke.y1, height, local)}" x2="${svgX(stroke.x2, local)}" y2="${svgY(stroke.y2, height, local)}" stroke="${hex(op.color, op.color[3] ?? 255)}" stroke-width="${stroke.w}" fill="none"/>`,
+        );
+      }
+      continue;
+    }
+    if (op.t === "wash") {
+      for (const blob of Art.washBlobs(op)) {
+        parts.push(
+          `<ellipse cx="${svgX(blob.x, local)}" cy="${svgY(blob.y, height, local)}" rx="${blob.rx}" ry="${blob.ry}" fill="${hex(op.color, op.color[3] ?? 255)}"/>`,
+        );
+      }
+      continue;
+    }
+    if (op.t === "burst") {
+      const pts = [];
+      const raw = Art.burstPts(op);
+      for (let i = 0; i < raw.length; i += 2) {
+        pts.push(`${svgX(raw[i], local)},${svgY(raw[i + 1], height, local)}`);
+      }
+      parts.push(`<polygon points="${pts.join(" ")}" fill="${hex(op.fill, op.fill[3] ?? 255)}"/>`);
     }
   }
   return `<?xml version="1.0" encoding="UTF-8"?>

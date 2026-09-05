@@ -26,11 +26,11 @@ export interface JuiceParticle {
 export function juiceCount(kind: JuiceKind, lowPower: boolean): number {
   if (kind === "cast" || kind === "yank") return lowPower ? 2 : 4;
   if (kind === "gold" || kind === "sell") return lowPower ? 6 : 10;
-  if (kind === "dust") return lowPower ? 8 : 18;
+  if (kind === "dust") return lowPower ? 10 : 24;
   if (lowPower) return kind === "miss" ? 2 : 3;
   if (kind === "miss") return 4;
   if (kind === "splash") return 10;
-  if (kind === "smash") return 16;
+  if (kind === "smash") return 22;
   if (kind === "hit") return 9;
   if (kind === "catch") return 8;
   return 9;
@@ -124,7 +124,7 @@ export interface JuiceFlash {
 
 export function juiceShakePx(kind: JuiceKind, lowPower: boolean): number {
   if (lowPower) return 0;
-  if (kind === "smash") return 8;
+  if (kind === "smash") return 12;
   if (kind === "weak" || kind === "perfect") return 5;
   if (kind === "hit" || kind === "catch") return 3;
   return 0;
@@ -148,7 +148,8 @@ export function juiceWantsPunch(kind: JuiceKind, lowPower: boolean): boolean {
 
 export function juicePunchPeak(kind: JuiceKind, lowPower: boolean): number {
   if (!juiceWantsPunch(kind, lowPower)) return 1;
-  if (kind === "weak" || kind === "perfect" || kind === "smash") return 1.28;
+  if (kind === "smash") return 1.36;
+  if (kind === "weak" || kind === "perfect") return 1.28;
   if (kind === "catch") return 1.18;
   return 1.14;
 }
@@ -284,10 +285,10 @@ export function spawnLandingDust(
 ): JuiceParticle[] {
   return spawnJuice("dust", x, y, lowPower).map((p, i) => ({
     ...p,
-    vx: (i % 2 === 0 ? -1 : 1) * (70 + (i % 5) * 28),
-    vy: 48 + (i % 4) * 18,
-    size: lowPower ? 10 : 16 + (i % 3) * 4,
-    maxLife: lowPower ? 0.32 : 0.62,
+    vx: (i % 2 === 0 ? -1 : 1) * (86 + (i % 5) * 34),
+    vy: 62 + (i % 4) * 22,
+    size: lowPower ? 12 : 22 + (i % 3) * 5,
+    maxLife: lowPower ? 0.36 : 0.72,
     kind: "dust" as const,
   }));
 }
@@ -306,7 +307,7 @@ export function crateBounceScaleAt(elapsed: number, lowPower: boolean): number {
 
 /** 砸甲板短挤压：横向撑开、纵向压扁，低配关掉。 */
 export function smashSquashSeconds(lowPower = false): number {
-  return lowPower ? 0 : 0.34;
+  return lowPower ? 0 : 0.44;
 }
 
 export function smashSquashAt(
@@ -318,7 +319,7 @@ export function smashSquashAt(
     return { sx: 1, sy: 1 };
   }
   const t = 1 - elapsed / duration;
-  return { sx: 1 + 0.52 * t, sy: 1 - 0.56 * t };
+  return { sx: 1 + 0.72 * t, sy: 1 - 0.74 * t };
 }
 
 /** 弱点准星半径：读得出窗口，不挡点。 */

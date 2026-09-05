@@ -58,9 +58,9 @@ export const CARRY_FEEL = {
  * 不改经济，只改「砸甲板」能不能读出物理拍子。
  */
 export const FLOP_RHYTHM = {
-  freezeSeconds: 0.22,
-  secondFreeze: 0.1,
-  dustCount: 18,
+  freezeSeconds: 0.36,
+  secondFreeze: 0.18,
+  dustCount: 24,
   settleVy: 80,
 };
 

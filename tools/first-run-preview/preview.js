@@ -206,7 +206,7 @@ function burst(kind, x, y) {
         Math.sin(angle) * speed +
         (coin ? 140 : kind === "smash" || kind === "splash" ? 90 : kind === "cast" || kind === "yank" ? 18 : 8),
       life: 1,
-      maxLife: coin || kind === "catch" ? 0.4 : kind === "dust" ? 0.62 : kind === "smash" ? 0.32 : 0.3,
+      maxLife: coin || kind === "catch" ? 0.4 : kind === "dust" ? 0.72 : kind === "smash" ? 0.42 : 0.3,
       kind: coin
         ? "coin"
         : kind === "dust" || (kind === "smash" && i % 3 === 0)
@@ -215,7 +215,7 @@ function burst(kind, x, y) {
             ? "star"
             : "bubble",
       size:
-        coin ? 6 : kind === "catch" ? 8 : kind === "smash" || kind === "splash" ? 9 : kind === "dust" ? 16 + (i % 3) * 4 : kind === "weak" ? 7 : kind === "cast" || kind === "yank" ? 4 : 5,
+        coin ? 6 : kind === "catch" ? 8 : kind === "smash" || kind === "splash" ? 12 : kind === "dust" ? 22 + (i % 3) * 5 : kind === "weak" ? 7 : kind === "cast" || kind === "yank" ? 4 : 5,
     });
   }
   if (kind !== "yank" && kind !== "splash" && kind !== "dust") {
@@ -372,6 +372,58 @@ function lampK(phase, x) {
   return 0.42 + 0.58 * (0.5 + 0.5 * Math.sin(phase * 5.4 + x * 0.09));
 }
 
+function grainStrokes(op) {
+  const seed = op.seed ?? 1;
+  const dir = op.dir ?? "h";
+  const strokes = [];
+  const unit = (i, s) => {
+    const n = Math.sin((i + 1) * 12.9898 + s * 78.233) * 43758.5453;
+    return n - Math.floor(n);
+  };
+  for (let i = 0; i < op.count; i += 1) {
+    const u = unit(i, seed);
+    const v = unit(i + 17, seed + 3);
+    const x1 = op.x + u * op.w;
+    const y1 = op.y + v * op.h;
+    const len = op.size * (0.65 + 0.9 * unit(i + 9, seed));
+    const dx = dir === "v" ? (i % 2 === 0 ? 0.8 : -0.6) : dir === "diag" ? len * 0.78 : len;
+    const dy = dir === "h" ? (i % 2 === 0 ? 1.1 : -0.9) : dir === "diag" ? len * 0.38 : len;
+    strokes.push({ x1, y1, x2: x1 + dx, y2: y1 + dy, w: 0.7 + 0.8 * u });
+  }
+  return strokes;
+}
+
+function washBlobs(op) {
+  const seed = op.seed ?? 1;
+  const blobs = [];
+  const unit = (i, s) => {
+    const n = Math.sin((i + 1) * 12.9898 + s * 78.233) * 43758.5453;
+    return n - Math.floor(n);
+  };
+  for (let i = 0; i < op.count; i += 1) {
+    const u = unit(i, seed);
+    const v = unit(i + 11, seed + 2);
+    blobs.push({
+      x: op.x + u * op.w,
+      y: op.y + v * op.h,
+      rx: 8 + u * 18,
+      ry: 3.2 + v * 7,
+    });
+  }
+  return blobs;
+}
+
+function burstPts(op) {
+  const pts = [];
+  const n = Math.max(5, op.spikes) * 2;
+  for (let i = 0; i < n; i += 1) {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const rad = i % 2 === 0 ? op.r : op.r * 0.4;
+    pts.push(op.x + Math.cos(a) * rad, op.y + Math.sin(a) * rad);
+  }
+  return pts;
+}
+
 function speckleDots(op) {
   const seed = op.seed ?? 1;
   const dots = [];
@@ -480,6 +532,38 @@ function paintOps(ctx, ops, phase = 0, local = false, live = {}) {
       ctx.fillStyle = fillOf(op.fill);
       ctx.beginPath();
       ctx.ellipse(px(op.x, op.tag), py(op.y, op.tag, op.x), op.rx, op.ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+      continue;
+    }
+    if (op.t === "grain") {
+      ctx.strokeStyle = fillOf(op.color);
+      for (const stroke of grainStrokes(op)) {
+        ctx.lineWidth = stroke.w;
+        ctx.beginPath();
+        ctx.moveTo(px(stroke.x1, op.tag), py(stroke.y1, op.tag, stroke.x1));
+        ctx.lineTo(px(stroke.x2, op.tag), py(stroke.y2, op.tag, stroke.x2));
+        ctx.stroke();
+      }
+      continue;
+    }
+    if (op.t === "wash") {
+      ctx.fillStyle = fillOf(op.color);
+      for (const blob of washBlobs(op)) {
+        ctx.beginPath();
+        ctx.ellipse(px(blob.x, op.tag), py(blob.y, op.tag, blob.x), blob.rx, blob.ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      continue;
+    }
+    if (op.t === "burst") {
+      const pts = burstPts(op);
+      ctx.fillStyle = fillOf(op.fill);
+      ctx.beginPath();
+      ctx.moveTo(px(pts[0], op.tag), py(pts[1], op.tag, pts[0]));
+      for (let i = 2; i < pts.length; i += 2) {
+        ctx.lineTo(px(pts[i], op.tag), py(pts[i + 1], op.tag, pts[i]));
+      }
+      ctx.closePath();
       ctx.fill();
       continue;
     }
@@ -787,6 +871,23 @@ function paintCharge(ctx) {
     spec.width * (spec.sweetHi - spec.sweetLo),
     spec.height - 6,
   );
+  ctx.strokeStyle = "rgba(120,255,168,0.85)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(
+    bx - spec.width / 2 + spec.width * spec.sweetLo,
+    by + 2,
+    spec.width * (spec.sweetHi - spec.sweetLo),
+    spec.height - 4,
+  );
+  for (const tick of [0.25, 0.5, 0.75]) {
+    const tx = bx - spec.width / 2 + spec.width * tick;
+    ctx.strokeStyle = "rgba(255,236,180,0.45)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(tx, by + 1);
+    ctx.lineTo(tx, by + spec.height - 1);
+    ctx.stroke();
+  }
   const quality = judgeCharge(charge);
   ctx.fillStyle = quality === "sweet" ? "#ff9a1a" : quality === "late" ? "#c8d0d6" : "#ffe27a";
   if (ctx.roundRect) {
@@ -794,19 +895,33 @@ function paintCharge(ctx) {
     ctx.roundRect(bx - spec.width / 2, by + 3, Math.max(10, spec.width * charge), spec.height - 6, 6);
     ctx.fill();
   } else ctx.fillRect(bx - spec.width / 2, by + 3, Math.max(10, spec.width * charge), spec.height - 6);
+  const needleX = bx - spec.width / 2 + spec.width * charge;
+  ctx.fillStyle = quality === "sweet" ? "#fff6c8" : "#fff";
+  ctx.beginPath();
+  ctx.moveTo(needleX, by - 2);
+  ctx.lineTo(needleX - 6, by - 12);
+  ctx.lineTo(needleX + 6, by - 12);
+  ctx.closePath();
+  ctx.fill();
   ctx.fillStyle = quality === "sweet" ? "#fff3c0" : "#ffe9a8";
   ctx.font = "800 18px PingFang SC, Noto Sans SC, sans-serif";
   ctx.textAlign = "center";
+  const barLabel =
+    quality === "sweet"
+      ? COPY.firstRun.castBarSweet ?? "甜区 · 精彩"
+      : quality === "late"
+        ? COPY.firstRun.castBarLate ?? "偏晚 · 普通"
+        : COPY.firstRun.castBarEarly ?? "蓄力 · 偏早";
+  ctx.fillText(barLabel, bx, by - 16);
+  ctx.font = "700 14px PingFang SC, Noto Sans SC, sans-serif";
+  ctx.fillStyle = freeHunt ? "#d8e8f0" : "#c8d8e0";
   ctx.fillText(
-    quality === "sweet" ? "甜区 · 精彩" : quality === "late" ? "偏晚 · 普通" : "蓄力 · 偏早",
+    freeHunt
+      ? COPY.firstRun.castHoldFree ?? "自由局：再点「甩出」才松手，不会自动进甜区"
+      : COPY.firstRun.castHoldTutorial ?? "教学：蓄满会自动甩",
     bx,
-    by - 10,
+    by + spec.height + 18,
   );
-  if (freeHunt) {
-    ctx.font = "700 14px PingFang SC, Noto Sans SC, sans-serif";
-    ctx.fillStyle = "#d8e8f0";
-    ctx.fillText("自由局：再点「甩出」才松手，不会自动进甜区", bx, by + spec.height + 18);
-  }
   ctx.restore();
 }
 
@@ -1000,20 +1115,20 @@ function paintJuice(ctx) {
   if (slamMark > 0) {
     const deckY = flopFeel().deckY ?? -118;
     const x = flopBody ? flopBody.x : fishX;
+    ctx.save();
     ctx.globalAlpha = Math.min(1, slamMark);
-    ctx.fillStyle = "rgba(186,132,64,0.55)";
-    ctx.beginPath();
-    ctx.ellipse(sx(x), sy(deckY + 4), 110, 32, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "rgba(255,214,140,0.42)";
-    ctx.beginPath();
-    ctx.ellipse(sx(x), sy(deckY + 10), 64, 16, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(255,236,180,0.85)";
-    ctx.lineWidth = 7;
-    ctx.beginPath();
-    ctx.ellipse(sx(x), sy(deckY + 6), 88, 22, 0, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.translate(sx(x), sy(deckY + 6));
+    ctx.scale(1, -1);
+    paintOps(ctx, COPY.art?.slam ?? [], 0, true);
+    ctx.restore();
+    ctx.globalAlpha = Math.min(1, slamMark);
+    ctx.fillStyle = "#fff3c0";
+    ctx.font = "900 42px PingFang SC, Noto Sans SC, sans-serif";
+    ctx.textAlign = "center";
+    ctx.strokeStyle = "rgba(90,36,0,0.85)";
+    ctx.lineWidth = 6;
+    ctx.strokeText(COPY.firstRun.beatSlam ?? "砸！", sx(x), sy(deckY + 78));
+    ctx.fillText(COPY.firstRun.beatSlam ?? "砸！", sx(x), sy(deckY + 78));
     ctx.globalAlpha = 1;
   }
   if (shakeLeft > 0) ctx.restore();
@@ -1504,7 +1619,7 @@ function tick(now) {
     smashElapsed += dt;
     smashLeft = Math.max(0, smashLeft - dt);
   }
-  if (slamMark > 0) slamMark = Math.max(0, slamMark - dt * 0.28);
+  if (slamMark > 0) slamMark = Math.max(0, slamMark - dt * 0.12);
   if (castFlashLeft > 0) {
     castFlashElapsed += dt;
     castFlashLeft = Math.max(0, castFlashLeft - dt);

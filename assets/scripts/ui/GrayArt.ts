@@ -1,12 +1,16 @@
 import { Color, Graphics, Node, UITransform } from "cc";
 import {
   boatOps,
+  burstPts,
   crateOps,
   dockOps,
   fishOps,
+  grainStrokes,
   islandSetOps,
   mix,
+  slamMarkOps,
   speckleDots,
+  washBlobs,
   type DrawOp,
   type FishFace,
   type Rgba,
@@ -105,6 +109,33 @@ function paintOps(g: Graphics, ops: DrawOp[]): void {
     if (op.t === "shadow") {
       g.fillColor = toColor(op.fill);
       g.ellipse(op.x, op.y, op.rx, op.ry);
+      g.fill();
+      continue;
+    }
+    if (op.t === "grain") {
+      g.strokeColor = toColor(op.color);
+      for (const stroke of grainStrokes(op)) {
+        g.lineWidth = stroke.w;
+        g.moveTo(stroke.x1, stroke.y1);
+        g.lineTo(stroke.x2, stroke.y2);
+        g.stroke();
+      }
+      continue;
+    }
+    if (op.t === "wash") {
+      g.fillColor = toColor(op.color);
+      for (const blob of washBlobs(op)) {
+        g.ellipse(blob.x, blob.y, blob.rx, blob.ry);
+        g.fill();
+      }
+      continue;
+    }
+    if (op.t === "burst") {
+      const pts = burstPts(op);
+      g.fillColor = toColor(op.fill);
+      g.moveTo(pts[0], pts[1]);
+      for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]);
+      g.close();
       g.fill();
       continue;
     }
@@ -224,8 +255,13 @@ export function drawJuice(
     life: number;
     kind: string;
   }> = [],
+  slamMarks: Array<{ x: number; y: number; life: number }> = [],
 ): void {
   g.clear();
+  for (const mark of slamMarks) {
+    if (mark.life < 0.12) continue;
+    paintOps(g, slamMarkOps(mark.x, mark.y));
+  }
   for (const flash of flashes) {
     const alpha = Math.max(0, Math.round(210 * flash.life));
     const grow =
@@ -268,10 +304,10 @@ export function drawJuice(
     }
     if (particle.kind === "dust") {
       g.fillColor = new Color(168, 118, 58, Math.round(alpha * 0.9));
-      g.ellipse(particle.x, particle.y, r * 2.1, r * 0.85);
+      g.ellipse(particle.x, particle.y, r * 2.4, r * 1.05);
       g.fill();
-      g.fillColor = new Color(230, 186, 110, Math.round(alpha * 0.4));
-      g.ellipse(particle.x - r * 0.2, particle.y + r * 0.15, r * 0.9, r * 0.4);
+      g.fillColor = new Color(230, 186, 110, Math.round(alpha * 0.45));
+      g.ellipse(particle.x - r * 0.2, particle.y + r * 0.15, r * 1.1, r * 0.5);
       g.fill();
       continue;
     }

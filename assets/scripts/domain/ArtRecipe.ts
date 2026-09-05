@@ -98,6 +98,39 @@ export type DrawOp =
       ry: number;
       fill: Rgba;
       tag?: string;
+    }
+  | {
+      t: "grain";
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      color: Rgba;
+      count: number;
+      size: number;
+      seed?: number;
+      dir?: "h" | "v" | "diag";
+      tag?: string;
+    }
+  | {
+      t: "wash";
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      color: Rgba;
+      count: number;
+      seed?: number;
+      tag?: string;
+    }
+  | {
+      t: "burst";
+      x: number;
+      y: number;
+      r: number;
+      spikes: number;
+      fill: Rgba;
+      tag?: string;
     };
 
 /** 码头/船/箱共用木色，避免一块一块各调各的。 */
@@ -229,6 +262,105 @@ function softShadow(x: number, y: number, rx: number, ry: number, a = 90): DrawO
     fill: rgba([6, 16, 28], a),
     tag: "shadow",
   };
+}
+
+function unit01(i: number, seed: number): number {
+  const n = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+export function grainStrokes(op: {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  count: number;
+  size: number;
+  seed?: number;
+  dir?: "h" | "v" | "diag";
+}): Array<{ x1: number; y1: number; x2: number; y2: number; w: number }> {
+  const seed = op.seed ?? 1;
+  const dir = op.dir ?? "h";
+  const strokes: Array<{ x1: number; y1: number; x2: number; y2: number; w: number }> = [];
+  for (let i = 0; i < op.count; i++) {
+    const u = unit01(i, seed);
+    const v = unit01(i + 17, seed + 3);
+    const x1 = op.x + u * op.w;
+    const y1 = op.y + v * op.h;
+    const len = op.size * (0.65 + 0.9 * unit01(i + 9, seed));
+    const dx = dir === "v" ? (i % 2 === 0 ? 0.8 : -0.6) : dir === "diag" ? len * 0.78 : len;
+    const dy = dir === "h" ? (i % 2 === 0 ? 1.1 : -0.9) : dir === "diag" ? len * 0.38 : len;
+    strokes.push({
+      x1,
+      y1,
+      x2: x1 + dx,
+      y2: y1 + dy,
+      w: 0.7 + 0.8 * u,
+    });
+  }
+  return strokes;
+}
+
+export function washBlobs(op: {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  count: number;
+  seed?: number;
+}): Array<{ x: number; y: number; rx: number; ry: number }> {
+  const seed = op.seed ?? 1;
+  const blobs: Array<{ x: number; y: number; rx: number; ry: number }> = [];
+  for (let i = 0; i < op.count; i++) {
+    const u = unit01(i, seed);
+    const v = unit01(i + 11, seed + 2);
+    blobs.push({
+      x: op.x + u * op.w,
+      y: op.y + v * op.h,
+      rx: 8 + u * 18,
+      ry: 3.2 + v * 7,
+    });
+  }
+  return blobs;
+}
+
+export function burstPts(op: { x: number; y: number; r: number; spikes: number }): number[] {
+  const pts: number[] = [];
+  const n = Math.max(5, op.spikes) * 2;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const rad = i % 2 === 0 ? op.r : op.r * 0.4;
+    pts.push(op.x + Math.cos(a) * rad, op.y + Math.sin(a) * rad);
+  }
+  return pts;
+}
+
+function grainField(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: Rgba,
+  count: number,
+  size: number,
+  seed = 1,
+  dir: "h" | "v" | "diag" = "h",
+  tag = "grain",
+): DrawOp {
+  return { t: "grain", x, y, w, h, color, count, size, seed, dir, tag };
+}
+
+function washField(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: Rgba,
+  count: number,
+  seed = 1,
+  tag = "brush",
+): DrawOp {
+  return { t: "wash", x, y, w, h, color, count, seed, tag };
 }
 
 function hatchStrokes(
@@ -401,6 +533,11 @@ export function skyWaterOps(look: IslandLook, phase = 0): DrawOp[] {
     speckleField(-640, -360, 1280, 196, rgba([8, 40, 64], 52), 56, 2, 7, "speckle"),
     speckleField(-640, 110, 1280, 220, rgba([255, 248, 220], 28), 32, 1.4, 11, "speckle"),
     speckleField(-640, -40, 1280, 80, rgba([255, 236, 180], 22), 24, 1.6, 15, "speckle"),
+    washField(-640, 140, 1280, 260, rgba([255, 236, 196], 22), 28, 21, "brush"),
+    washField(-640, -220, 1280, 200, rgba([120, 220, 236], 28), 36, 23, "brush"),
+    washField(-640, -360, 1280, 140, rgba([8, 48, 72], 36), 22, 25, "brush"),
+    grainField(-640, -168, 1280, 130, rgba([210, 246, 255], 38), 90, 9, 27, "h", "grain"),
+    grainField(-640, -340, 1280, 160, rgba([16, 64, 88], 40), 70, 8, 29, "diag", "grain"),
   ];
   if ((look.skyTop[0] ?? 0) > 240) {
     push(
@@ -639,6 +776,8 @@ export function skyWaterOps(look: IslandLook, phase = 0): DrawOp[] {
       width: 2.4,
       tag: "ripple",
     },
+    washField(-520, -40, 980, 70, rgba([255, 248, 220], 18), 16, 31, "brush"),
+    grainField(-600, 20, 1200, 40, rgba([255, 236, 180], 36), 40, 14, 33, "h", "grain"),
   );
   return ops;
 }
@@ -967,6 +1106,12 @@ export function foamIsleOps(x: number, y: number, s: number, look: IslandLook): 
     { t: "ellipse", x: x + 34 * s, y: y + 9 * s, rx: 2.4 * s, ry: 1.2 * s, fill: rgba(WOOD.highlight, 140) },
     { t: "circle", x: x - 10 * s, y: y + 20 * s, r: 2.4 * s, fill: rgba([46, 96, 72], 190), tag: "paraMid" },
     ...foamLace(x, y - 2 * s, 150 * s, look),
+    grainField(x - 70 * s, y + 2 * s, 140 * s, 34 * s, rgba(WOOD.grain, 50), 26, 7 * s, 41, "diag", "grain"),
+    washField(x - 48 * s, y + 8 * s, 96 * s, 22 * s, rgba([255, 236, 170], 28), 10, 43, "brush"),
+    ...bushOps(x - 28 * s, y + 16 * s, 0.55 * s, look),
+    ...rockOps(x + 8 * s, y + 4 * s, 0.48 * s, look),
+    { t: "ellipse", x: x - 18 * s, y: y + 8 * s, rx: 10 * s, ry: 2.4 * s, fill: rgba(WOOD.dark, 90), tag: "path" },
+    { t: "ellipse", x: x + 6 * s, y: y + 10 * s, rx: 12 * s, ry: 2.2 * s, fill: rgba(mix(look.land, WOOD.plank, 0.35), 120), tag: "path" },
   ];
   return ops;
 }
@@ -1008,6 +1153,8 @@ export function prismIsleOps(x: number, y: number, s: number, look: IslandLook):
     speckleField(x - 40 * s, y + 6 * s, 90 * s, 40 * s, rgba([255, 220, 255], 36), 12, 1.4 * s, 6, "speckle"),
     ...rockOps(x - 50 * s, y + 2 * s, 0.7 * s, look),
     ...foamLace(x, y - 1 * s, 120 * s, look),
+    grainField(x - 36 * s, y + 8 * s, 80 * s, 36 * s, rgba([255, 220, 255], 40), 18, 6 * s, 45, "diag", "grain"),
+    washField(x - 20 * s, y + 16 * s, 50 * s, 24 * s, rgba([255, 248, 220], 26), 8, 47, "brush"),
   ];
 }
 
@@ -1051,6 +1198,8 @@ export function stormIsleOps(x: number, y: number, s: number, look: IslandLook):
     speckleField(x - 40 * s, y + 8 * s, 80 * s, 36 * s, rgba([20, 18, 16], 50), 14, 1.5 * s, 2, "speckle"),
     ...rockOps(x - 48 * s, y + 3 * s, 0.8 * s, look),
     ...rockOps(x + 46 * s, y + 2 * s, 0.65 * s, look),
+    grainField(x - 44 * s, y + 6 * s, 88 * s, 40 * s, rgba([12, 14, 18], 55), 20, 7 * s, 49, "v", "grain"),
+    washField(x - 16 * s, y + 48 * s, 40 * s, 28 * s, rgba(look.haze, 40), 7, 51, "brush"),
   ];
 }
 
@@ -1123,6 +1272,17 @@ export function pierMarketOps(look: IslandLook): DrawOp[] {
     { t: "rect", x: -502, y: -186, w: 4, h: 10, fill: rgba([28, 24, 20], 160) },
     ...lightStripOps(),
     ...fireworkOps(),
+    grainField(-530, -226, 310, 22, rgba(WOOD.dark, 70), 28, 8, 53, "h", "grain"),
+    washField(-486, -186, 92, 56, rgba([255, 168, 88], 28), 8, 55, "brush"),
+    { t: "ellipse", x: -468, y: -136, rx: 7, ry: 3.2, fill: rgba([36, 196, 168]), tag: "hang" },
+    { t: "ellipse", x: -452, y: -132, rx: 6, ry: 2.8, fill: rgba([255, 168, 96]), tag: "hang" },
+    { t: "ellipse", x: -438, y: -134, rx: 5.4, ry: 2.4, fill: rgba([255, 214, 96]), tag: "hang" },
+    { t: "rect", x: -344, y: -148, w: 18, h: 12, r: 2, fill: rgba(WOOD.plank), tag: "crate" },
+    { t: "rect", x: -340, y: -144, w: 10, h: 4, fill: rgba(WOOD.grain), tag: "crate" },
+    { t: "ellipse", x: -300, y: -154, rx: 6, ry: 9, fill: rgba([18, 36, 42], 160), tag: "vendor" },
+    { t: "rect", x: -306, y: -160, w: 12, h: 10, r: 2, fill: rgba(WOOD.dark), tag: "vendor" },
+    { t: "rect", x: -470, y: -176, w: 64, h: 4, fill: rgba(MARKET.awningB), tag: "stripe" },
+    { t: "rect", x: -470, y: -166, w: 64, h: 4, fill: rgba(MARKET.awningA), tag: "stripe" },
   );
   return ops;
 }
@@ -1199,6 +1359,10 @@ export function harborAmbienceOps(look: IslandLook): DrawOp[] {
     ...gullOps(320, 196, 0.7),
     ...gullOps(-200, 188, 0.55),
     ...foamLace(-280, -242, 220, look),
+    washField(-260, 220, 220, 40, rgba([255, 244, 220], 22), 8, 69, "brush"),
+    washField(-20, 236, 180, 28, rgba([255, 236, 200], 18), 6, 71, "brush"),
+    ...gullOps(140, 206, 0.5),
+    ...gullOps(-320, 176, 0.45),
   ];
 }
 
@@ -1235,6 +1399,13 @@ export function harborForegroundOps(): DrawOp[] {
     { t: "circle", x: -400, y: -210, r: 7, fill: rgba(MARKET.lantern), tag: "lantern" },
     { t: "circle", x: -400, y: -210, r: 16, fill: rgba(MARKET.glow, 40), tag: "lantern" },
     { t: "ellipse", x: 80, y: -250, rx: 26, ry: 6, fill: rgba([255, 248, 230], 36), tag: "foam" },
+    { t: "rect", x: -580, y: -236, w: 16, h: 12, r: 2, fill: rgba(WOOD.dark), tag: "paraNear" },
+    { t: "ellipse", x: -572, y: -228, rx: 5, ry: 7, fill: rgba([36, 196, 168]), tag: "hang" },
+    { t: "ellipse", x: -560, y: -226, rx: 4.2, ry: 6, fill: rgba([255, 168, 96]), tag: "hang" },
+    { t: "circle", x: 500, y: -248, r: 8, fill: rgba(MARKET.lantern), tag: "lantern" },
+    { t: "circle", x: 500, y: -248, r: 16, fill: rgba(MARKET.glow, 36), tag: "lantern" },
+    grainField(-618, -320, 22, 88, rgba(WOOD.highlight, 70), 12, 6, 57, "v", "grain"),
+    { t: "bezier", x1: 530, y1: -250, c1x: 470, c1y: -230, c2x: 420, c2y: -260, x2: 360, y2: -236, color: rgba(WOOD.rope, 170), width: 2 },
   ];
   return ops;
 }
@@ -1325,6 +1496,18 @@ export function dockOps(): DrawOp[] {
     { t: "ellipse", x: -486, y: -146, rx: 8, ry: 6, fill: rgba(WOOD.plank), tag: "paraNear" },
     { t: "rect", x: -240, y: -168, w: 36, h: 8, r: 2, fill: rgba(WOOD.rope) },
     { t: "bezier", x1: -240, y1: -164, c1x: -210, c1y: -150, c2x: -190, c2y: -172, x2: -168, y2: -156, color: rgba(WOOD.rope, 190), width: 2.2 },
+    grainField(-636, -228, 460, 104, rgba(WOOD.dark, 55), 64, 10, 61, "h", "grain"),
+    washField(-620, -210, 420, 70, rgba([255, 220, 140], 18), 14, 63, "brush"),
+    { t: "circle", x: -600, y: -200, r: 1.6, fill: rgba([40, 28, 18], 200), tag: "nail" },
+    { t: "circle", x: -540, y: -198, r: 1.6, fill: rgba([40, 28, 18], 200), tag: "nail" },
+    { t: "circle", x: -480, y: -202, r: 1.5, fill: rgba([40, 28, 18], 190), tag: "nail" },
+    { t: "circle", x: -420, y: -196, r: 1.6, fill: rgba([40, 28, 18], 200), tag: "nail" },
+    { t: "circle", x: -360, y: -200, r: 1.5, fill: rgba([40, 28, 18], 190), tag: "nail" },
+    { t: "ellipse", x: -560, y: -176, rx: 18, ry: 5, fill: rgba([40, 90, 110], 40), tag: "wet" },
+    { t: "ellipse", x: -300, y: -168, rx: 16, ry: 4, fill: rgba([40, 90, 110], 32), tag: "wet" },
+    { t: "circle", x: -630, y: -250, r: 3.2, fill: rgba([90, 72, 48], 160), tag: "barnacle" },
+    { t: "circle", x: -568, y: -254, r: 2.6, fill: rgba([110, 86, 56], 150), tag: "barnacle" },
+    { t: "circle", x: -250, y: -248, r: 2.8, fill: rgba([90, 72, 48], 150), tag: "barnacle" },
   );
   return ops;
 }
@@ -1345,6 +1528,10 @@ export function boatOps(): DrawOp[] {
     { t: "poly", pts: [-6, 56, 18, 42, -6, 38], fill: rgba([255, 226, 150], 220) },
     { t: "circle", x: -40, y: 8, r: 4, fill: rgba(MARKET.lantern) },
     { t: "rect", x: -28, y: -8, w: 16, h: 6, r: 2, fill: rgba(WOOD.rope) },
+    grainField(-58, -12, 112, 32, rgba(WOOD.grain, 70), 18, 8, 65, "h", "grain"),
+    { t: "rect", x: 36, y: -6, w: 10, h: 8, r: 2, fill: rgba(WOOD.dark) },
+    { t: "ellipse", x: 40, y: -2, rx: 3.2, ry: 2, fill: rgba([36, 196, 168]) },
+    { t: "bezier", x1: -50, y1: 10, c1x: -36, c1y: 18, c2x: -20, c2y: 6, x2: -8, y2: 14, color: rgba(WOOD.rope, 180), width: 1.8 },
   ];
 }
 
@@ -1372,6 +1559,9 @@ export function crateOps(): DrawOp[] {
       color: rgba(MARKET.sign, 230),
       width: 4,
     },
+    grainField(-42, -24, 84, 46, rgba(WOOD.dark, 70), 16, 7, 67, "v", "grain"),
+    { t: "circle", x: -32, y: 8, r: 1.6, fill: rgba([40, 28, 18], 200), tag: "nail" },
+    { t: "circle", x: 32, y: 8, r: 1.6, fill: rgba([40, 28, 18], 200), tag: "nail" },
   ];
 }
 
@@ -1552,6 +1742,8 @@ export function fishBodyOps(
       { t: "ellipse", x: -28 * s, y: -4 * s, rx: 22 * s, ry: 9 * s, fill: rgba(accent) },
       { t: "ellipse", x: -6 * s, y: 0, rx: 24 * s, ry: 11 * s, fill: rgba(body) },
       { t: "ellipse", x: 18 * s, y: 2 * s, rx: 20 * s, ry: 10 * s, fill: rgba(belly) },
+      grainField(-24 * s, -6 * s, 50 * s, 14 * s, rgba(shade(accent, 0.8), 80), 8, 4 * s, 75, "h", "grain"),
+      { t: "ellipse", x: 2 * s, y: 2 * s, rx: 5 * s, ry: 2.4 * s, fill: rgba(mix(belly, accent, 0.3), 140), tag: "scale" },
       ...faceOps(s, face, decoy, 30, 3),
     ];
   }
@@ -1765,6 +1957,37 @@ export function fishBodyOps(
     },
     {
       t: "ellipse",
+      x: 18 * s,
+      y: 9 * s,
+      rx: 4.8 * s,
+      ry: 2.4 * s,
+      fill: rgba(mix(belly, [255, 252, 236], 0.35), decoy ? 40 : 130),
+      tag: "scale",
+    },
+    {
+      t: "ellipse",
+      x: -10 * s,
+      y: -1 * s,
+      rx: 4.4 * s,
+      ry: 2.2 * s,
+      fill: rgba(mix(body, accent, 0.25), decoy ? 40 : 120),
+      tag: "scale",
+    },
+    {
+      t: "ellipse",
+      x: 26 * s,
+      y: -1 * s,
+      rx: 3.8 * s,
+      ry: 2 * s,
+      fill: rgba([255, 236, 180], decoy ? 30 : 100),
+      tag: "scale",
+    },
+    grainField(-18 * s, -8 * s, 48 * s, 20 * s, rgba(shade(accent, 0.8), decoy ? 40 : 90), 14, 4 * s, 73, "diag", "grain"),
+    { t: "line", x1: 10 * s, y1: 10 * s, x2: 26 * s, y2: 30 * s, color: rgba(shade(accent, 0.7), decoy ? 60 : 140), width: 1.2 },
+    { t: "line", x1: 14 * s, y1: 8 * s, x2: 30 * s, y2: 26 * s, color: rgba([255, 236, 180], decoy ? 40 : 90), width: 1 },
+    { t: "ellipse", x: 24 * s, y: 6 * s, rx: 3.2 * s, ry: 5 * s, fill: rgba(shade(body, 0.72), decoy ? 50 : 150), tag: "gill" },
+    {
+      t: "ellipse",
       x: 10 * s,
       y: 4 * s,
       rx: 20 * s,
@@ -1858,6 +2081,30 @@ export function fishOps(
     },
   );
   return ops;
+}
+
+/** 砸甲板静帧：星爆 + 裂纹 + 扬尘，一眼能读出拍子。 */
+export function slamMarkOps(x = 0, y = 0): DrawOp[] {
+  return [
+    { t: "ellipse", x, y: y - 4, rx: 132, ry: 38, fill: rgba([48, 28, 14], 110), tag: "slam" },
+    { t: "ellipse", x, y: y + 2, rx: 104, ry: 26, fill: rgba([168, 108, 52], 160), tag: "slam" },
+    { t: "ellipse", x, y: y + 8, rx: 70, ry: 16, fill: rgba([230, 176, 96], 130), tag: "slam" },
+    { t: "burst", x, y: y + 22, r: 58, spikes: 9, fill: rgba([255, 236, 150], 220), tag: "burst" },
+    { t: "burst", x, y: y + 22, r: 30, spikes: 7, fill: rgba([255, 158, 42], 240), tag: "burst" },
+    { t: "ring", x, y: y + 10, r: 78, color: rgba([255, 236, 180], 230), width: 8 },
+    { t: "ring", x, y: y + 10, r: 46, color: rgba([255, 210, 110], 190), width: 4 },
+    { t: "line", x1: x - 86, y1: y + 6, x2: x - 18, y2: y + 18, color: rgba([40, 22, 10], 210), width: 3.2 },
+    { t: "line", x1: x + 20, y1: y + 16, x2: x + 92, y2: y + 4, color: rgba([40, 22, 10], 200), width: 3 },
+    { t: "line", x1: x - 10, y1: y + 2, x2: x + 8, y2: y - 28, color: rgba([28, 16, 8], 190), width: 2.6 },
+    { t: "line", x1: x - 36, y1: y - 6, x2: x - 8, y2: y + 22, color: rgba([28, 16, 8], 170), width: 2.2 },
+    { t: "line", x1: x + 14, y1: y - 8, x2: x + 40, y2: y + 20, color: rgba([28, 16, 8], 160), width: 2 },
+    washField(x - 90, y - 8, 180, 36, rgba([186, 132, 64], 70), 12, 81, "brush"),
+    grainField(x - 80, y - 4, 160, 28, rgba([72, 44, 20], 90), 20, 10, 83, "diag", "grain"),
+    { t: "ellipse", x: x - 70, y: y + 10, rx: 28, ry: 12, fill: rgba([168, 118, 58], 90), tag: "dust" },
+    { t: "ellipse", x: x + 72, y: y + 8, rx: 26, ry: 11, fill: rgba([168, 118, 58], 80), tag: "dust" },
+    { t: "ellipse", x: x - 40, y: y + 16, rx: 18, ry: 8, fill: rgba([230, 186, 110], 70), tag: "dust" },
+    { t: "ellipse", x: x + 44, y: y + 14, rx: 16, ry: 7, fill: rgba([230, 186, 110], 60), tag: "dust" },
+  ];
 }
 
 export function islandSetOps(

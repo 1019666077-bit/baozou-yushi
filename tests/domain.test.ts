@@ -96,7 +96,9 @@ import {
   waveCaption,
 } from "../assets/scripts/domain/IslandClock";
 import {
+  castBarLabel,
   castChargeCaption,
+  castHoldHint,
   castLockCaption,
   castSnapCaption,
   comboHud,
@@ -268,15 +270,20 @@ import {
 } from "../assets/scripts/domain/GrayLook";
 import {
   boatOps,
+  burstPts,
   crateOps,
+  dockOps,
   fishOps,
+  grainStrokes,
   islandSetOps,
   lanternFlickerAt,
   recipeHasTag,
   recipeKindCount,
+  slamMarkOps,
   speckleDots,
   swimSway,
   tailWagRad,
+  washBlobs,
 } from "../assets/scripts/domain/ArtRecipe";
 import {
   CAM_FEEL,
@@ -907,9 +914,9 @@ describe("HitJuice", () => {
     expect(squash.sy).toBeLessThan(1);
     expect(smashSquashAt(smashSquashSeconds(false), false)).toEqual({ sx: 1, sy: 1 });
     expect(smashSquashAt(0, true)).toEqual({ sx: 1, sy: 1 });
-    expect(juiceCount("dust", false)).toBe(18);
+    expect(juiceCount("dust", false)).toBe(24);
     expect(spawnLandingDust(0, 0).every((p) => p.kind === "dust")).toBe(true);
-    expect(spawnLandingDust(0, 0)[0].size).toBeGreaterThan(12);
+    expect(spawnLandingDust(0, 0)[0].size).toBeGreaterThan(18);
     expect(smashSquashSeconds(false)).toBeGreaterThan(0.28);
     expect(spawnJuiceFlash("dust", 0, 0, false)).toBeUndefined();
   });
@@ -1028,6 +1035,10 @@ describe("CastFeel", () => {
     expect(castChargeCaption("sweet")).toContain("时机刚好");
     expect(castChargeCaption("early")).toContain("偏早");
     expect(castChargeCaption("late")).toContain("偏晚");
+    expect(castBarLabel("sweet")).toContain("甜区");
+    expect(castHoldHint(false)).toContain("甩出");
+    expect(castHoldHint(false)).toContain("不会自动");
+    expect(castHoldHint(true)).toContain("自动甩");
   });
 });
 
@@ -1599,7 +1610,7 @@ describe("FlopPhysics", () => {
     expect(carryBobOffset(0.2).y).toBeGreaterThanOrEqual(0);
     expect(CARRY_FEEL.ampY).toBeLessThan(12);
     expect(flopApexAboveDeck()).toBeGreaterThan(90);
-    expect(bounceFreezeSeconds(0, false)).toBeGreaterThan(0.18);
+    expect(bounceFreezeSeconds(0, false)).toBeGreaterThan(0.3);
     expect(bounceFreezeSeconds(0, true)).toBe(0);
     expect(bounceFreezeSeconds(1, false)).toBeGreaterThan(0);
     expect(bounceFreezeSeconds(4, false)).toBe(0);
@@ -1707,7 +1718,19 @@ describe("ArtRecipe", () => {
     expect(recipeHasTag(sea, "rock")).toBe(true);
     expect(recipeHasTag(sea, "bush")).toBe(true);
     expect(recipeHasTag(sea, "paraNear")).toBe(true);
+    expect(recipeHasTag(sea, "grain")).toBe(true);
+    expect(recipeHasTag(sea, "brush")).toBe(true);
+    expect(recipeHasTag(sea, "hang")).toBe(true);
+    expect(recipeHasTag(dockOps(), "nail")).toBe(true);
     expect(speckleDots({ x: 0, y: 0, w: 10, h: 10, count: 4, size: 1 }).length).toBe(4);
+    expect(grainStrokes({ x: 0, y: 0, w: 10, h: 10, count: 5, size: 4 }).length).toBe(5);
+    expect(washBlobs({ x: 0, y: 0, w: 10, h: 10, count: 3 }).length).toBe(3);
+    expect(burstPts({ x: 0, y: 0, r: 10, spikes: 7 }).length).toBe(28);
+    const slam = slamMarkOps(0, 0);
+    expect(recipeHasTag(slam, "slam")).toBe(true);
+    expect(recipeHasTag(slam, "burst")).toBe(true);
+    expect(recipeHasTag(slam, "dust")).toBe(true);
+    expect(slam.length).toBeGreaterThan(12);
     expect(swimSway(380).x).not.toBe(swimSway(0).x);
     expect(lanternFlickerAt(0.2, -456)).not.toBe(lanternFlickerAt(1.1, -320));
     expect(tailWagRad(150)).not.toBe(tailWagRad(0));
@@ -1730,6 +1753,9 @@ describe("ArtRecipe", () => {
     expect(recipeHasTag(fish, "outline")).toBe(true);
     expect(recipeHasTag(fish, "eye")).toBe(true);
     expect(recipeHasTag(fish, "rim")).toBe(true);
+    expect(recipeHasTag(fish, "scale")).toBe(true);
+    expect(recipeHasTag(fish, "gill")).toBe(true);
+    expect(recipeHasTag(fish, "grain")).toBe(true);
     expect(weakReticleRadius(0)).toBeGreaterThan(16);
     expect(weakReticleTickPx()).toBeGreaterThan(6);
   });

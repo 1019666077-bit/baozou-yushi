@@ -59,6 +59,17 @@ export function castChargeCaption(quality: "early" | "sweet" | "late"): string {
   return "偏早 · 普通命中";
 }
 
+export function castBarLabel(quality: "early" | "sweet" | "late"): string {
+  if (quality === "sweet") return "甜区 · 精彩";
+  if (quality === "late") return "偏晚 · 普通";
+  return "蓄力 · 偏早";
+}
+
+/** 自由局必须自己松手；教学仍可自动甜区。 */
+export function castHoldHint(tutorial: boolean): string {
+  return tutorial ? "教学：蓄满会自动甩" : "自由局：再点「甩出」才松手，不会自动进甜区";
+}
+
 /** 命中→翻扑→砸→捡 的一段表演口令，静帧也能读出拍子。 */
 export function flopBeatCaption(
   beat: "hit" | "flop" | "slam" | "pick",
