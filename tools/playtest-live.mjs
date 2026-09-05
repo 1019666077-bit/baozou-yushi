@@ -1,3 +1,14 @@
+/**
+ * 浏览器实跑 RuntimeHome 教学流与后期 Boss 段。
+ *
+ * 需要：
+ * - 已用 Cocos 构建的 web 包（build/web-desktop 或 build/web-mobile）
+ * - PLAYTEST_URL 指向可访问的预览地址（默认 http://127.0.0.1:8765/）
+ * - Chrome / Chromium（CHROME_PATH 可覆盖；未设置时尝试常见 Linux / Windows 路径）
+ *
+ * 没有构建、没有浏览器、或预览打不开时，脚本会清晰失败，而不是跳过断言。
+ * 本脚本不在 `npm run validate` 里跑。
+ */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,10 +18,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "reports", "playtest-v28");
 fs.mkdirSync(outDir, { recursive: true });
 
-const url = process.env.PLAYTEST_URL ?? "http://127.0.0.1:8765/";
-const chrome =
-  process.env.CHROME_PATH ??
-  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+const DEFAULT_URL = "http://127.0.0.1:8765/";
+const url = process.env.PLAYTEST_URL ?? DEFAULT_URL;
 
 const logs = [];
 const errors = [];
@@ -19,6 +28,54 @@ const findings = [];
 function note(ok, message) {
   findings.push({ ok, message });
   console.log(`${ok ? "OK" : "FAIL"} ${message}`);
+}
+
+function failReady(message) {
+  console.error(message);
+  process.exit(1);
+}
+
+function resolveChrome() {
+  if (process.env.CHROME_PATH) {
+    if (!fs.existsSync(process.env.CHROME_PATH)) {
+      failReady(`CHROME_PATH 不存在：${process.env.CHROME_PATH}`);
+    }
+    return process.env.CHROME_PATH;
+  }
+  const candidates = [
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/snap/bin/chromium",
+    "/usr/bin/chrome",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+  ];
+  const found = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!found) {
+    failReady(
+      "找不到 Chrome/Chromium。请设置 CHROME_PATH，或先安装浏览器后再跑 playtest-live。",
+    );
+  }
+  return found;
+}
+
+function findWebBuild() {
+  return [
+    path.join(root, "build", "web-desktop", "index.html"),
+    path.join(root, "build", "web-mobile", "index.html"),
+  ].find((file) => fs.existsSync(file));
+}
+
+function assertPlaytestReady() {
+  if (!process.env.PLAYTEST_URL && !findWebBuild()) {
+    failReady(
+      "未找到已构建的 web 包（build/web-desktop 或 build/web-mobile）。请先用 Cocos 构建 Web，设置 PLAYTEST_URL 指向预览地址后再跑。",
+    );
+  }
+  return resolveChrome();
 }
 
 async function shot(page, name) {
@@ -47,6 +104,10 @@ async function labels(page) {
   });
 }
 
+function hasText(texts, needle) {
+  return texts.some((t) => t.includes(needle));
+}
+
 async function tap(page, name) {
   return page.evaluate((buttonName) => {
     const cc = globalThis.cc;
@@ -61,6 +122,13 @@ async function tap(page, name) {
     found.emit(cc.Node.EventType.TOUCH_END);
     return true;
   }, name);
+}
+
+async function tapOne(page, names) {
+  for (const name of names) {
+    if (await tap(page, name)) return name;
+  }
+  return "";
 }
 
 async function callHome(page, method, arg) {
@@ -170,6 +238,8 @@ async function combatLoop(page, preferName) {
       coins: proto.coinsLabel?.string ?? "",
       status: lastStatus,
       multiplier: proto.multiplier?.string ?? "",
+      islandId: proto.launch?.islandId ?? "",
+      tutorial: !!proto.tutorial,
     };
   }, preferName);
 }
@@ -223,6 +293,8 @@ async function pauseBattle(page) {
   });
 }
 
+const chrome = assertPlaytestReady();
+
 const browser = await puppeteer.launch({
   executablePath: chrome,
   headless: true,
@@ -240,131 +312,143 @@ page.on("console", (msg) => logs.push(`[${msg.type()}] ${msg.text()}`));
 page.on("pageerror", (err) => errors.push(String(err)));
 
 try {
-  await page.goto(url, { waitUntil: "networkidle0", timeout: 30000 });
+  try {
+    await page.goto(url, { waitUntil: "networkidle0", timeout: 30000 });
+  } catch (error) {
+    throw new Error(
+      `无法打开 PLAYTEST_URL=${url}。请确认已构建 web 包并已启动预览服务。${error}`,
+    );
+  }
   await page.waitForSelector("#GameCanvas", { timeout: 15000 });
   await wait(2500);
   await shot(page, "01-harbor");
   let texts = await labels(page);
   note(logs.some((l) => l.includes("baozou-flop-v28")), "v28 console stamp");
-  note(texts.some((t) => t.includes("潮汐港口 v28")), "harbor title v28");
-  // TODO: 新档教学未完成时港口不再假装选中泡沫湾（出航行/CTA 对齐练潮码头）。
+  note(hasText(texts, "潮汐港口 v28"), "harbor title v28");
+  note(hasText(texts, "开始教学"), "new save CTA is 开始教学");
+  note(hasText(texts, "练潮码头"), "new save sail line is 练潮码头");
+  note(!hasText(texts, "● 泡沫湾"), "foam bay chip is not pretended selected");
+  note(hasText(texts, "泡沫湾"), "foam bay chip still listed");
+  note(hasText(texts, "棱光礁"), "prism chip listed");
+  note(hasText(texts, "风眼环礁"), "storm chip listed");
+  note(hasText(texts, "本机档") || hasText(texts, "云档"), "cloud line");
+  note(hasText(texts, "打得越漂亮") || hasText(texts, "先完成练潮码头"), "harbor notice");
+  note(hasText(texts, "图鉴 0/10"), "empty book count");
+  note(hasText(texts, "教学后图鉴"), "book button locked as 教学后图鉴");
+  note(hasText(texts, "教学后榜"), "board button locked as 教学后榜");
+
+  note(await tap(page, "教学后图鉴"), "tap locked book button");
+  await wait(350);
+  texts = await labels(page);
   note(
-    texts.includes("● 泡沫湾") &&
-      texts.some((t) => t.includes("棱光礁")) &&
-      texts.some((t) => t.includes("风眼环礁")),
-    "three islands, foam selected",
+    hasText(texts, "先完成教学再查看图鉴"),
+    `locked book hint (${texts.find((t) => t.includes("图鉴") || t.includes("教学")) ?? "none"})`,
   );
-  note(!texts.some((t) => t.includes("练潮码头")), "tutorial island hidden");
-  note(texts.some((t) => t.includes("本机档") || t.includes("云档")), "cloud line");
-  note(texts.some((t) => t.includes("打得越漂亮")), "slogan");
-  note(texts.some((t) => t.includes("图鉴 0/10")), "empty book count");
+  note(!hasText(texts, "潮汐图鉴"), "did not open book by bypassing the lock");
+
+  note(await tap(page, "教学后榜"), "tap locked board button");
+  await wait(350);
+  texts = await labels(page);
+  note(
+    hasText(texts, "先完成教学再看榜"),
+    `locked board hint (${texts.find((t) => t.includes("榜") || t.includes("教学")) ?? "none"})`,
+  );
+  note(!hasText(texts, "潮汐精彩榜"), "did not open board by bypassing the lock");
+
+  note(await tap(page, "泡沫湾"), "tap foam chip while tutorial locked");
+  await wait(400);
+  texts = await labels(page);
+  note(
+    hasText(texts, "先完成练潮码头教学，再自由选岛"),
+    `island lock (${texts.find((t) => t.includes("教学") || t.includes("岛")) ?? "none"})`,
+  );
 
   note(await callHome(page, "showSettings"), "open settings via home");
   await wait(400);
   texts = await labels(page);
   await shot(page, "02-settings");
   note(
-    texts.some((t) => t.includes("潮汐设置")) && texts.some((t) => t.includes("音效")),
+    hasText(texts, "潮汐设置") && hasText(texts, "音效"),
     "settings has sfx/vibration/low-power",
   );
-  note(texts.some((t) => t.includes("隐私说明")), "privacy entry");
-  note(texts.some((t) => t.includes("删除存档") || t.includes("删除本机档")), "wipe entry");
+  note(hasText(texts, "隐私说明"), "privacy entry");
+  note(hasText(texts, "删除存档") || hasText(texts, "删除本机档"), "wipe entry");
   note(await tap(page, "音效 开") || await tap(page, "音效 关"), "tap sfx toggle");
   await wait(350);
   texts = await labels(page);
-  note(texts.some((t) => t.includes("音效")), "sfx still listed after toggle");
+  note(hasText(texts, "音效"), "sfx still listed after toggle");
   note(await callHome(page, "showPrivacy"), "open privacy");
   await wait(400);
   texts = await labels(page);
   await shot(page, "02b-privacy");
-  note(texts.some((t) => t.includes("不读通讯录")), "privacy copy");
-  note(texts.some((t) => t.includes("未成年人")), "child privacy line");
+  note(hasText(texts, "不读通讯录"), "privacy copy");
+  note(hasText(texts, "未成年人"), "child privacy line");
   note(await callHome(page, "showSettings"), "back from privacy");
   await wait(300);
   note(await callHome(page, "showWipe"), "open wipe");
   await wait(300);
   texts = await labels(page);
   await shot(page, "02c-wipe");
-  note(texts.some((t) => t.includes("确定删除")), "wipe confirm");
+  note(hasText(texts, "确定删除"), "wipe confirm");
   note(await tap(page, "再想想") || (await callHome(page, "showSettings")), "cancel wipe");
   await wait(300);
   note(await tap(page, "返回港口"), "back from settings");
   await wait(350);
-
-  note(await callHome(page, "showBook"), "open book");
-  await wait(350);
-  texts = await labels(page);
-  await shot(page, "03-book");
-  note(texts.some((t) => t.includes("潮汐图鉴")), "book title");
-  note(await callHome(page, "showHarbor"), "back from book");
-  await wait(350);
-
-  note(await callHome(page, "showBoard"), "open board");
-  await wait(350);
-  texts = await labels(page);
-  await shot(page, "04-board");
-  note(texts.some((t) => t.includes("潮汐精彩榜")), "board title");
-  note(texts.some((t) => t.includes("本机最佳")), "best style line");
-  note(texts.some((t) => t.includes("好友")), "friend board copy");
-  note(!errors.some((e) => /wx is not defined/i.test(e)), "board does not throw wx");
-  note(await callHome(page, "showHarbor"), "back from board");
-  await wait(450);
-
-  const prism = await callHome(page, "onIsland", "island_prism_reef");
-  note(prism === true, `prism unlock call ${prism}`);
-  await wait(200);
-  texts = await labels(page);
-  await shot(page, "04b-coin-fail");
-  note(
-    texts.some((t) => t.includes("金币不足")),
-    `locked island shows 金币不足 (${texts.filter((t) => t.includes("金") || t.includes("不足") || t.includes("棱")).join(" | ") || "none"})`,
-  );
 
   const cannon = await callHome(page, "onTool", "tool_cannon");
   note(!!cannon, `buy cannon call ${cannon}`);
   await wait(200);
   texts = await labels(page);
   note(
-    texts.some((t) => t.includes("金币不足")),
+    hasText(texts, "金币不足"),
     `cannon fail stays on status (${texts.find((t) => t.includes("不足") || t.includes("泡") || t.includes("炮")) ?? "none"})`,
   );
 
-  note(await callHome(page, "sail"), "sail");
+  note(
+    (await tap(page, "开始教学")) || (await callHome(page, "sail")),
+    "start tutorial sail",
+  );
   await wait(1500);
   texts = await labels(page);
-  await shot(page, "05-battle");
-  note(texts.some((t) => t.includes("潮汐猎场")), "battle hunt title");
-  note(texts.some((t) => t.includes("抛竿")) && texts.some((t) => t.includes("捡起")), "cast/pick buttons");
-
-  const combat = await combatLoop(page);
-  findings.push({ ok: !!combat?.ok, message: `combat ${JSON.stringify(combat)}` });
-  note(!!combat?.hookedName, `hooked ${combat?.hookedName ?? "none"}`);
-  note(!!combat?.captured, `captured fish (${combat?.status ?? ""})`);
-  note((combat?.juice ?? 0) > 0, `hit juice particles ${combat?.juice ?? 0}`);
-  await wait(400);
-  await shot(page, "06-after-combat");
+  await shot(page, "05-tutorial-battle");
+  note(hasText(texts, "练潮码头") && hasText(texts, "潮汐猎场"), "tutorial hunt title");
+  note(hasText(texts, "抛竿") && hasText(texts, "捡起"), "cast/pick buttons");
+  note(hasText(texts, "点击抛竿") || hasText(texts, "湾鳍"), "tutorial cast prompt");
 
   const paused = await pauseBattle(page);
   await wait(300);
   texts = await labels(page);
   await shot(page, "07-paused");
   note(
-    String(paused).includes("暂停") || texts.some((t) => t.includes("已暂停") || t.includes("暂停")),
+    String(paused).includes("暂停") || hasText(texts, "已暂停") || hasText(texts, "暂停"),
     `pause ${paused}`,
   );
   await pauseBattle(page);
-  await wait(3500);
+  await wait(3200);
 
-  note(await returnHarbor(page), "return harbor");
-  await wait(600);
-  texts = await labels(page);
-  await shot(page, "08-settle");
+  const combat = await combatLoop(page, "湾鳍鱼");
+  findings.push({ ok: !!combat?.ok, message: `tutorial combat ${JSON.stringify(combat)}` });
+  note(combat?.tutorial === true, `tutorial flag ${combat?.tutorial}`);
   note(
-    texts.some((t) => t.includes("结算") || t.includes("卖到") || t.includes("回到港口")),
-    `settle screen (${texts.find((t) => t.includes("结算") || t.includes("卖") || t.includes("回到")) ?? texts.slice(0, 4).join("|")})`,
+    combat?.islandId === "island_tutorial" || combat?.hookedName === "湾鳍鱼",
+    `tutorial target ${combat?.hookedName ?? "none"} on ${combat?.islandId ?? "?"}`,
+  );
+  note(!!combat?.captured, `captured tutorial fish (${combat?.status ?? ""})`);
+  note((combat?.juice ?? 0) > 0, `hit juice particles ${combat?.juice ?? 0}`);
+  await wait(2200);
+  texts = await labels(page);
+  if (!hasText(texts, "结算") && !hasText(texts, "卖到")) {
+    note(await returnHarbor(page), "return harbor after tutorial combat");
+    await wait(600);
+    texts = await labels(page);
+  }
+  await shot(page, "08-tutorial-settle");
+  note(
+    hasText(texts, "结算") || hasText(texts, "卖到") || hasText(texts, "回到港口"),
+    `tutorial settle (${texts.find((t) => t.includes("结算") || t.includes("卖") || t.includes("回到")) ?? texts.slice(0, 4).join("|")})`,
   );
   note(
-    texts.some((t) => t.includes("卖到鱼市")),
+    hasText(texts, "卖到鱼市"),
     "settle offers sell because box is not empty",
   );
 
@@ -372,35 +456,52 @@ try {
     (await callHome(page, "confirmSettle")) ||
     (await tap(page, "卖到鱼市")) ||
     (await tap(page, "回到港口"));
-  note(sold, "confirm settle");
+  note(sold, "confirm tutorial settle");
   await wait(700);
   texts = await labels(page);
-  await shot(page, "09-harbor-after");
-  note(texts.some((t) => t.includes("潮汐港口 v28")), "back at v28 harbor");
-  const bookLine = texts.find((t) => t.includes("图鉴"));
+  await shot(page, "09-harbor-after-tutorial");
+  note(hasText(texts, "潮汐港口 v28"), "back at v28 harbor");
+  note(hasText(texts, "出海捕鱼"), "second-run CTA is 出海捕鱼");
+  note(hasText(texts, "出航：泡沫湾"), "second run defaults to foam bay");
+  note(hasText(texts, "● 泡沫湾"), "foam bay selected after tutorial");
+  note(!hasText(texts, "开始教学"), "start-teaching CTA is gone");
+  note(hasText(texts, "再出1局后图鉴"), "book still locked until completedRuns>=2");
+  note(hasText(texts, "再出1局后榜"), "board still locked until completedRuns>=2");
+  const bookLine = texts.find((t) => t.startsWith("图鉴 ") || /^图鉴 \d/.test(t));
   note(
     !!bookLine && !bookLine.includes("图鉴 0/10"),
-    `book progress after sell (${bookLine ?? "missing"})`,
+    `book progress after tutorial sell (${bookLine ?? "missing"})`,
   );
 
-  note(await callHome(page, "showBook"), "open book after sell");
+  note(await tap(page, "再出1局后图鉴"), "tap post-tutorial locked book");
   await wait(350);
   texts = await labels(page);
-  await shot(page, "10-book-after");
   note(
-    texts.some((t) => t.includes("已收 1/10") || /已收 [1-9]/.test(texts.join("\n"))),
-    `book after sell (${texts.find((t) => t.includes("已收")) ?? "missing"})`,
+    hasText(texts, "再出 1 局后解锁图鉴"),
+    `post-tutorial book hint (${texts.find((t) => t.includes("图鉴") || t.includes("局")) ?? "none"})`,
   );
-  note(await callHome(page, "showHarbor"), "back from book after sell");
-  await wait(350);
+  note(!hasText(texts, "潮汐图鉴"), "book stays closed before completedRuns>=2");
+  note(!hasText(texts, "先完成教学再查看图鉴"), "hint no longer blames unfinished tutorial");
+
+  const prism = await tapOne(page, ["棱光礁 240", "棱光礁"]);
+  note(!!prism, `tap locked prism ${prism || "missing"}`);
+  await wait(400);
+  texts = await labels(page);
+  await shot(page, "04b-coin-fail");
+  note(
+    hasText(texts, "金币不足"),
+    `prism still costs coins after tutorial (${texts.filter((t) => t.includes("金") || t.includes("不足") || t.includes("棱")).join(" | ") || "none"})`,
+  );
 
   note(await callHome(page, "confirmWipe"), "wipe save");
   await wait(400);
   texts = await labels(page);
   await shot(page, "10b-wiped");
-  note(texts.some((t) => t.includes("存档已清空") || t.includes("本机档已清空")), "wipe notice");
-  note(texts.some((t) => t.includes("金币 0")), "wiped coins");
-  note(texts.some((t) => t.includes("图鉴 0/10")), "wiped book");
+  note(hasText(texts, "存档已清空") || hasText(texts, "本机档已清空"), "wipe notice");
+  note(hasText(texts, "金币 0"), "wiped coins");
+  note(hasText(texts, "图鉴 0/10"), "wiped book");
+  note(hasText(texts, "开始教学"), "wipe returns to tutorial CTA");
+  note(!hasText(texts, "● 泡沫湾"), "wipe does not select foam bay");
 
   const patched = await callHome(page, "applySavePatch", {
     coins: 800,
@@ -417,8 +518,33 @@ try {
   texts = await labels(page);
   await shot(page, "11-patched-harbor");
   note(
-    texts.some((t) => t.includes("800")),
+    hasText(texts, "800"),
     `patched coins (${texts.find((t) => t.includes("金币") || t.includes("金")) ?? "none"})`,
+  );
+  note(hasText(texts, "出海捕鱼"), "patched CTA is free sail");
+  note(hasText(texts, "出航：泡沫湾"), "patched default island is foam bay");
+  note(hasText(texts, "● 泡沫湾"), "patched foam chip selected");
+  note(
+    texts.includes("图鉴") || hasText(texts, "图鉴"),
+    "book unlocks at completedRuns>=2",
+  );
+  note(!hasText(texts, "再出1局后图鉴"), "patched book is no longer run-gated");
+  note(!hasText(texts, "开始教学"), "patched save is not in tutorial");
+
+  note(await tap(page, "图鉴") || (await callHome(page, "showBook")), "open unlocked book");
+  await wait(350);
+  texts = await labels(page);
+  await shot(page, "10-book-after");
+  note(hasText(texts, "潮汐图鉴"), "book title after unlock");
+  note(await tap(page, "返回港口") || (await callHome(page, "showHarbor")), "back from book");
+  await wait(350);
+
+  note(await callHome(page, "onIsland", "island_prism_reef"), "try prism after patch");
+  await wait(300);
+  texts = await labels(page);
+  note(
+    hasText(texts, "已解锁棱光礁") || hasText(texts, "已选择棱光礁") || hasText(texts, "● 棱光礁"),
+    `prism after patch with 800 coins (${texts.find((t) => t.includes("棱")) ?? "none"})`,
   );
 
   note(await callHome(page, "onIsland", "island_storm_eye"), "select storm eye");
@@ -426,7 +552,7 @@ try {
   texts = await labels(page);
   await shot(page, "12-storm-selected");
   note(
-    texts.some((t) => t.includes("风眼")),
+    hasText(texts, "风眼"),
     `storm copy (${texts.find((t) => t.includes("风眼")) ?? "none"})`,
   );
 
@@ -439,7 +565,7 @@ try {
   texts = await labels(page);
   await shot(page, "13-boss-enter");
   note(
-    texts.some((t) => t.includes("巨鲲") || t.includes("潮鸣") || t.includes("巨鲲潮")),
+    hasText(texts, "巨鲲") || hasText(texts, "潮鸣") || hasText(texts, "巨鲲潮"),
     `boss enter HUD (${texts.find((t) => t.includes("鲲") || t.includes("潮")) ?? "none"})`,
   );
 
@@ -460,11 +586,11 @@ try {
   texts = await labels(page);
   await shot(page, "14-boss-settle");
   note(
-    texts.some((t) => t.includes("结算") || t.includes("卖到") || t.includes("回到港口")),
+    hasText(texts, "结算") || hasText(texts, "卖到") || hasText(texts, "回到港口"),
     `boss settle (${texts.find((t) => t.includes("结算") || t.includes("卖") || t.includes("鲲")) ?? "none"})`,
   );
   note(
-    texts.some((t) => t.includes("潮鸣") || t.includes("巨鲲")),
+    hasText(texts, "潮鸣") || hasText(texts, "巨鲲"),
     `settle lists tide singer (${texts.find((t) => t.includes("鲲") || t.includes("鸣")) ?? "none"})`,
   );
 
@@ -473,12 +599,13 @@ try {
   await wait(700);
   texts = await labels(page);
   await shot(page, "15-harbor-after-boss");
-  note(texts.some((t) => t.includes("潮汐港口 v28")), "harbor after boss");
+  note(hasText(texts, "潮汐港口 v28"), "harbor after boss");
 
   note(errors.length === 0, `page errors ${errors.length}`);
 } finally {
   const report = {
     url,
+    chrome,
     findings,
     errors,
     logs: logs.filter((l) => /error|Error|baozou|fail/i.test(l)).concat(logs.slice(-20)),

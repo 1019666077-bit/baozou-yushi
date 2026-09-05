@@ -13,7 +13,7 @@
 1. 新建2D场景 `assets/scenes/Boot.scene`，设计分辨率1280×720，横屏适配。
 2. 保留默认 `Canvas`。运行后 `RuntimeAutoStart` 会挂 `RuntimeHome`；出海时再挂 `RuntimePrototype`。
 3. 不要创建 `Home.scene`，也不要在 Boot 上挂 `GameBootstrap` / `BattleController` / `TutorialController`。
-4. 四个 JSON 已打进 `bundledConfig`（`assets/config/*.json`），主路径不依赖编辑器拖引用。
+4. 四个 JSON 的单一真相源是 `assets/config/*.json`，已打进 `bundledConfig`；主路径不依赖编辑器拖引用。改配置后跑 `npm run sync:config`，把 `assets/resources/config/` 镜像一起对齐。
 5. 灰盒海面/船/鱼由 `DeckStage` 或 2D 回退绘制，不需要先做鱼 Prefab。
 
 ## 编辑器实验栈（未接线，不要当已交付）

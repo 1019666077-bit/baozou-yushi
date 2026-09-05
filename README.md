@@ -38,11 +38,22 @@ npm run validate
 npm run simulate
 ```
 
-- `npm run validate`：类型检查 + 63 个 vitest + 预检（配置 JSON、主包体积、横屏与开放数据域）。
+- `npm run validate`：类型检查 + vitest + 预检（配置 JSON、双份配置一致性、主包体积、横屏与开放数据域）。
 - `npm run simulate`：50 个确定性经济角色，检查解锁节奏。
 - `npm run playtest:report`：读取 `playtest/participants.csv`。**真人有效行不足 20 条时主动失败**，这是设计，防止把自动模拟冒充人类体验测试。不要把该命令放进必过 CI。
 
 CI 只跑 `validate` 与 `simulate`，见 `.github/workflows/ci.yml`。
+
+## 配置双份
+
+数值与岛/鱼/工具的单一真相源是 `assets/config/*.json`。
+
+`npm run sync:config`（`tools/sync-bundled-config.mjs`）把它同步到：
+
+- `assets/scripts/data/bundledConfig.ts`（RuntimeHome 主路径打包）
+- `assets/resources/config/`（Cocos resources 镜像，供未接线的编辑器实验栈）
+
+不要直接改后两份。`npm run validate` 里的 preflight 会在不一致时失败。
 
 ## 试玩流程
 

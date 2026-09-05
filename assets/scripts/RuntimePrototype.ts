@@ -38,6 +38,7 @@ import {
   advanceTutorial,
   isTutorialRun,
   shouldAutoReel,
+  pickupAssistDecision,
   tutorialGuideTarget,
   tutorialPrompt,
   TUTORIAL_ISLAND_ID,
@@ -133,6 +134,10 @@ export class RuntimePrototype extends Component {
   private battleAt = 0;
   private reelReadyAt = 0;
   private settleAt = 0;
+  private pickableSince = 0;
+  private carriedSince = 0;
+  private pickupHintShown = false;
+  private carriedHintShown = false;
   private castButton?: Node;
   private reelButton?: Node;
   private guide!: Graphics;
@@ -217,6 +222,7 @@ export class RuntimePrototype extends Component {
     }
     this.movePlayer(dt);
     this.tickCarry();
+    this.tickPickupAssist();
     this.tickLandFx();
     this.tickCannon();
     this.tickShots(dt);
@@ -778,17 +784,22 @@ export class RuntimePrototype extends Component {
     }
   }
 
+  private nearestPickable(): FishController | undefined {
+    return (
+      (this.hooked?.pickable ? this.hooked : undefined) ??
+      this.fishRoot
+        ?.getComponentsInChildren(FishController)
+        .find((fish) => fish.pickable && fish.node.active)
+    );
+  }
+
   private pickUp(): void {
     if (this.held()) return;
     if (this.carried) {
       this.setStatus("已经扛着一条。走到左边鱼箱丢掉。");
       return;
     }
-    const near =
-      (this.hooked?.pickable ? this.hooked : undefined) ??
-      this.fishRoot
-        .getComponentsInChildren(FishController)
-        .find((fish) => fish.pickable && fish.node.active);
+    const near = this.nearestPickable();
     if (!near) {
       this.setStatus("先砸晕甲板上的鱼，再捡起来。");
       return;
@@ -824,6 +835,8 @@ export class RuntimePrototype extends Component {
     fish.node.active = false;
     fish.setHooked(false);
     this.carried = undefined;
+    this.carriedSince = 0;
+    this.carriedHintShown = false;
     this.reelActive = false;
     this.reelBar.clear();
     Analytics.track("fish_captured", {
@@ -908,6 +921,8 @@ export class RuntimePrototype extends Component {
     this.aimStartedAt += ms;
     this.reelReadyAt += ms;
     this.settleAt += ms;
+    if (this.pickableSince) this.pickableSince += ms;
+    if (this.carriedSince) this.carriedSince += ms;
     this.calloutUntil += ms;
   }
 
@@ -1030,6 +1045,67 @@ export class RuntimePrototype extends Component {
     this.setStatus("鱼挣脱了。再抛竿拽一条。");
   }
 
+  private tickPickupAssist(): void {
+    if (this.held() || this.closing) return;
+    if (this.carried?.node.active) {
+      this.pickableSince = 0;
+      this.pickupHintShown = false;
+      if (!this.carriedSince) this.carriedSince = Date.now();
+      const action = pickupAssistDecision(
+        "carried",
+        Date.now() - this.carriedSince,
+      );
+      if (action === "hint" && !this.carriedHintShown) {
+        this.carriedHintShown = true;
+        this.setStatus("鱼箱在左边。太久不送会自动入箱。");
+      }
+      if (action === "auto") this.stashCarried();
+      return;
+    }
+    this.carriedSince = 0;
+    this.carriedHintShown = false;
+    const near = this.nearestPickable();
+    if (!near) {
+      this.pickableSince = 0;
+      this.pickupHintShown = false;
+      return;
+    }
+    if (!this.pickableSince) this.pickableSince = Date.now();
+    const action = pickupAssistDecision(
+      "pickable",
+      Date.now() - this.pickableSince,
+    );
+    if (action === "hint" && !this.pickupHintShown) {
+      this.pickupHintShown = true;
+      this.setStatus(
+        this.tutorial
+          ? "点捡起，搬进左边鱼箱。等太久会自动帮忙。"
+          : "砸晕的鱼可以捡了。点捡起，或再等一会会自动捡起。",
+      );
+    }
+    if (action === "auto") this.autoPickUp(near);
+  }
+
+  private autoPickUp(near: FishController): void {
+    this.player.setPosition(
+      near.node.position.x - 40,
+      near.node.position.y,
+      0,
+    );
+    this.moveTarget.set(
+      this.player.position.x,
+      this.player.position.y,
+      0,
+    );
+    this.pickUp();
+    if (this.carried === near || this.held()) return;
+    if (!near.pickable || !near.node.active || this.carried) return;
+    near.startCarry();
+    this.carried = near;
+    if (this.hooked === near) this.hooked = undefined;
+    this.setStatus("扛上了。搬去左边鱼箱。");
+  }
+
   private tickTutorial(): void {
     if (!this.tutorial || this.tutorialStep === "complete") return;
     if (this.tutorialStep === "settle" && this.settleAt > 0) {
@@ -1040,16 +1116,13 @@ export class RuntimePrototype extends Component {
       return;
     }
     if (
-      this.reelActive &&
-      shouldAutoReel(
-        this.tutorialStep,
-        Date.now() - this.reelReadyAt,
-        Date.now() - this.battleAt,
-      )
+      !shouldAutoReel(this.tutorialStep, 0, Date.now() - this.battleAt)
     ) {
-      this.reelMarker = 0.5;
-      this.reel();
+      return;
     }
+    const near = this.nearestPickable();
+    if (near) this.autoPickUp(near);
+    if (this.carried) this.stashCarried();
   }
 
   private enterTutorial(event: "hooked" | "weakHit" | "reelReady" | "captured"): void {

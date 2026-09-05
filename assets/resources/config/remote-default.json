@@ -1,1 +1,8 @@
-{"version":1,"minClientVersion":"0.1.0","stylePointScale":1,"economyScale":1,"disabledIslands":[],"notice":""}
+{
+  "version": 1,
+  "minClientVersion": "0.1.0",
+  "stylePointScale": 1,
+  "economyScale": 1,
+  "disabledIslands": [],
+  "notice": "打得越漂亮，鱼越值钱。"
+}

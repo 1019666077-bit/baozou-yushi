@@ -122,7 +122,13 @@ import {
   harborUnlocksForSave,
   isTutorialRun,
   nextSailIsland,
+  pickupAssistDecision,
+  PICKABLE_AUTO_MS,
+  PICKABLE_HINT_MS,
+  CARRIED_AUTO_MS,
+  CARRIED_HINT_MS,
   resolveHarborIsland,
+  shouldAutoReel,
   tutorialGuideTarget,
   tutorialPrompt,
 } from "../assets/scripts/domain/TutorialFlow";
@@ -848,6 +854,30 @@ describe("TutorialFlow", () => {
     expect(
       harborFeatureButtonLabel("book", { tutorialComplete: true, completedRuns: 2 }),
     ).toBe("图鉴");
+  });
+
+  it("hints then auto-picks a stunned fish after 8–10 seconds", () => {
+    expect(pickupAssistDecision("pickable", PICKABLE_HINT_MS - 1)).toBe("none");
+    expect(pickupAssistDecision("pickable", PICKABLE_HINT_MS)).toBe("hint");
+    expect(pickupAssistDecision("pickable", PICKABLE_AUTO_MS - 1)).toBe("hint");
+    expect(pickupAssistDecision("pickable", PICKABLE_AUTO_MS)).toBe("auto");
+    expect(PICKABLE_AUTO_MS).toBeGreaterThanOrEqual(8_000);
+    expect(PICKABLE_AUTO_MS).toBeLessThanOrEqual(12_000);
+  });
+
+  it("hints then auto-stashes a carried fish after 8–10 seconds", () => {
+    expect(pickupAssistDecision("carried", CARRIED_HINT_MS - 1)).toBe("none");
+    expect(pickupAssistDecision("carried", CARRIED_HINT_MS)).toBe("hint");
+    expect(pickupAssistDecision("carried", CARRIED_AUTO_MS - 1)).toBe("hint");
+    expect(pickupAssistDecision("carried", CARRIED_AUTO_MS)).toBe("auto");
+    expect(CARRIED_AUTO_MS).toBeGreaterThanOrEqual(8_000);
+    expect(CARRIED_AUTO_MS).toBeLessThanOrEqual(12_000);
+  });
+
+  it("keeps the 55s tutorial battle fallback without treating a fresh stun as ready", () => {
+    expect(shouldAutoReel("reel", 0, 54_999)).toBe(false);
+    expect(shouldAutoReel("reel", 0, 55_000)).toBe(true);
+    expect(shouldAutoReel("weakPoint", 20_000, 60_000)).toBe(false);
   });
 });
 

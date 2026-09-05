@@ -63,6 +63,27 @@ export function shouldAutoReel(
   return reelReadyForMs >= 8_000 || battleMs >= 55_000;
 }
 
+/** 砸晕可捡后，先提示再自动捡起，避免卡在甲板上。 */
+export const PICKABLE_HINT_MS = 8_000;
+export const PICKABLE_AUTO_MS = 10_000;
+/** 已扛起但未走到鱼箱时，先提示再自动入箱。 */
+export const CARRIED_HINT_MS = 8_000;
+export const CARRIED_AUTO_MS = 10_000;
+
+export type PickupAssistKind = "pickable" | "carried";
+export type PickupAssistAction = "none" | "hint" | "auto";
+
+export function pickupAssistDecision(
+  kind: PickupAssistKind,
+  elapsedMs: number,
+): PickupAssistAction {
+  const hintMs = kind === "carried" ? CARRIED_HINT_MS : PICKABLE_HINT_MS;
+  const autoMs = kind === "carried" ? CARRIED_AUTO_MS : PICKABLE_AUTO_MS;
+  if (elapsedMs >= autoMs) return "auto";
+  if (elapsedMs >= hintMs) return "hint";
+  return "none";
+}
+
 export function harborUnlocks(completedRuns: number): {
   upgrade: boolean;
   book: boolean;
