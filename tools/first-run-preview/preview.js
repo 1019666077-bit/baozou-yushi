@@ -820,7 +820,8 @@ function renderHarbor() {
     label(sellBridge, 22, 0, 86, 640, rgb(COPY.colors.cream));
   }
   if (save.tutorialComplete && save.coins > 0 && COPY.nextUpgradeCost) {
-    progressBar(0, 222, 280, save.coins / COPY.nextUpgradeCost);
+    const barY = coinJumpLeft > 0 ? 62 : 222;
+    progressBar(0, barY, 380, save.coins / COPY.nextUpgradeCost);
   }
   const phase = harborPhase();
   const showMeta = COPY.hudShowMeta?.[phase] ?? phase === "idle";
@@ -954,7 +955,9 @@ function renderSea() {
   label(COPY.tutorialIsland.clock, 20, -470, 268, 280);
   label(COPY.crateLabel, 20, COPY.crate.x, -96, 120, "#ffecb4");
   const bar = COPY.button.bar;
-  if (!carrying) {
+  if (tutorialStep === "settle") {
+    // 入箱后只圈回港，不再露抛竿/捡起抢主目标
+  } else if (!carrying) {
     cta(COPY.castButton, -390, -292, bar.width, bar.height, bar.fontSize, barTone("cast"), onCast);
     cta(COPY.pickButton, 390, -292, bar.width, bar.height, bar.fontSize, barTone("pickUp"), onPick);
   } else {

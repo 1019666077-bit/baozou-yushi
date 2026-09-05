@@ -4,8 +4,11 @@
   <rect x="0" y="140" width="1280" height="110" rx="0" fill="#ffb062"/>
   <rect x="0" y="246" width="1280" height="78" rx="0" fill="#189eb2"/>
   <rect x="0" y="322" width="1280" height="20" rx="0" fill="rgba(255,244,210,0.188)"/>
+  <rect x="0" y="334" width="1280" height="34" rx="0" fill="#128ba5"/>
   <rect x="0" y="314" width="1280" height="82" rx="0" fill="#0a7494"/>
+  <rect x="0" y="414" width="1280" height="42" rx="0" fill="rgba(9,97,130,0.824)"/>
   <rect x="0" y="388" width="1280" height="148" rx="0" fill="#084e70"/>
+  <rect x="0" y="552" width="1280" height="56" rx="0" fill="#063c58"/>
   <rect x="0" y="524" width="1280" height="196" rx="0" fill="#042034"/>
   <rect x="0" y="0" width="1280" height="92" rx="0" fill="rgba(255,92,42,0.282)"/>
   <ellipse cx="1020" cy="132" rx="340" ry="42" fill="rgba(255,168,72,0.251)"/>
@@ -36,10 +39,28 @@
   <circle cx="980" cy="530" r="2.2" fill="rgba(255,252,236,0.353)"/>
   <circle cx="520" cy="570" r="2.2" fill="rgba(255,252,236,0.353)"/>
   <circle cx="840" cy="440" r="2.2" fill="rgba(255,252,236,0.353)"/>
+  <circle cx="180" cy="486" r="2.2" fill="rgba(255,252,236,0.353)"/>
+  <circle cx="1120" cy="430" r="2.2" fill="rgba(255,252,236,0.353)"/>
+  <circle cx="660" cy="610" r="2.2" fill="rgba(255,252,236,0.353)"/>
+  <circle cx="440" cy="640" r="2.2" fill="rgba(255,252,236,0.353)"/>
+  <ellipse cx="940" cy="380" rx="70" ry="160" fill="rgba(255,236,180,0.110)"/>
+  <ellipse cx="950" cy="450" rx="36" ry="90" fill="rgba(255,248,220,0.141)"/>
+  <ellipse cx="958" cy="530" rx="18" ry="50" fill="rgba(255,252,236,0.173)"/>
+  <path d="M120 352 C440 338, 720 366, 1000 348" fill="none" stroke="rgba(255,248,220,0.275)" stroke-width="2.4"/>
   <circle cx="1060" cy="110" r="72" fill="rgba(255,148,42,0.110)"/>
   <circle cx="1060" cy="110" r="48" fill="rgba(255,148,42,0.275)"/>
   <circle cx="1060" cy="110" r="26" fill="#ffe496"/>
   <circle cx="1067" cy="104" r="8" fill="rgba(255,248,220,0.824)"/>
+  <polygon points="0,320 120,282 240,308 360,268 500,302 660,272 820,310 960,264 1120,298 1280,274 1280,324 0,324" fill="rgba(12,27,45,0.824)"/>
+  <polygon points="0,324 160,302 340,318 560,290 780,316 1000,294 1180,320 1280,306 1280,328 0,328" fill="rgba(15,60,78,0.627)"/>
+  <ellipse cx="360" cy="332" rx="28" ry="5" fill="rgba(16,22,36,0.706)"/>
+  <rect x="348" y="324" width="26" height="8" rx="2" fill="rgba(16,22,36,0.784)"/>
+  <rect x="366" y="312" width="3" height="14" rx="0" fill="rgba(16,22,36,0.824)"/>
+  <polygon points="366,312 382,320 366,322" fill="rgba(40,28,22,0.706)"/>
+  <ellipse cx="850" cy="336" rx="22" ry="4" fill="rgba(16,22,36,0.627)"/>
+  <rect x="838" y="330" width="20" height="6" rx="2" fill="rgba(16,22,36,0.706)"/>
+  <rect x="850" y="322" width="2" height="10" rx="0" fill="rgba(16,22,36,0.745)"/>
+  <ellipse cx="1160" cy="338" rx="16" ry="3" fill="rgba(16,22,36,0.549)"/>
   <ellipse cx="480" cy="282" rx="90" ry="22" fill="rgba(8,58,86,0.588)"/>
   <ellipse cx="480" cy="276" rx="80" ry="20" fill="rgba(72,168,112,0.863)"/>
   <ellipse cx="480" cy="266" rx="72" ry="18" fill="#ecd276"/>
@@ -107,6 +128,44 @@
   <circle cx="316" cy="478" r="12" fill="rgba(255,214,118,0.188)"/>
   <ellipse cx="390" cy="556" rx="9" ry="4" fill="#ffd660"/>
   <ellipse cx="408" cy="552" rx="7" ry="3.4" fill="#2ebaa8"/>
+  <ellipse cx="184" cy="570" rx="22" ry="6" fill="rgba(255,214,118,0.141)"/>
+  <ellipse cx="316" cy="568" rx="18" ry="5" fill="rgba(255,214,118,0.110)"/>
+  <circle cx="240" cy="484" r="5" fill="#ffa838"/>
+  <circle cx="240" cy="484" r="13" fill="rgba(255,214,118,0.165)"/>
+  <path d="M140 472 C210 456, 280 480, 360 464" fill="none" stroke="rgba(214,176,108,0.745)" stroke-width="2"/>
+  <path d="M280 468 C340 452, 390 478, 430 460" fill="none" stroke="rgba(214,176,108,0.627)" stroke-width="1.6"/>
+  <circle cx="150" cy="470" r="8" fill="rgba(255,214,118,0.157)"/>
+  <circle cx="150" cy="470" r="3.2" fill="#ffc458"/>
+  <circle cx="180" cy="464" r="8" fill="rgba(255,214,118,0.157)"/>
+  <circle cx="180" cy="464" r="3.2" fill="#ffc458"/>
+  <circle cx="210" cy="460" r="8" fill="rgba(255,214,118,0.157)"/>
+  <circle cx="210" cy="460" r="3.2" fill="#ffc458"/>
+  <circle cx="240" cy="468" r="8" fill="rgba(255,214,118,0.157)"/>
+  <circle cx="240" cy="468" r="3.2" fill="#ffc458"/>
+  <circle cx="270" cy="474" r="8" fill="rgba(255,214,118,0.157)"/>
+  <circle cx="270" cy="474" r="3.2" fill="#ffc458"/>
+  <circle cx="300" cy="466" r="8" fill="rgba(255,214,118,0.157)"/>
+  <circle cx="300" cy="466" r="3.2" fill="#ffc458"/>
+  <circle cx="330" cy="460" r="8" fill="rgba(255,214,118,0.157)"/>
+  <circle cx="330" cy="460" r="3.2" fill="#ffc458"/>
+  <circle cx="360" cy="466" r="8" fill="rgba(255,214,118,0.157)"/>
+  <circle cx="360" cy="466" r="3.2" fill="#ffc458"/>
+  <circle cx="300" cy="458" r="8" fill="rgba(255,214,118,0.157)"/>
+  <circle cx="300" cy="458" r="3.2" fill="#ffc458"/>
+  <circle cx="340" cy="454" r="8" fill="rgba(255,214,118,0.157)"/>
+  <circle cx="340" cy="454" r="3.2" fill="#ffc458"/>
+  <circle cx="380" cy="468" r="8" fill="rgba(255,214,118,0.157)"/>
+  <circle cx="380" cy="468" r="3.2" fill="#ffc458"/>
+  <circle cx="410" cy="462" r="8" fill="rgba(255,214,118,0.157)"/>
+  <circle cx="410" cy="462" r="3.2" fill="#ffc458"/>
+  <circle cx="210" cy="400" r="3" fill="rgba(255,226,140,0.784)"/>
+  <circle cx="250" cy="368" r="2.4" fill="rgba(255,226,140,0.784)"/>
+  <circle cx="290" cy="388" r="2.8" fill="rgba(255,226,140,0.784)"/>
+  <circle cx="330" cy="354" r="2.2" fill="rgba(255,226,140,0.784)"/>
+  <circle cx="370" cy="378" r="2.6" fill="rgba(255,226,140,0.784)"/>
+  <circle cx="230" cy="340" r="2" fill="rgba(255,226,140,0.784)"/>
+  <circle cx="310" cy="332" r="2.2" fill="rgba(255,226,140,0.784)"/>
+  <circle cx="280" cy="312" r="1.8" fill="rgba(255,226,140,0.784)"/>
   <ellipse cx="460" cy="124" rx="90" ry="14" fill="rgba(255,236,210,0.141)"/>
   <ellipse cx="680" cy="110" rx="70" ry="12" fill="rgba(255,244,220,0.110)"/>
   <path d="M546 160 C555 153, 565 153, 574 160" fill="none" stroke="rgba(36,24,18,0.667)" stroke-width="2.4"/>
@@ -117,4 +176,8 @@
   <polygon points="860,570 920,558 908,548 850,560" fill="#8d5b2a"/>
   <rect x="872" y="548" width="28" height="10" rx="3" fill="#ecb868"/>
   <polygon points="886,548 908,528 886,536" fill="#ff942a"/>
+  <ellipse cx="720" cy="140" rx="110" ry="16" fill="rgba(255,232,200,0.094)"/>
+  <ellipse cx="980" cy="118" rx="80" ry="12" fill="rgba(255,244,214,0.086)"/>
+  <path d="M950.2 164 C956.5 159.1, 963.5 159.1, 969.8 164" fill="none" stroke="rgba(36,24,18,0.667)" stroke-width="2.4"/>
+  <path d="M432.3 172 C437.25 168.15, 442.75 168.15, 447.7 172" fill="none" stroke="rgba(36,24,18,0.667)" stroke-width="2.4"/>
 </svg>
