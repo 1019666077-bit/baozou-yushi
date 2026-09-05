@@ -84,11 +84,11 @@ export function tutorialGuideRing(nowMs: number): {
   stroke: [number, number, number, number];
 } {
   return {
-    pulse: 24 + Math.sin(nowMs / 150) * 14,
-    lineWidth: 10,
-    fillAlpha: 52,
-    maskAlpha: 96,
-    stroke: [255, 214, 32, 255],
+    pulse: 14 + Math.sin(nowMs / 180) * 8,
+    lineWidth: 8,
+    fillAlpha: 18,
+    maskAlpha: 148,
+    stroke: [255, 228, 96, 240],
   };
 }
 

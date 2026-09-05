@@ -12,7 +12,23 @@ import {
   settleRows,
   settleSlogan,
 } from "./domain/SettleCopy";
-import { settingCaption } from "./domain/GameFeel";
+import {
+  coinJumpAlpha,
+  coinJumpLiftPx,
+  coinJumpSeconds,
+  discoveryPunchSeconds,
+  sellPunchSeconds,
+  settingCaption,
+} from "./domain/GameFeel";
+import { sellPopup } from "./domain/StyleCallout";
+import {
+  spawnGoldRain,
+  tickJuice,
+  tickJuiceFlash,
+  type JuiceFlash,
+  type JuiceParticle,
+  spawnJuiceFlash,
+} from "./domain/HitJuice";
 import {
   bestStyleLine,
   boardLines,
@@ -34,10 +50,11 @@ import {
   drawOcean,
   makeButton,
   makeLabel,
+  makePlate,
   replacePlayLayer,
   tintGold,
 } from "./ui/RuntimeUi";
-import { drawGuideHole } from "./ui/GrayArt";
+import { drawGuideHole, drawJuice } from "./ui/GrayArt";
 import { harborIslandIds, harborIslandX } from "./domain/GrayLook";
 import { FriendBoardView } from "./ui/FriendBoardView";
 import { ensureIslandPack } from "./content/IslandPackLoader";
@@ -100,6 +117,16 @@ export class RuntimeHome extends Component {
   private coinJumpLabel?: Label;
   private coinJumpGained = 0;
   private coinJumpLeft = 0;
+  private coinJumpElapsed = 0;
+  private sellCallout?: Label;
+  private sellPunchLeft = 0;
+  private sellPunchElapsed = 0;
+  private discoveryLabel?: Label;
+  private discoveryPunchLeft = 0;
+  private discoveryPunchElapsed = 0;
+  private gold: JuiceParticle[] = [];
+  private goldFlash?: JuiceFlash;
+  private goldGfx?: Graphics;
   private settleGuide?: Graphics;
   private settleGuideAt = { x: 0, y: -230 };
 
@@ -162,12 +189,21 @@ export class RuntimeHome extends Component {
     makeLabel(layer, "暴走鱼市 · 潮汐港口 v28", 34, 0, 310);
     this.coinsLabel = tintGold(makeLabel(layer, `金币 ${save.coins}`, 26, 470, 310, 280));
     this.settleGuide = undefined;
+    this.goldGfx = undefined;
     if (this.coinJumpGained > 0) {
       this.coinJumpLabel = tintGold(
-        makeLabel(layer, coinJumpCaption(this.coinJumpGained), 26, 470, 274, 280),
+        makeLabel(layer, coinJumpCaption(this.coinJumpGained), 28, 470, 274, 280),
       );
+      this.sellCallout = tintGold(
+        makeLabel(layer, sellPopup(this.coinJumpGained), 30, 0, 120, 520),
+      );
+      const juiceNode = new Node("GoldRain");
+      juiceNode.layer = layer.layer;
+      juiceNode.parent = layer;
+      this.goldGfx = juiceNode.addComponent(Graphics);
     } else {
       this.coinJumpLabel = undefined;
+      this.sellCallout = undefined;
     }
     makeButton(layer, "设置", -530, 310, () => this.showSettings(), 140, 52, 22);
     makeLabel(layer, cloudStatusLine(this.cloudKind), 18, 0, 278, 900);
@@ -187,6 +223,7 @@ export class RuntimeHome extends Component {
       coins: save.coins,
       nextUpgradeCost: nextLevel?.upgradeCost,
     });
+    makePlate(layer, 0, 248, !save.tutorialComplete, 820, 48);
     this.status = makeLabel(
       layer,
       this.statusFlash ??
@@ -201,6 +238,14 @@ export class RuntimeHome extends Component {
       0,
       248,
     );
+    this.status.color = new Color(255, 252, 236, 255);
+    if (this.statusFlash && this.justDiscovered.length > 0) {
+      this.discoveryLabel = tintGold(
+        makeLabel(layer, this.statusFlash, 24, 0, 206, 720),
+      );
+    } else {
+      this.discoveryLabel = undefined;
+    }
 
     const islands = harborIslandIds();
     const closedIds = ConfigService.remoteConfig().disabledIslands ?? [];
@@ -341,7 +386,10 @@ export class RuntimeHome extends Component {
       knownBefore,
     ).map((id) => ConfigService.fishById(id).name);
     const toast = discoveryToastLine(firstNames);
-    if (toast) makeLabel(layer, toast, 22, 0, 204);
+    if (toast) {
+      makePlate(layer, 0, 204, true, 640, 40);
+      tintGold(makeLabel(layer, toast, 24, 0, 204));
+    }
     settleRows(
       summary,
       (id) => ConfigService.fishById(id).name,
@@ -617,7 +665,17 @@ export class RuntimeHome extends Component {
         before.discoveredFish,
       );
       this.coinJumpGained = run.totalCoins;
-      this.coinJumpLeft = run.totalCoins > 0 ? 1.1 : 0;
+      this.coinJumpElapsed = 0;
+      this.coinJumpLeft = run.totalCoins > 0 ? coinJumpSeconds() : 0;
+      this.sellPunchElapsed = 0;
+      this.sellPunchLeft = run.totalCoins > 0 ? sellPunchSeconds(false) : 0;
+      this.discoveryPunchElapsed = 0;
+      this.discoveryPunchLeft =
+        this.justDiscovered.length > 0 ? discoveryPunchSeconds(false) : 0;
+      this.gold =
+        run.totalCoins > 0 ? spawnGoldRain(470, 300, false) : [];
+      this.goldFlash =
+        run.totalCoins > 0 ? spawnJuiceFlash("sell", 470, 300, false) : undefined;
       await playerSave.save(next);
       this.cloudKind = playerSave.cloudKind();
       if (run.fish.length > 0) SfxPlayer.play("sell");
@@ -746,16 +804,47 @@ export class RuntimeHome extends Component {
   }
 
   protected update(dt: number): void {
+    if (this.gold.length > 0 || this.goldFlash) {
+      this.gold = tickJuice(this.gold, dt);
+      this.goldFlash = tickJuiceFlash(this.goldFlash, dt);
+      if (this.goldGfx?.isValid) {
+        drawJuice(this.goldGfx, this.gold, this.goldFlash ? [this.goldFlash] : []);
+      }
+    }
     if (this.coinJumpLabel?.isValid && this.coinJumpLeft > 0) {
+      this.coinJumpElapsed += dt;
       this.coinJumpLeft = Math.max(0, this.coinJumpLeft - dt);
-      const t = 1 - this.coinJumpLeft / 1.1;
-      this.coinJumpLabel.node.setPosition(470, 274 + t * 40);
-      const fade = Math.round(255 * Math.max(0, 1 - t));
+      const lift = coinJumpLiftPx(this.coinJumpElapsed);
+      const fade = Math.round(255 * coinJumpAlpha(this.coinJumpElapsed));
+      this.coinJumpLabel.node.setPosition(470, 274 + lift);
       this.coinJumpLabel.color = new Color(255, 220, 72, fade);
+      if (this.sellCallout?.isValid) {
+        this.sellCallout.node.setPosition(0, 120 + lift * 0.35);
+        this.sellCallout.color = new Color(255, 220, 72, fade);
+      }
       if (this.coinJumpLeft <= 0) {
         this.coinJumpGained = 0;
         this.coinJumpLabel.string = "";
+        if (this.sellCallout) this.sellCallout.string = "";
       }
+    }
+    if (this.sellCallout?.isValid && this.sellPunchLeft > 0) {
+      this.sellPunchElapsed += dt;
+      this.sellPunchLeft = Math.max(0, this.sellPunchLeft - dt);
+      const peak = 1.18;
+      const t = Math.min(1, this.sellPunchElapsed / 0.22);
+      const env = t < 0.35 ? t / 0.35 : 1 - (t - 0.35) / 0.65;
+      const scale = 1 + (peak - 1) * Math.max(0, env);
+      this.sellCallout.node.setScale(scale, scale, 1);
+    }
+    if (this.discoveryLabel?.isValid && this.discoveryPunchLeft > 0) {
+      this.discoveryPunchElapsed += dt;
+      this.discoveryPunchLeft = Math.max(0, this.discoveryPunchLeft - dt);
+      const peak = 1.14;
+      const t = Math.min(1, this.discoveryPunchElapsed / 0.2);
+      const env = t < 0.35 ? t / 0.35 : 1 - (t - 0.35) / 0.65;
+      const scale = 1 + (peak - 1) * Math.max(0, env);
+      this.discoveryLabel.node.setScale(scale, scale, 1);
     }
     if (!this.settleGuide?.isValid || this.surface !== "settle") return;
     const ring = tutorialGuideRing(Date.now());

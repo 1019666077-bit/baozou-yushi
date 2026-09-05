@@ -5,8 +5,10 @@
 本目录是给没有 Creator / `build/web-desktop` 时用的临时轻量灰盒：单页 DOM+canvas，复刻 `RuntimeHome` → `RuntimePrototype` 新档第一局（港口 → 教学四步 → 卖鱼 → 回港）。
 
 - 旁白、按钮标签、引导圈、结算行、金币跳字、首次角标都从源码常量/函数生成，不另写一套文案。
-- 主 CTA 暖橙、次要深青，颜色取自 `GameFeel.buttonFillRgb`。
-- 命中/入箱跳字取自 `StyleCallout`；粒子参数取自 `HitJuice`。
+- 主 CTA 暖橙、次要深青，色板/圆角/描边取自 `GameFeel`（与 RuntimeHome/Prototype 共用）。
+- 命中/入箱/卖出跳字取自 `StyleCallout`；粒子、线闪、金币雨取自 `HitJuice`。
+- 教学旁白用 `battleWaveNarration`，不被潮汐句盖住；底栏主橙只给当前步。
+- 买不起升级不抢港口主 CTA（与 `harborNextCta` 一致）。
 - 不是微信真机，也不是 Cocos 预览。甲板扑腾、瞄准手感、音效震动都不在这里。
 
 ## 怎么开

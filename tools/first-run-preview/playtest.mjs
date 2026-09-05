@@ -103,9 +103,10 @@ try {
   const castText = await page.evaluate(() => document.body.innerText);
   note(castText.includes("练潮码头") && castText.includes("潮汐猎场"), "教学猎场标题");
   note(castText.includes("抛竿") && castText.includes("捡起"), "抛竿/捡起按钮");
+  const castState = await page.evaluate(() => window.proxyState());
   note(
-    castText.includes("热身潮") || castText.includes("抛竿"),
-    `进场旁白 ${castText.includes("热身潮") ? "已被潮汐句盖住（与 RuntimePrototype.tickWave 一致）" : "仍是教学抛竿句"}`,
+    castState.status.includes("抛竿") && !castState.status.includes("热身潮"),
+    "教学旁白不被潮汐句覆盖",
   );
 
   note(await tap(page, "回港"), "教学中点回港");
@@ -160,13 +161,14 @@ try {
   note(!after.includes("开始教学"), "开始教学已消失");
   note(after.includes("再出1局后图鉴"), "图鉴仍锁到第二局");
   note(after.includes("+") && after.includes("金"), "金币跳字");
+  note(after.includes("图鉴新纪录") || after.includes("卖出"), "卖出/图鉴新纪录反馈");
 
   note(await tap(page, "升级弹力鱼竿"), "点升级（首局金币不够）");
   await wait(200);
   await shot(page, "09-upgrade-broke");
   note(
     (await page.evaluate(() => document.body.innerText)).includes("金币不足"),
-    "回港主 CTA 是升级但首局卖价不够",
+    "买不起升级不抢主 CTA，点次要升级仍提示金币不足",
   );
 
   fs.writeFileSync(

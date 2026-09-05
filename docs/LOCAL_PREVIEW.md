@@ -24,15 +24,15 @@ npx --yes serve build/web-desktop -l 8765
 PLAYTEST_URL=http://127.0.0.1:8765/ node tools/playtest-live.mjs
 ```
 
-## 没有 Creator 时的第一局体验代理
+## 第一局体验代理（无 Creator）
 
-本机没装 Cocos、也没有 `build/web-desktop` 时，不要假装已经实跑过官方运行时。可用临时灰盒点完新档第一局（文案从 `TutorialFlow` / 结算/手感函数抽取）：
+没有编辑器时，可用 DOM+canvas 代理看第一局闭环（教学→抛竿→弱点→捡起→入箱→卖出→回港）：
 
 ```bash
 node tools/first-run-preview/serve.mjs
 ```
 
-打开 http://127.0.0.1:8766/ 。**这不是 Cocos 实机**，甲板扑腾和瞄准手感不在这里。说明见 `tools/first-run-preview/README.md`。
+浏览器打开 http://127.0.0.1:8766/ 。**非 Cocos 实机**，文案/CTA/色板从 `assets/scripts/domain` 抽出。说明见 `tools/first-run-preview/README.md`。
 
 ## 微信小游戏
 

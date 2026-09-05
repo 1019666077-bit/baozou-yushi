@@ -22,6 +22,10 @@ export function inboxPopup(price?: number): string {
   return "入箱";
 }
 
+export function sellPopup(gained: number): string {
+  return gained > 0 ? `卖出 +${gained}金` : "卖出";
+}
+
 export function liveQuote(
   fish: Pick<FishConfig, "name" | "basePrice" | "rarityMultiplier">,
   multiplier: number,

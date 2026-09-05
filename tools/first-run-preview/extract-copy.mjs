@@ -155,10 +155,64 @@ function snapshot() {
       primaryInk: GameFeel.buttonLabelRgb("primary"),
       secondaryInk: GameFeel.buttonLabelRgb("secondary"),
       gold: GameFeel.goldHudRgb(),
+      cream: GameFeel.creamInkRgb(),
+      strokePrimary: GameFeel.buttonStrokeRgb("primary"),
+      strokeSecondary: GameFeel.buttonStrokeRgb("secondary"),
+      palette: GameFeel.feelPalette(),
     },
+    button: {
+      radius: GameFeel.buttonRadius(),
+      strokePrimary: GameFeel.buttonStrokeWidth("primary"),
+      strokeSecondary: GameFeel.buttonStrokeWidth("secondary"),
+      hero: GameFeel.buttonSpec("hero"),
+      bar: GameFeel.buttonSpec("bar"),
+      chip: GameFeel.buttonSpec("chip"),
+      mini: GameFeel.buttonSpec("mini"),
+    },
+    plate: {
+      fill: GameFeel.plateFillRgba(true),
+      fillIdle: GameFeel.plateFillRgba(false),
+      stroke: GameFeel.plateStrokeRgba(true),
+      size: GameFeel.plateSize(),
+    },
+    coinJumpSeconds: GameFeel.coinJumpSeconds(),
+    tutorialTones: {
+      cast: {
+        cast: TutorialFlow.tutorialBarButtonTone("cast", "cast"),
+        pickUp: TutorialFlow.tutorialBarButtonTone("cast", "pickUp"),
+      },
+      weakPoint: {
+        cast: TutorialFlow.tutorialBarButtonTone("weakPoint", "cast"),
+        pickUp: TutorialFlow.tutorialBarButtonTone("weakPoint", "pickUp"),
+      },
+      reel: {
+        cast: TutorialFlow.tutorialBarButtonTone("reel", "cast"),
+        pickUp: TutorialFlow.tutorialBarButtonTone("reel", "pickUp"),
+      },
+      carrying: {
+        cast: TutorialFlow.tutorialBarButtonTone("reel", "cast", { carrying: true }),
+        pickUp: TutorialFlow.tutorialBarButtonTone("reel", "pickUp", { carrying: true }),
+      },
+    },
+    waveOnCast: TutorialFlow.battleWaveNarration(
+      true,
+      "cast",
+      TutorialFlow.waveStartNarration(0),
+    ),
+    harborCtaAfter: TutorialFlow.harborNextCta({
+      tutorialComplete: after.tutorialComplete,
+      completedRuns: after.completedRuns,
+      pendingSell: false,
+      upgradeUnlocked: true,
+      coins: after.coins,
+      nextUpgradeCost: nextRod?.upgradeCost,
+    }),
     looks: {
       harbor: GrayLook.islandLook("island_foam_bay", true),
       tutorial: GrayLook.islandLook(TutorialFlow.TUTORIAL_ISLAND_ID),
+      foam: GrayLook.islandLook("island_foam_bay"),
+      prism: GrayLook.islandLook("island_prism_reef"),
+      storm: GrayLook.islandLook("island_storm_eye"),
       bayfin: GrayLook.fishLook("fish_bayfin"),
     },
     islands: GrayLook.harborIslandIds().map((id) => {
@@ -215,6 +269,9 @@ function snapshot() {
       comboHud: StyleCallout.comboHud(1, 1),
       comboHudAfter: StyleCallout.comboHud(sold.styleMultiplier, 1),
       inboxStatus: `${bayfin.name} ×${sold.styleMultiplier.toFixed(2)} → ${sold.price}金，丢进鱼箱。回港才卖。`,
+      discovery: SettleCopy.discoveryToast(bayfin.name),
+      sellPopup: StyleCallout.sellPopup(summary.totalCoins),
+      castSnap: StyleCallout.castSnapCaption(),
     },
     crate: {
       x: TutorialFlow.TUTORIAL_CRATE_X,
@@ -240,6 +297,13 @@ function snapshot() {
       weak: HitJuice.juiceCount("weak", false),
       catch: HitJuice.juiceCount("catch", false),
       hit: HitJuice.juiceCount("hit", false),
+      cast: HitJuice.juiceCount("cast", false),
+      gold: HitJuice.juiceCount("gold", false),
+      sell: HitJuice.juiceCount("sell", false),
+    },
+    juiceFlash: {
+      weak: HitJuice.spawnJuiceFlash("weak", 0, 0, false),
+      sell: HitJuice.spawnJuiceFlash("sell", 0, 0, false),
     },
   };
 

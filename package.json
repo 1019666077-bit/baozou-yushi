@@ -18,7 +18,8 @@
     "simulate": "node tools/simulate-economy.mjs",
     "playtest:report": "node tools/analyze-playtest.mjs",
     "postbuild:wechat": "node tools/postbuild-wechat.mjs",
-    "validate": "npm run typecheck && npm run typecheck:cocos && npm test && npm run preflight"
+    "preview:extract": "node tools/first-run-preview/extract-copy.mjs",
+    "validate": "npm run typecheck && npm run typecheck:cocos && npm test && npm run preflight && npm run preview:extract"
   },
   "devDependencies": {
     "@cocos/creator-types": "^3.8.8",
