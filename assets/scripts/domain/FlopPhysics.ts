@@ -23,17 +23,17 @@ export const YANK_FEEL = {
 
 export const FLOP_FEEL = {
   /** 第一下要看见抛物线，不是贴地滑。 */
-  launchVx: -150,
-  launchVy: 780,
-  launchAngle: 1.12,
-  launchSpin: 26,
+  launchVx: -128,
+  launchVy: 840,
+  launchAngle: 1.18,
+  launchSpin: 32,
   /** 未砸晕：砸甲板要弹得开，才读得出「砸」。 */
-  liveRestitution: 0.86,
+  liveRestitution: 0.94,
   /** 砸晕：第二下迅速贴地，好捡、不挡点击。 */
   stunRestitution: 0.28,
-  gravityLive: -2040,
+  gravityLive: -2280,
   gravityStun: -1180,
-  liveFriction: 0.8,
+  liveFriction: 0.78,
   stunFriction: 0.68,
 };
 
@@ -163,6 +163,17 @@ export function inWater(body: Pick<FlopBody, "x" | "y">): boolean {
 
 export function crateDrop(x: number, y: number): boolean {
   return Math.hypot(x - CRATE_X, y - CRATE_Y) < 92;
+}
+
+/** 第一下抛物线相对甲板的最高点，给单测和代理对照。 */
+export function flopApexAboveDeck(): number {
+  let body = beginFlop(-320, DECK_Y);
+  let peak = body.y;
+  for (let i = 0; i < 48; i++) {
+    body = stepFlop(body, 0.016, false);
+    if (body.y > peak) peak = body.y;
+  }
+  return peak - DECK_Y;
 }
 
 export function bouncedOnDeck(prev: FlopBody, next: FlopBody): boolean {

@@ -1,8 +1,8 @@
 import { Camera, Color, DirectionalLight, Layers, Node } from "cc";
 import { camHarborSway, HARBOR_CAM_REST } from "../domain/CameraFeel";
 import { islandLook } from "../domain/GrayLook";
-import { boatParts, dockParts, harborExtraParts, waterParts } from "../domain/ProcGeom";
-import { spawnParts } from "./StageBuild";
+import { boatParts, dockParts, harborExtraParts, waterAmp, waterParts } from "../domain/ProcGeom";
+import { rippleWater, spawnParts } from "./StageBuild";
 
 export class HarborStage {
   private static current?: HarborStage;
@@ -58,7 +58,8 @@ export class HarborStage {
     if (!this.root?.isValid) return;
     this.elapsed += dt;
     if (!lowPower && this.water?.isValid) {
-      this.water.setPosition(1.6, -0.02 + Math.sin(this.elapsed * 1.1) * 0.025, 0.1);
+      this.water.setPosition(1.6, -0.02 + Math.sin(this.elapsed * 1.1) * 0.018, 0.1);
+      rippleWater(this.water, this.elapsed, waterAmp(false));
     }
     if (!this.camNode?.isValid) return;
     const sway = camHarborSway(this.elapsed, lowPower);
@@ -96,7 +97,7 @@ export class HarborStage {
     this.camNode.setRotationFromEuler(HARBOR_CAM_REST.pitch, HARBOR_CAM_REST.yaw, 0);
     const cam = this.camNode.addComponent(Camera);
     cam.projection = Camera.ProjectionType.PERSPECTIVE;
-    cam.fov = 38;
+    cam.fov = 36;
     cam.near = 0.2;
     cam.far = 90;
     cam.priority = 0;
@@ -109,8 +110,8 @@ export class HarborStage {
     const node = new Node("HarborLight");
     node.layer = Layers.Enum.DEFAULT;
     node.parent = this.root;
-    node.setRotationFromEuler(-42, 36, 0);
+    node.setRotationFromEuler(-36, 52, 0);
     const light = node.addComponent(DirectionalLight);
-    light.illuminance = 100000;
+    light.illuminance = 115000;
   }
 }

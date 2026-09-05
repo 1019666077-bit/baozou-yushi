@@ -20,11 +20,12 @@ import {
   dockParts,
   fishParts,
   huntIsleParts,
+  waterAmp,
   waterParts,
 } from "../domain/ProcGeom";
 import { deckFlag } from "./deckFlag";
 import { HarborStage } from "./HarborStage";
-import { spawnPart, spawnParts } from "./StageBuild";
+import { rippleWater, spawnPart, spawnParts } from "./StageBuild";
 
 export type DeckFeel = {
   smashElapsed?: number;
@@ -43,6 +44,7 @@ export class DeckStage {
   private boat!: Node;
   private line!: Node;
   private fishes = new Map<string, Node>();
+  private weakBase = new Map<string, { x: number; y: number; z: number }>();
   private mid = new Vec3();
   private to = new Vec3();
   private water?: Node;
@@ -115,11 +117,13 @@ export class DeckStage {
         child.position.x > player.position.x ? 0 : 180,
         kind === "sea" ? 12 : 8,
       );
+      this.squashFish(puppet, feel);
     }
     for (const [id, node] of this.fishes) {
       if (seen.has(id)) continue;
       node.destroy();
       this.fishes.delete(id);
+      this.weakBase.delete(id);
     }
 
     if (hooked?.yanking && hooked.node.active) {
@@ -159,10 +163,12 @@ export class DeckStage {
   tickWater(dt: number, lowPower: boolean): void {
     if (lowPower || !this.water?.isValid) return;
     this.waveT += dt;
-    this.water.setPosition(1.6, -0.02 + Math.sin(this.waveT * 1.4) * 0.03, 0.1);
+    this.water.setPosition(1.6, -0.02 + Math.sin(this.waveT * 1.4) * 0.02, 0.1);
+    rippleWater(this.water, this.waveT, waterAmp(false));
     if (this.foam?.isValid) {
       this.foam.setPosition(-1.1 + Math.sin(this.waveT * 0.6) * 0.15, 0.03, 0.35);
     }
+    this.pulseWeaks();
   }
 
   dispose(): void {
@@ -175,6 +181,7 @@ export class DeckStage {
     this.uiCam = undefined;
     if (this.root?.isValid) this.root.destroy();
     this.fishes.clear();
+    this.weakBase.clear();
   }
 
   private aimCamera(hooked: FishController | undefined, feel: DeckFeel): void {
@@ -227,10 +234,36 @@ export class DeckStage {
     spawnParts(
       node,
       Layers.Enum.DEFAULT,
-      fishParts(body, look.belly, look.accent, s),
+      fishParts(body, look.belly, look.accent, s, look.silhouette),
     );
     this.fishes.set(id, node);
     return node;
+  }
+
+  private squashFish(puppet: Node, feel: DeckFeel): void {
+    const dur = smashHoldSeconds(feel.lowPower === true);
+    const elapsed = feel.smashElapsed ?? 1;
+    if (dur > 0 && elapsed >= 0 && elapsed < dur) {
+      const t = 1 - elapsed / dur;
+      puppet.setScale(1 + t * 0.16, 1 - t * 0.24, 1 + t * 0.16);
+    } else {
+      puppet.setScale(1, 1, 1);
+    }
+  }
+
+  private pulseWeaks(): void {
+    for (const [id, node] of this.fishes) {
+      if (!node.isValid) continue;
+      const weak = node.getChildByName("Weak");
+      if (!weak?.isValid) continue;
+      let base = this.weakBase.get(id);
+      if (!base) {
+        base = { x: weak.scale.x, y: weak.scale.y, z: weak.scale.z };
+        this.weakBase.set(id, base);
+      }
+      const k = 1 + Math.sin(this.waveT * 5.6) * 0.2;
+      weak.setScale(base.x * k, base.y * k, base.z * k);
+    }
   }
 
   private makeBoat(): Node {
@@ -261,7 +294,7 @@ export class DeckStage {
     this.camNode.setRotationFromEuler(CAM_REST.pitch, CAM_REST.yaw, 0);
     this.worldCam = this.camNode.addComponent(Camera);
     this.worldCam.projection = Camera.ProjectionType.PERSPECTIVE;
-    this.worldCam.fov = 40;
+    this.worldCam.fov = 38;
     this.worldCam.near = 0.2;
     this.worldCam.far = 80;
     this.worldCam.priority = 0;
@@ -274,9 +307,9 @@ export class DeckStage {
     const node = new Node("DeckLight");
     node.layer = Layers.Enum.DEFAULT;
     node.parent = this.root;
-    node.setRotationFromEuler(-48, -28, 0);
+    node.setRotationFromEuler(-52, -18, 0);
     const light = node.addComponent(DirectionalLight);
-    light.illuminance = 110000;
+    light.illuminance = 120000;
   }
 
   private buildSet(islandId: string, look: ReturnType<typeof islandLook>): void {
@@ -286,7 +319,7 @@ export class DeckStage {
       waterParts(look.near, look.deep),
     );
     this.water = water[0];
-    this.foam = water[2];
+    this.foam = water[3];
     spawnParts(this.root, Layers.Enum.DEFAULT, dockParts());
     spawnParts(this.root, Layers.Enum.DEFAULT, huntIsleParts(islandId, look));
   }

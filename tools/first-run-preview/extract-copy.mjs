@@ -104,8 +104,8 @@ function snapshot() {
 
   const data = {
     proxy: true,
-    disclaimer: "非 Cocos 实机，仅体验代理。2D 代理 ≠ Creator 3D 实机",
-    sourceStamp: "baozou-flop-v28",
+    disclaimer: "非 Cocos 实机，仅体验代理。2D 代理 ≠ Creator 3D 实机 · 3D 港湾/低模鱼请本机打开 Boot.scene",
+    sourceStamp: "baozou-flop-v29",
     harborTitle: "暴走鱼市 · 潮汐港口 v28",
     huntSuffix: "潮汐猎场",
     castButton: "抛竿",

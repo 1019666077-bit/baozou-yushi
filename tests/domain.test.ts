@@ -155,6 +155,7 @@ import {
   YANK_FEEL,
   carryBobOffset,
   yankArcLift,
+  flopApexAboveDeck,
 } from "../assets/scripts/domain/FlopPhysics";
 import {
   deckKindForFish,
@@ -251,13 +252,19 @@ import {
 } from "../assets/scripts/domain/CameraFeel";
 import {
   STAGE_BUDGET,
+  boatParts,
   countParts,
+  displaceWaterPositions,
   dockParts,
+  findPart,
   fishParts,
   harborExtraParts,
   huntIsleParts,
   stageMeshCap,
+  waterAmp,
+  waterHeight,
   waterParts,
+  waterVertCount,
 } from "../assets/scripts/domain/ProcGeom";
 
 const fish: FishConfig = {
@@ -1489,6 +1496,7 @@ describe("FlopPhysics", () => {
     expect(yankArcLift(YANK_FEEL.targetX + YANK_FEEL.span / 2)).toBeGreaterThan(20);
     expect(carryBobOffset(0.2).y).toBeGreaterThanOrEqual(0);
     expect(CARRY_FEEL.ampY).toBeLessThan(12);
+    expect(flopApexAboveDeck()).toBeGreaterThan(90);
   });
 });
 
@@ -1497,13 +1505,22 @@ describe("CameraFeel", () => {
     expect(yankCamK(-340)).toBe(0);
     expect(yankCamK(-340 + 210)).toBeGreaterThan(0.5);
     expect(camSmashOffset(0.04, CAM_FEEL.smashSeconds, false).x).not.toBe(0);
-    expect(camSmashOffset(0.04, CAM_FEEL.smashSeconds, true)).toEqual({ x: 0, y: 0, z: 0 });
+    expect(camSmashOffset(0.04, CAM_FEEL.smashSeconds, true)).toEqual({
+      x: 0,
+      y: 0,
+      z: 0,
+      pitch: 0,
+    });
     expect(smashHoldSeconds(true)).toBe(0);
+    expect(CAM_FEEL.smashSeconds).toBeLessThanOrEqual(0.2);
     const yanked = composeHuntCam({ yankK: 1, lowPower: false });
     expect(yanked.z).toBeGreaterThan(CAM_REST.z);
+    expect(yanked.pitch).toBeLessThan(CAM_REST.pitch);
     const flop = composeHuntCam({ airborne: true, lowPower: false });
     expect(flop.y).toBeGreaterThan(CAM_REST.y);
+    expect(flop.pitch).toBeLessThan(CAM_REST.pitch);
     expect(composeHuntCam({ airborne: true, lowPower: true }).y).toBe(CAM_REST.y);
+    expect(composeHuntCam({ airborne: true, lowPower: true }).pitch).toBe(CAM_REST.pitch);
   });
 });
 
@@ -1521,17 +1538,41 @@ describe("ProcGeom budget", () => {
       landDark: [86, 138, 112],
       accent: [255, 176, 72],
     });
+    const boat = boatParts();
     const fish = fishParts([36, 214, 178], [210, 250, 220], [18, 142, 124], 1);
     expect(fish.length).toBeLessThanOrEqual(STAGE_BUDGET.maxFishParts);
-    expect(countParts([...water, ...dock, ...extras])).toBeLessThanOrEqual(
+    expect(findPart(fish, "Face")).toBeTruthy();
+    expect(findPart(fish, "Scale")).toBeTruthy();
+    expect(findPart(fish, "Weak")!.sx).toBeGreaterThan(0.18);
+    expect(countParts([...water, ...dock, ...extras, ...boat])).toBeLessThanOrEqual(
       stageMeshCap("harbor"),
     );
-    expect(countParts([...water, ...dock, ...hunt])).toBeLessThanOrEqual(stageMeshCap("hunt"));
-    expect((STAGE_BUDGET.waterSegX + 1) * (STAGE_BUDGET.waterSegZ + 1)).toBeLessThanOrEqual(
-      STAGE_BUDGET.maxWaterVerts,
+    expect(countParts([...water, ...dock, ...hunt, ...boat])).toBeLessThanOrEqual(
+      stageMeshCap("hunt"),
     );
+    expect(waterVertCount()).toBeLessThanOrEqual(STAGE_BUDGET.maxWaterVerts);
     expect(STAGE_BUDGET.textureBytes).toBe(0);
     expect(STAGE_BUDGET.maxLights).toBe(1);
+    expect(findPart(water, "Water")?.wave).toBe(true);
+    expect(findPart(extras, "FoamHill")).toBeTruthy();
+    expect(findPart(extras, "PrismPeak")).toBeTruthy();
+    expect(findPart(dock, "Rail")).toBeTruthy();
+  });
+
+  it("makes vertex waves and silhouette kits without adding textures", () => {
+    expect(waterAmp(true)).toBe(0);
+    expect(waterAmp(false)).toBeGreaterThan(0);
+    expect(waterHeight(1, 0, 0.4)).not.toBe(waterHeight(1, 0, 1.2));
+    const pos = [0, 0, 0, 0.5, 0, 0.25];
+    const n = displaceWaterPositions(pos, 0.8, 0.05, 24, 18);
+    expect(n).toBe(2);
+    expect(pos[1]).not.toBe(0);
+    const eel = fishParts([214, 92, 64], [255, 176, 96], [255, 120, 72], 1, "eel");
+    const bay = fishParts([36, 214, 178], [210, 250, 220], [18, 142, 124], 1, "bayfin");
+    expect(eel.length).toBe(5);
+    expect(findPart(eel, "Body")!.sx).toBeGreaterThan(findPart(bay, "Body")!.sx);
+    const sail = fishParts([64, 186, 196], [186, 236, 232], [168, 92, 210], 1, "sail");
+    expect(findPart(sail, "Scale")!.sy).toBeGreaterThan(findPart(bay, "Scale")!.sy);
   });
 });
 
