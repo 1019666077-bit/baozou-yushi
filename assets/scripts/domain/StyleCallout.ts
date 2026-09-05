@@ -43,9 +43,28 @@ export function liveQuote(
   return `${fish.name}估价 ${price.total}金 · 底价${price.base}×${price.style.toFixed(2)}`;
 }
 
-export function comboHud(multiplier: number, combo: number): string {
-  const core = `精彩 ×${multiplier.toFixed(2)}`;
-  return combo > 1 ? `${core}  ${combo}连` : core;
+export function comboHud(
+  multiplier: number,
+  combo: number,
+  opts?: { rising?: boolean; from?: number },
+): string {
+  const rising =
+    opts?.rising === true &&
+    opts.from != null &&
+    opts.from + 1e-6 < multiplier;
+  const core = rising
+    ? `精彩 ×${opts.from!.toFixed(2)}→×${multiplier.toFixed(2)}`
+    : `精彩 ×${multiplier.toFixed(2)}`;
+  const bang = opts?.rising ? " ↑" : "";
+  return combo > 1 ? `${core}${bang}  ${combo}连` : `${core}${bang}`;
+}
+
+export function smashCallout(grade: "none" | "open" | "perfect", weakPoint: boolean): string {
+  if (grade === "perfect" && weakPoint) return "完美窗口 · 弱点";
+  if (grade === "perfect") return "完美窗口";
+  if (grade === "open" && weakPoint) return "空中砸 · 弱点";
+  if (grade === "open") return "空中砸";
+  return "";
 }
 
 /** 甩钩当下的极短口令，不盖教学下一步。 */

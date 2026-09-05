@@ -331,6 +331,41 @@ export function weakReticleTickPx(): number {
   return 10;
 }
 
+/** 空中砸 / 完美窗口高光：Runtime 画圈，低配只留细环。 */
+export function smashHighlightSpec(
+  grade: "none" | "open" | "perfect",
+  nowMs: number,
+  lowPower = false,
+): {
+  visible: boolean;
+  radius: number;
+  width: number;
+  rgb: [number, number, number];
+  alpha: number;
+  caption: string;
+} {
+  if (grade === "none") {
+    return {
+      visible: false,
+      radius: 0,
+      width: 0,
+      rgb: [255, 236, 120],
+      alpha: 0,
+      caption: "",
+    };
+  }
+  const pulse = 0.5 + 0.5 * Math.sin(nowMs / 110);
+  const perfect = grade === "perfect";
+  return {
+    visible: true,
+    radius: (perfect ? 46 : 38) + (lowPower ? 0 : 6 * pulse),
+    width: lowPower ? 3 : perfect ? 8 : 5,
+    rgb: perfect ? [255, 220, 72] : [255, 244, 170],
+    alpha: lowPower ? 140 : perfect ? 230 : 170,
+    caption: perfect ? "完美窗口" : "可砸",
+  };
+}
+
 export function popupLiftPx(elapsed: number, duration = 0.45): number {
   const t = duration <= 0 ? 1 : Math.min(1, Math.max(0, elapsed / duration));
   return 36 * (1 - (1 - t) * (1 - t));

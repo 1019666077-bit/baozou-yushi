@@ -19,6 +19,7 @@
 - CI：`npm run validate` 与 `npm run simulate`。
 - 第一局体验代理与 `tools/first-run-preview/shots/` **不是** Cocos 实机证据，更 **不是** Creator 3D 证据。`v37` 对症：猎场水面浪脊/焦散/深度色带/泡沫，告别偏平水带；港 HUD 上提/靠边让海景；`skin.js` 实色浪脊/市集/远舟/天光；岛体放大；鱼/船放大；蓄力 400×30 + 甜区光晕；`YANK_FEEL.pullRate` 3.2（11/90 不动）。教学仍可自动甜区，**教完后自由局必须自己松手**。仍只能报代理分，不合 main。
 - 2.5D 港湾/猎场（`HarborStage` / `DeckStage`）只在本机 Creator 预览或 web-desktop 里能看见；云端无 Creator。期望构图示意图在 `docs/stage3d/`（`gallery.html` 顶栏写清「期望构图 ≠ Creator/真机」），**不是**实机截图。`docs/stage3d/creator-shots/` 目前只有 README，**没有**伪造的 4 张 png。
+- **Creator 可感手感 A+B（本刀）**：甲板刚体短滑移、未处理逃水、弱点击退、下半屏拖运入箱、空中砸窗口/完美高光、精彩倍率 `×旧→×新`。领域层 + `RuntimePrototype` + vitest。**不做 C 经济、不刷代理视觉 tip、`:8766` 不算过关。**
 
 ## 需要发行主体或真人完成
 

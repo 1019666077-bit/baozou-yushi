@@ -14,6 +14,7 @@ import {
   yankCamK,
 } from "../domain/CameraFeel";
 import { toActorWorld, toBoatWorld, deckKindForFish } from "../domain/DeckMap";
+import type { SmashGrade } from "../domain/FlopPhysics";
 import { smashSquashAt } from "../domain/HitJuice";
 import { fishLook, islandLook } from "../domain/GrayLook";
 import {
@@ -31,6 +32,7 @@ import { rippleWater, spawnPart, spawnParts } from "./StageBuild";
 export type DeckFeel = {
   smashElapsed?: number;
   lowPower?: boolean;
+  smashGrade?: SmashGrade;
 };
 
 export class DeckStage {
@@ -118,7 +120,7 @@ export class DeckStage {
         child.position.x > player.position.x ? 0 : 180,
         kind === "sea" ? 12 : 8,
       );
-      this.squashFish(puppet, feel);
+      this.squashFish(puppet, feel, fish);
     }
     for (const [id, node] of this.fishes) {
       if (seen.has(id)) continue;
@@ -241,11 +243,14 @@ export class DeckStage {
     return node;
   }
 
-  private squashFish(puppet: Node, feel: DeckFeel): void {
+  private squashFish(puppet: Node, feel: DeckFeel, fish?: FishController): void {
     const dur = smashHoldSeconds(feel.lowPower === true);
     const elapsed = feel.smashElapsed ?? 1;
     const squash = smashSquashAt(elapsed, feel.lowPower === true, dur);
-    puppet.setScale(squash.sx, squash.sy, squash.sx);
+    const grade = fish?.smashGrade ?? feel.smashGrade;
+    const pulse =
+      grade === "perfect" ? 1 + 0.1 * Math.abs(Math.sin(this.waveT * 9)) : grade === "open" ? 1.04 : 1;
+    puppet.setScale(squash.sx * pulse, squash.sy * pulse, squash.sx);
   }
 
   private pulseWeaks(): void {

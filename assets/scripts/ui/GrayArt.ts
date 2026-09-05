@@ -330,6 +330,27 @@ export function drawJuice(
   }
 }
 
+export function drawSmashWindow(
+  g: Graphics,
+  x: number,
+  y: number,
+  spec: {
+    radius: number;
+    width: number;
+    rgb: [number, number, number];
+    alpha: number;
+  },
+): void {
+  g.strokeColor = new Color(spec.rgb[0], spec.rgb[1], spec.rgb[2], spec.alpha);
+  g.lineWidth = spec.width;
+  g.circle(x, y, spec.radius);
+  g.stroke();
+  g.strokeColor = new Color(spec.rgb[0], spec.rgb[1], spec.rgb[2], Math.round(spec.alpha * 0.45));
+  g.lineWidth = Math.max(2, spec.width - 3);
+  g.circle(x, y, spec.radius * 0.62);
+  g.stroke();
+}
+
 export function drawGuideHole(
   g: Graphics,
   cx: number,

@@ -166,11 +166,11 @@ export function settingCaption(name: string, on: boolean): string {
 }
 
 export function hitStopSeconds(
-  kind: "miss" | "hit" | "weak" | "perfect" | "catch",
+  kind: "miss" | "hit" | "weak" | "perfect" | "catch" | "smash",
   lowPower: boolean,
 ): number {
   if (lowPower || kind === "miss") return 0;
-  if (kind === "weak" || kind === "perfect") return 0.09;
+  if (kind === "weak" || kind === "perfect" || kind === "smash") return 0.09;
   if (kind === "hit" || kind === "catch") return 0.05;
   return 0;
 }

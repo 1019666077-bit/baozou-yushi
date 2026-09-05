@@ -41,9 +41,9 @@ export function tutorialPrompt(
   extras: { carrying?: boolean } = {},
 ): string {
   if (step === "cast") return "点「抛竿」，锁定湾鳍鱼。";
-  if (step === "weakPoint") return "点右半屏发光鳍，打弱点。";
+  if (step === "weakPoint") return "点右下半屏发光鳍，打弱点。";
   if (step === "reel") {
-    if (extras.carrying) return "走到左边鱼箱，丢掉入箱。";
+    if (extras.carrying) return "下半屏拖到左边鱼箱，松手入箱。";
     return "点「捡起」，搬进左边鱼箱。";
   }
   return "入箱了！点右上「回港」，去卖换成金币。";
@@ -63,9 +63,9 @@ export function tutorialGuideTarget(
 /** 鱼箱中心，与 FlopPhysics.crateDrop 一致。 */
 export const TUTORIAL_CRATE_X = CRATE_X;
 export const TUTORIAL_CRATE_Y = CRATE_Y;
-/** 弱点步没有按钮时，圈右半屏瞄准区。 */
+/** 弱点步没有按钮时，圈右下半屏瞄准区。 */
 export const TUTORIAL_WEAK_HINT_X = 260;
-export const TUTORIAL_WEAK_HINT_Y = 36;
+export const TUTORIAL_WEAK_HINT_Y = -120;
 /** 入箱后圈右上「回港」，与 RuntimePrototype 回港钮一致。 */
 export const TUTORIAL_RETURN_X = 530;
 export const TUTORIAL_RETURN_Y = 268;

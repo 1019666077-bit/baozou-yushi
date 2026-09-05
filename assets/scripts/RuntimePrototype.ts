@@ -65,6 +65,7 @@ import {
   flopBeatCaption,
   inboxPopup,
   liveQuote,
+  smashCallout,
   styleCallout,
 } from "./domain/StyleCallout";
 import {
@@ -77,8 +78,16 @@ import {
   bounceFreezeSeconds,
   canPickUp,
   carryBobOffset,
+  carryDragHint,
+  carryReleaseAt,
+  carryReleaseCaption,
+  clampCarry,
   crateDrop,
+  escapeCaption,
+  smashWindowOpen,
+  airborneStyleQuality,
 } from "./domain/FlopPhysics";
+import { PLAY_LAYOUT } from "./domain/PlayLayout";
 import {
   castAutoReleaseMs,
   castAutoReleases,
@@ -121,6 +130,7 @@ import {
   juiceShakePx,
   juiceShakeSeconds,
   popupLiftPx,
+  smashHighlightSpec,
   spawnJuice,
   spawnJuiceFlash,
   spawnLandingDust,
@@ -145,7 +155,7 @@ import {
   replacePlayLayer,
   tintGold,
 } from "./ui/RuntimeUi";
-import { drawGuideHole, drawJuice, drawShots } from "./ui/GrayArt";
+import { drawGuideHole, drawJuice, drawShots, drawSmashWindow } from "./ui/GrayArt";
 import { DeckStage } from "./world/DeckStage";
 import { deckFlag } from "./world/deckFlag";
 
@@ -222,6 +232,10 @@ export class RuntimePrototype extends Component {
   private hudPunchElapsed = 0;
   private lastHudMultiplier = 1;
   private lastHudCombo = 0;
+  private hudRiseFrom = 1;
+  private draggingCarry = false;
+  private lastEscapeNote = "";
+  private lastSmashNote = "";
   private shakeLeft = 0;
   private shakePx = 0;
   private crateLabel?: Label;
@@ -357,7 +371,7 @@ export class RuntimePrototype extends Component {
       this.layer,
       this.tutorial
         ? tutorialPrompt("cast")
-        : "抛竿拽上岸。在甲板上砸晕，搬进左边鱼箱。空中打更值钱。",
+        : "抛竿拽上岸。在甲板上砸晕，下半屏拖进左边鱼箱。空中砸更值钱。",
       22,
       0,
       268,
@@ -378,18 +392,30 @@ export class RuntimePrototype extends Component {
     this.crateLabel = makeLabel(this.layer, "鱼箱", 20, -520, -96, 120);
     this.crateLabel.color = new Color(255, 236, 180, 255);
 
-    this.bindPad("MovePad", -320, 0, 640, 420, {
-      start: (event) => this.onMoveStart(event),
-      move: (event) => this.onMove(event),
-      end: () => {
-        this.moving = false;
+    this.bindPad(
+      "MovePad",
+      PLAY_LAYOUT.movePad.x,
+      PLAY_LAYOUT.movePad.y,
+      PLAY_LAYOUT.movePad.w,
+      PLAY_LAYOUT.movePad.h,
+      {
+        start: (event) => this.onMoveStart(event),
+        move: (event) => this.onMove(event),
+        end: () => this.onMoveEnd(),
       },
-    });
-    this.bindPad("AimPad", 320, 0, 640, 420, {
-      start: (event) => this.onAimStart(event),
-      move: (event) => this.onAimMove(event),
-      end: (event) => this.onAimEnd(event),
-    });
+    );
+    this.bindPad(
+      "AimPad",
+      PLAY_LAYOUT.aimPad.x,
+      PLAY_LAYOUT.aimPad.y,
+      PLAY_LAYOUT.aimPad.w,
+      PLAY_LAYOUT.aimPad.h,
+      {
+        start: (event) => this.onAimStart(event),
+        move: (event) => this.onAimMove(event),
+        end: (event) => this.onAimEnd(event),
+      },
+    );
 
     this.fishRoot = new Node("FishRoot");
     this.fishRoot.layer = this.layer.layer;
@@ -551,11 +577,13 @@ export class RuntimePrototype extends Component {
   private onMoveStart(event: EventTouch): void {
     this.noteInput();
     if (this.held()) return;
+    if (this.beginCarryDrag(event)) return;
     this.moving = true;
     this.onMove(event);
   }
 
   private onMove(event: EventTouch): void {
+    if (this.tickCarryDrag(event)) return;
     if (!this.moving) return;
     this.noteInput();
     const pos = this.toLayer(event);
@@ -566,9 +594,18 @@ export class RuntimePrototype extends Component {
     );
   }
 
+  private onMoveEnd(): void {
+    if (this.draggingCarry) {
+      this.finishCarryDrag();
+      return;
+    }
+    this.moving = false;
+  }
+
   private onAimStart(event: EventTouch): void {
     this.noteInput();
     if (this.held()) return;
+    if (this.beginCarryDrag(event)) return;
     this.aiming = true;
     this.aimStartedAt = Date.now();
     this.aimFrom.set(this.player.position);
@@ -576,16 +613,56 @@ export class RuntimePrototype extends Component {
   }
 
   private onAimMove(event: EventTouch): void {
+    if (this.tickCarryDrag(event)) return;
     if (!this.aiming) return;
     this.aimTo.set(this.toLayer(event));
   }
 
   private onAimEnd(event: EventTouch): void {
+    if (this.draggingCarry) {
+      this.finishCarryDrag();
+      return;
+    }
     if (!this.aiming) return;
     this.aimTo.set(this.toLayer(event));
     this.aiming = false;
     if (this.currentKind() === "cannon") return;
     this.fire();
+  }
+
+  private beginCarryDrag(event: EventTouch): boolean {
+    if (!this.carried?.node.active) return false;
+    this.draggingCarry = true;
+    this.moving = false;
+    this.aiming = false;
+    this.tickCarryDrag(event);
+    return true;
+  }
+
+  private tickCarryDrag(event: EventTouch): boolean {
+    if (!this.draggingCarry || !this.carried?.node.active) return false;
+    const raw = this.toLayer(event);
+    const pos = clampCarry(raw.x, raw.y);
+    this.carried.followCarry(pos.x, pos.y);
+    return true;
+  }
+
+  private finishCarryDrag(): void {
+    if (!this.draggingCarry) return;
+    this.draggingCarry = false;
+    const fish = this.carried;
+    if (!fish?.node.active) return;
+    const kind = carryReleaseAt(fish.node.position.x, fish.node.position.y);
+    if (kind === "stash") {
+      this.stashCarried();
+      return;
+    }
+    fish.dropCarry(fish.node.position.x, fish.node.position.y, kind === "drop_water");
+    if (kind === "drop_water") this.hooked = undefined;
+    else if (!this.hooked) this.hooked = fish;
+    this.carried = undefined;
+    this.carriedSince = 0;
+    this.setStatus(carryReleaseCaption(kind));
   }
 
   private movePlayer(dt: number): void {
@@ -773,7 +850,7 @@ export class RuntimePrototype extends Component {
       this.setStatus(
         this.tutorial
           ? tutorialPrompt(this.tutorialStep)
-          : "已经锁鱼，用右半屏瞄准开火。",
+          : "已经锁鱼，用右下半屏瞄准开火。",
       );
       return;
     }
@@ -815,10 +892,11 @@ export class RuntimePrototype extends Component {
     this.lastCastQuality = castQuality(charge);
     this.playCastFeel(this.lastCastQuality);
     if (this.tutorial) {
-      this.hooked.setAssist({
+        this.hooked.setAssist({
         freezeSeconds: TUTORIAL_WEAK_PAUSE_SECONDS,
         forceWeak: true,
         radiusScale: 1.8,
+        noEscape: true,
       });
       this.enterTutorial("hooked");
       return;
@@ -967,6 +1045,7 @@ export class RuntimePrototype extends Component {
     const tool = this.equippedTool();
     const now = Date.now();
     const airborne = this.hooked.airborne;
+    const smashGrade = this.hooked.smashGrade;
     const result = this.hooked.applyHit(
       tool,
       judged.accuracy,
@@ -989,21 +1068,32 @@ export class RuntimePrototype extends Component {
         judged.accuracy *
         (this.tutorial ? 1 : castStyleQuality(this.lastCastQuality)),
     });
-    if (airborne) {
-      this.session.addStyle({ action: "airborne", atMs: now });
+    if (airborne && smashWindowOpen(smashGrade)) {
+      this.session.addStyle({
+        action: "airborne",
+        atMs: now,
+        quality: airborneStyleQuality(smashGrade),
+      });
     }
     const snap = this.session.getStyleSnapshot();
     const parts = {
       weakPoint: judged.weakPoint,
-      airborne,
+      airborne: smashWindowOpen(smashGrade),
       combo: snap.combo,
     };
-    this.showCallout(styleCallout(parts));
-    const juice: JuiceKind = judged.weakPoint ? "weak" : "hit";
+    const smashLine = smashCallout(smashGrade, judged.weakPoint);
+    this.showCallout(smashLine || styleCallout(parts));
+    const juice: JuiceKind = judged.weakPoint
+      ? "weak"
+      : smashWindowOpen(smashGrade)
+        ? "smash"
+        : "hit";
     this.burst(juice, tx, ty);
-    this.beginHitStop(hitStopSeconds(juice, this.lowPower));
-    SfxPlayer.play(judged.weakPoint ? "weak" : "hit");
-    if (shouldVibrate(this.vibration, parts)) WechatAdapter.vibrate();
+    this.beginHitStop(hitStopSeconds(juice === "smash" ? "smash" : juice, this.lowPower));
+    SfxPlayer.play(judged.weakPoint ? "weak" : smashWindowOpen(smashGrade) ? "smash" : "hit");
+    if (shouldVibrate(this.vibration, { ...parts, airborne: smashWindowOpen(smashGrade) })) {
+      WechatAdapter.vibrate();
+    }
     if (result.readyToReel) {
       this.setStatus("砸晕了！点捡起，搬去左边鱼箱。");
     } else if (
@@ -1076,12 +1166,16 @@ export class RuntimePrototype extends Component {
   private tickCarry(): void {
     if (!this.carried?.node.active) {
       this.carried = undefined;
+      this.draggingCarry = false;
       return;
     }
-    const p = this.player.position;
-    const bob = carryBobOffset(this.runElapsed);
-    this.carried.followCarry(p.x + 40 + bob.x, p.y + 30 + bob.y);
+    if (!this.draggingCarry) {
+      const p = this.player.position;
+      const bob = carryBobOffset(this.runElapsed);
+      this.carried.followCarry(p.x + 40 + bob.x, p.y + 30 + bob.y);
+    }
     if (crateDrop(this.carried.node.position.x, this.carried.node.position.y)) {
+      this.draggingCarry = false;
       this.stashCarried();
     }
   }
@@ -1099,7 +1193,7 @@ export class RuntimePrototype extends Component {
     this.noteInput();
     if (this.held()) return;
     if (this.carried) {
-      this.setStatus("已经扛着一条。走到左边鱼箱丢掉。");
+      this.setStatus(carryDragHint());
       return;
     }
     const near = this.nearestPickable();
@@ -1124,7 +1218,7 @@ export class RuntimePrototype extends Component {
     this.setStatus(
       this.tutorial
         ? tutorialPrompt("reel", { carrying: true })
-        : "扛上了。搬去左边鱼箱。",
+        : carryDragHint(),
     );
   }
 
@@ -1347,15 +1441,25 @@ export class RuntimePrototype extends Component {
   private tickEscape(): void {
     if (this.tutorial) return;
     if (this.carried) return;
-    if (this.hooked && !this.hooked.isHooked && !this.hooked.pickable) {
+    const hooked = this.hooked;
+    if (hooked && !hooked.isHooked && !hooked.pickable) {
       this.hooked = undefined;
-      this.setStatus("跳回海里了。再抛竿拽上来。");
+      this.setStatus(escapeCaption("gone"));
+      this.lastEscapeNote = "gone";
       return;
     }
-    if (!this.hooked?.fishConfig || this.hooked.pickable) return;
-    const limit = this.hooked.fishConfig.escapeSeconds * 1000;
+    if (!hooked?.node.active) return;
+    const phase = hooked.escapePhase;
+    if (phase !== "idle" && phase !== this.lastEscapeNote) {
+      this.lastEscapeNote = phase;
+      const line = escapeCaption(phase);
+      if (line) this.setStatus(line);
+    }
+    if (phase === "idle") this.lastEscapeNote = "";
+    if (!hooked.fishConfig || hooked.pickable || hooked.onDeck) return;
+    const limit = hooked.fishConfig.escapeSeconds * 1000;
     if (Date.now() - this.hookedAt <= limit) return;
-    this.hooked.setHooked(false);
+    hooked.setHooked(false);
     this.hooked = undefined;
     this.setStatus("鱼挣脱了。再抛竿拽一条。");
   }
@@ -1423,7 +1527,7 @@ export class RuntimePrototype extends Component {
     this.setStatus(
       this.tutorial
         ? tutorialPrompt("reel", { carrying: true })
-        : "扛上了。搬去左边鱼箱。",
+        : carryDragHint(),
     );
   }
 
@@ -1599,6 +1703,7 @@ export class RuntimePrototype extends Component {
   private drawGuide(): void {
     this.syncBarButtons();
     this.guide.clear();
+    this.paintSmashWindow();
     if (!this.tutorial) return;
     const focus = tutorialGuideTarget(this.tutorialStep, {
       carrying: !!this.carried?.node.active,
@@ -1627,6 +1732,21 @@ export class RuntimePrototype extends Component {
     const ring = tutorialGuideRing(Date.now());
     const hole = (fallback?.radius ?? 78) + ring.pulse * 0.35;
     drawGuideHole(this.guide, x, y, hole, ring);
+  }
+
+  private paintSmashWindow(): void {
+    const fish = this.hooked;
+    if (!fish?.node.active) return;
+    const spec = smashHighlightSpec(fish.smashGrade, Date.now(), this.lowPower);
+    if (!spec.visible) {
+      this.lastSmashNote = "";
+      return;
+    }
+    drawSmashWindow(this.guide, fish.node.position.x, fish.node.position.y, spec);
+    if (fish.smashGrade === "perfect" && this.lastSmashNote !== spec.caption) {
+      this.lastSmashNote = spec.caption;
+      this.showCallout(spec.caption);
+    }
   }
 
   private returnHarbor(): void {
@@ -1670,19 +1790,24 @@ export class RuntimePrototype extends Component {
             ? juiceShakeSeconds(this.lowPower) - this.shakeLeft
             : 1,
         lowPower: this.lowPower,
+        smashGrade: this.hooked?.smashGrade,
       },
     );
     if (!this.status) return;
     const preview = this.session.preview();
     const style = this.session.getStyleSnapshot();
     this.coinsLabel.string = `本局 ${preview.coins}`;
-    this.multiplier.string = comboHud(style.multiplier, style.combo);
+    this.multiplier.string = comboHud(style.multiplier, style.combo, {
+      rising: this.hudPunchLeft > 0,
+      from: this.hudRiseFrom,
+    });
     if (
       styleHudShouldPunch(
         { multiplier: this.lastHudMultiplier, combo: this.lastHudCombo },
         { multiplier: style.multiplier, combo: style.combo },
       )
     ) {
+      this.hudRiseFrom = this.lastHudMultiplier;
       this.hudPunchElapsed = 0;
       this.hudPunchLeft = styleHudPunchSeconds(this.lowPower);
     }
@@ -1697,6 +1822,7 @@ export class RuntimePrototype extends Component {
         liveQuote(fish, style.multiplier),
         `韧性 ${this.hooked.remainingToughness}`,
         this.hooked.weakOpen ? "弱点亮" : "",
+        smashHighlightSpec(this.hooked.smashGrade, Date.now(), this.lowPower).caption,
         fish.behavior === "shield"
           ? this.hooked.shieldOpen
             ? "甲缝开"

@@ -10,16 +10,23 @@ import {
 import { depthScale } from "../domain/DepthScale";
 import { FishView } from "./FishView";
 import {
+  applyEscape,
   beginFlop,
   bouncedOnDeck,
   createFlopBody,
+  escapePhaseAt,
+  flopMassForTier,
   isAirborne,
   inWater,
   knock,
-  leapTowardWater,
+  knockKindOf,
+  smashGradeAt,
   stepFlop,
   yankStep,
+  type EscapePhase,
   type FlopBody,
+  type KnockKind,
+  type SmashGrade,
 } from "../domain/FlopPhysics";
 
 const { ccclass } = _decorator;
@@ -51,12 +58,17 @@ export class FishController extends Component {
   private hitPulse = 0;
   private mode: "swim" | "yank" | "flop" | "stunned" | "carried" = "swim";
   private body: FlopBody = createFlopBody(0, 0);
-  private leapWait = 0;
   private waterTime = 0;
   private pendingBounce = false;
   private pendingSplash = false;
   private bounceCount = 0;
   private pendingBounceIndex = 0;
+  private mass = 1;
+  private apexY = 0;
+  private unattended = 0;
+  private escapeLocked = false;
+  private escapeNow: EscapePhase = "idle";
+  private smashNow: SmashGrade = "none";
   decoy = false;
 
   initialize(config: FishConfig, decoy = false): void {
@@ -67,15 +79,20 @@ export class FishController extends Component {
     this.decoy = decoy;
     this.patternStun = 0;
     this.mode = "swim";
-    this.leapWait = 0;
     this.waterTime = 0;
     this.pendingBounce = false;
     this.pendingSplash = false;
     this.bounceCount = 0;
     this.pendingBounceIndex = 0;
+    this.mass = flopMassForTier(config.tier);
+    this.apexY = this.node.position.y;
+    this.unattended = 0;
+    this.escapeLocked = false;
+    this.escapeNow = "idle";
+    this.smashNow = "none";
     this.node.angle = 0;
     this.origin.set(this.node.position);
-    this.body = createFlopBody(this.node.position.x, this.node.position.y);
+    this.body = createFlopBody(this.node.position.x, this.node.position.y, this.mass);
     this.node.active = true;
     this.view =
       this.node.getComponent(FishView) ?? this.node.addComponent(FishView);
@@ -88,11 +105,12 @@ export class FishController extends Component {
     this.hooked = value;
     if (value && this.mode === "swim") {
       this.mode = "yank";
-      this.body = createFlopBody(this.node.position.x, this.node.position.y);
+      this.body = createFlopBody(this.node.position.x, this.node.position.y, this.mass);
     }
-    if (!value && (this.mode === "yank" || this.mode === "flop")) {
+    if (!value && this.mode !== "carried" && this.mode !== "swim") {
       this.mode = "swim";
       this.node.angle = 0;
+      this.smashNow = "none";
       this.origin.set(this.node.position);
     }
     this.present();
@@ -101,7 +119,9 @@ export class FishController extends Component {
   forceDeckFlop(): void {
     this.hooked = true;
     this.mode = "flop";
-    this.body = beginFlop(-320, -70);
+    this.body = beginFlop(-320, -70, this.mass);
+    this.apexY = this.body.y;
+    this.unattended = 0;
     this.applyBody();
     this.present();
   }
@@ -110,13 +130,27 @@ export class FishController extends Component {
     this.mode = "carried";
     this.stunnedNow = true;
     this.airborneNow = false;
+    this.smashNow = "none";
+    this.escapeNow = "idle";
     this.node.angle = 0;
     this.present();
   }
 
   followCarry(x: number, y: number): void {
     this.node.setPosition(x, y);
-    this.body = createFlopBody(x, y);
+    this.body = createFlopBody(x, y, this.mass);
+  }
+
+  dropCarry(x: number, y: number, intoWater: boolean): void {
+    this.mode = this.remainingToughness <= 0 && !intoWater ? "stunned" : "flop";
+    this.body = createFlopBody(x, y, this.mass);
+    this.body.vy = intoWater ? 80 : 240;
+    this.body.vx = intoWater ? 180 : -40;
+    this.body.spin = intoWater ? 10 : 8;
+    this.unattended = intoWater ? 2 : 0;
+    this.apexY = y;
+    this.applyBody();
+    this.present();
   }
 
   get yanking(): boolean {
@@ -150,16 +184,39 @@ export class FishController extends Component {
     return this.mode === "carried";
   }
 
-  knockFrom(fromX: number, fromY: number, power: number): void {
-    if (this.mode !== "flop" && this.mode !== "stunned") return;
-    this.body = knock(this.body, fromX, fromY, power);
+  get smashGrade(): SmashGrade {
+    return this.smashNow;
   }
 
-  setAssist(_options?: {
+  get escapePhase(): EscapePhase {
+    return this.escapeNow;
+  }
+
+  knockFrom(
+    fromX: number,
+    fromY: number,
+    power: number,
+    kind: KnockKind = "body",
+  ): void {
+    if (this.mode !== "flop" && this.mode !== "stunned" && this.mode !== "yank") {
+      return;
+    }
+    if (this.mode === "yank") {
+      this.mode = "flop";
+      this.body = beginFlop(this.body.x, this.body.y, this.mass);
+    }
+    this.body = knock(this.body, fromX, fromY, power, kind);
+    this.unattended = 0;
+  }
+
+  setAssist(options?: {
     freezeSeconds?: number;
     forceWeak?: boolean;
     radiusScale?: number;
-  }): void {}
+    noEscape?: boolean;
+  }): void {
+    if (options?.noEscape !== undefined) this.escapeLocked = options.noEscape;
+  }
 
   applyHit(
     tool: ToolLevel,
@@ -194,7 +251,12 @@ export class FishController extends Component {
     this.hitPulse = FishController.lowPower ? 0 : weakPoint ? 0.22 : 0.16;
     const result = this.capture.hit(tool, accuracy, weakPoint, charge, scale);
     if (context?.originX != null) {
-      this.knockFrom(context.originX, this.node.position.y, tool.power);
+      this.knockFrom(
+        context.originX,
+        this.node.position.y,
+        tool.power,
+        knockKindOf(weakPoint, this.airborneNow),
+      );
     }
     if (result.remainingToughness <= 0 && this.mode !== "carried") {
       this.mode = "stunned";
@@ -304,7 +366,9 @@ export class FishController extends Component {
       if (next.landed) {
         this.pendingSplash = true;
         this.mode = "flop";
-        this.body = beginFlop(next.x, next.y);
+        this.body = beginFlop(next.x, next.y, this.mass);
+        this.apexY = this.body.y;
+        this.unattended = 0;
         this.applyBody();
       }
       this.present();
@@ -320,21 +384,35 @@ export class FishController extends Component {
         this.pendingBounceIndex = this.bounceCount;
         this.bounceCount += 1;
       }
-      if (!down) {
-        this.leapWait += dt;
-        if (this.leapWait > 0.4 && !isAirborne(this.body)) {
-          this.body = leapTowardWater(this.body);
-          this.leapWait = 0;
-        }
-      }
-      this.applyBody();
+      if (this.body.y > this.apexY) this.apexY = this.body.y;
       this.airborneNow = isAirborne(this.body);
       this.stunnedNow = down;
-      if (!down && inWater(this.body)) {
-        this.waterTime += dt;
-        if (this.waterTime > 0.85) this.setHooked(false);
+      this.smashNow = smashGradeAt(this.body, this.apexY);
+      if (this.escapeLocked || this.airborneNow) {
+        if (this.airborneNow) this.unattended = 0;
       } else {
-        this.waterTime = 0;
+        this.unattended += dt;
+      }
+      if (inWater(this.body)) this.waterTime += dt;
+      else this.waterTime = 0;
+      this.escapeNow = this.escapeLocked
+        ? "idle"
+        : escapePhaseAt({
+            onDeck: !this.airborneNow && !inWater(this.body),
+            airborne: this.airborneNow,
+            inWater: inWater(this.body),
+            stunned: down,
+            unattended: this.unattended,
+            waterTime: this.waterTime,
+          });
+      if (!this.escapeLocked) {
+        this.body = applyEscape(this.body, this.escapeNow, dt);
+      }
+      this.applyBody();
+      if (this.escapeNow === "gone") {
+        this.setHooked(false);
+        this.present();
+        return;
       }
       this.present();
       return;
@@ -363,7 +441,7 @@ export class FishController extends Component {
         this.origin.z,
       );
     }
-    this.body = createFlopBody(this.node.position.x, this.node.position.y);
+    this.body = createFlopBody(this.node.position.x, this.node.position.y, this.mass);
     this.node.angle = 0;
     this.applyFacingScale();
     this.present();
