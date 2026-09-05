@@ -25,6 +25,7 @@
 
 - 真机上看合批与 45FPS；必要时把 sphere 段数再降。
 - 本机 Creator 打 `web-desktop` 才能当 3D 手感证据。云端**没有** Creator 预览包。
+- `docs/stage3d/creator-shots/` 仍是空占位，**未伪造** 4 张 png。有 Creator 的人截完才能把估分坐实。
 - 256 滚动法线仍是备选，本 tip 用顶点波保持 0 贴图。
 
 ## 包体 / 性能
@@ -40,30 +41,37 @@
 
 微信构建：`docs/SCENE_SETUP.md` 已要求开启 **3D + primitive**，关地形/后处理。本机未装 Creator 时 **不能** 用 `try-web-desktop-build` 冒充已出包。
 
-## 本地 Creator 预览（3D 证据，必做）
+## 最短：Creator 预览 → 4 张（3D 证据）
 
-1. Creator 3.8.8 打开仓库根目录 → `assets/scenes/Boot.scene` → 预览。
-2. **港口应看到：**
-   - 透视海面有近/中/远色带，水面有矮波（不是一条平色带）。
-   - 左侧码头有栏杆、台阶、青箱；棚架有立柱和金幌。
-   - 远处三座岛分层（泡沫湾矮丘+树、棱镜礁晶体、风眼暗丘+烟）。
-   - 日落侧光，岛剪影比上一 tip 更干净。
-   - HUD 仍是 2D，主橙 CTA 在下。
-3. **出海教学应看到：**
-   - 鱼是 5 件低模（身 / 浅色脸 / 鳞片色块 / 尾 / **大金弱点**），不是一条方块。
-   - 抛竿时镜头略送向海并微低头；命中短震；翻扑抛物时镜头略抬。
-   - 砸甲板鱼身短压扁。低配开关后跟镜/水波/微震应停。
-4. **建议截 4 张（本机 Creator，勿用代理顶替）：**
-   1. 港口全景（能看清水域透视 + 三岛 + 市集）。
-   2. 码头近景（栏杆/台阶/棚架）。
-   3. 教学湾鳍侧脸（脸块 + 弱点清晰）。
-   4. 翻扑最高点或砸甲板瞬间（镜头略抬/微震）。
-5. 命令行出包仍要本机 Creator，见 `docs/LOCAL_PREVIEW.md`。
+**期望构图 ≠ Creator / 真机。** 示意图在 `docs/stage3d/expect_*.jpg`（标题/水印/README/`gallery.html` 都写了「非实机」）。真机图只认 `docs/stage3d/creator-shots/`。
 
-期望构图（**示意图，非实机、非 Creator 截图**）在 `docs/stage3d/`（`expect_harbor_composition.jpg` / `expect_fish_five_parts.jpg` / `expect_cast_flop_cam.jpg`）。
+1. Creator 3.8.8 打开仓库根目录。
+2. 打开 `assets/scenes/Boot.scene`。
+3. 预览：工具栏播放，或 `Ctrl+P` / `Cmd+P`。
+4. 截 4 张，文件名对齐后丢进 `docs/stage3d/creator-shots/`：
+
+| 文件 | 应看到什么 |
+| --- | --- |
+| `01_harbor_wide.png` | 透视近/中/远海 + 矮波；左侧码头市集；三岛分层；日落侧光；2D 主橙 CTA |
+| `02_dock_near.png` | 栏杆 / 台阶 / 青箱 / 棚架立柱金幌 / 停泊小船 |
+| `03_bayfin_weak.png` | 鱼 5 件：身 / 脸 / 鳞片色块 / 尾 / **大金弱点**（可轻脉冲） |
+| `04_flop_smash.png` | 翻扑抛物、镜头略抬、砸甲板短压扁。低配开关后跟镜/水波/微震应停 |
+
+打印清单：`node tools/stage3d-shot-checklist.mjs`。命令行出包见 `docs/LOCAL_PREVIEW.md`。
+
+**港口预览还应核对：**
+
+- 水面不是一条平色带。
+- 远处三座岛分层（泡沫湾矮丘+树、棱镜礁晶体、风眼暗丘+烟）。
+- HUD 仍是 2D，主橙 CTA 在下。
+
+**出海教学还应核对：**
+
+- 鱼不是一条方块。
+- 抛竿时镜头略送向海并微低头；命中短震；翻扑抛物时镜头略抬。
 
 ## 代理预览
 
-`node tools/first-run-preview/serve.mjs` 是 **2D DOM/canvas 代理**，用来验 CTA/教学闭环。
+`node tools/first-run-preview/serve.mjs` 是 **2D DOM/canvas 辅助代理**，用来验 CTA/教学闭环。
 
-**2D 代理 ≠ Creator 3D 实机。** 顶栏必须写明这一点。不能当画面 8.5 或真机手感证据。
+**2D/辅助 ≠ Creator 3D 实机。** 顶栏必须写明这一点。不能当画面 8.5 或真机手感证据。

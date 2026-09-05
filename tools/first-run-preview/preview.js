@@ -1,6 +1,6 @@
 /**
  * 第一局灰盒预览。文案、CTA、色板与 juice 从 generated/copy.mjs 抽出。
- * 非 Cocos 实机：无甲板扑腾、无真实瞄准手感。
+ * 非 Cocos 实机：2D/辅助 ≠ Creator 3D。无甲板扑腾、无真实瞄准手感。
  */
 import { COPY } from "./generated/copy.mjs";
 

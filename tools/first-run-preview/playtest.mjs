@@ -82,6 +82,7 @@ try {
   await wait(400);
   const disclaimer = await page.$eval("#disclaimer", (el) => el.textContent);
   note(disclaimer.includes("非 Cocos 实机"), `disclaimer ${disclaimer}`);
+  note(disclaimer.includes("2D/辅助") && disclaimer.includes("Creator 3D"), "disclaimer marks 2D/辅助 ≠ Creator 3D");
   await shot(page, "01-harbor-new");
 
   const harborText = await page.evaluate(() => document.body.innerText);
