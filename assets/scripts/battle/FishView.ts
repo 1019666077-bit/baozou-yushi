@@ -1,5 +1,6 @@
 import { _decorator, Component, Graphics, UITransform } from "cc";
 import type { FishConfig } from "../data/types";
+import type { FishFace } from "../domain/ArtRecipe";
 import { fishLook } from "../domain/GrayLook";
 import { drawFish } from "../ui/GrayArt";
 import { deckFlag } from "../world/deckFlag";
@@ -14,6 +15,7 @@ export class FishView extends Component {
   private decoy = false;
   private armored = false;
   private hit = false;
+  private face: FishFace = "idle";
 
   render(config: FishConfig): void {
     this.config = config;
@@ -23,17 +25,19 @@ export class FishView extends Component {
   setPresentation(
     flashing: boolean,
     hooked: boolean,
-    look: { decoy?: boolean; armored?: boolean; hit?: boolean } = {},
+    look: { decoy?: boolean; armored?: boolean; hit?: boolean; face?: FishFace } = {},
   ): void {
     const decoy = look.decoy === true;
     const armored = look.armored === true;
     const hit = look.hit === true;
+    const face = look.face ?? (hooked ? "hooked" : hit ? "stunned" : "idle");
     if (
       this.flashing === flashing &&
       this.hooked === hooked &&
       this.decoy === decoy &&
       this.armored === armored &&
-      this.hit === hit
+      this.hit === hit &&
+      this.face === face
     ) {
       return;
     }
@@ -42,6 +46,7 @@ export class FishView extends Component {
     this.decoy = decoy;
     this.armored = armored;
     this.hit = hit;
+    this.face = face;
     this.draw();
   }
 
@@ -88,6 +93,7 @@ export class FishView extends Component {
       hit: this.hit,
       hooked: this.hooked,
       flashing: this.flashing,
+      face: this.face,
     });
   }
 }

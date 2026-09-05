@@ -16,6 +16,7 @@ import {
 } from "../assets/scripts/domain/SaveMerge";
 import { StyleScoreSystem } from "../assets/scripts/domain/StyleScoreSystem";
 import { validateRun } from "../cloudfunctions/shared/ScoreValidator";
+import { validSave } from "../cloudfunctions/shared/SaveValidator";
 import { fishIdsForIsland } from "../assets/scripts/content/IslandFishPool";
 import {
   classifyHit,
@@ -47,6 +48,11 @@ import { RunSession } from "../assets/scripts/domain/RunSession";
 import {
   applyRunRewards,
   bookLines,
+  coinJumpCaption,
+  discoveryToast,
+  discoveryToastLine,
+  firstCatchIds,
+  isFirstCatch,
   settleHeadline,
   settleRows,
   settleSlogan,
@@ -60,6 +66,27 @@ import {
   spawnJuice,
   tickJuice,
   juiceCount,
+  juicePunchPeak,
+  juicePunchScaleAt,
+  juicePunchSeconds,
+  juiceShakePx,
+  juiceShakeSeconds,
+  juiceWantsPunch,
+  spawnJuiceFlash,
+  tickJuiceFlash,
+  spawnGoldRain,
+  crateBounceScaleAt,
+  popupLiftPx,
+  juiceFlashLineWidth,
+  castFlashSeconds,
+  castLineWidth,
+  castRodScaleAt,
+  castTipNudgePx,
+  smashSquashAt,
+  smashSquashSeconds,
+  spawnLandingDust,
+  weakReticleRadius,
+  weakReticleTickPx,
 } from "../assets/scripts/domain/HitJuice";
 import {
   BOSS_SECONDS,
@@ -69,8 +96,17 @@ import {
   waveCaption,
 } from "../assets/scripts/domain/IslandClock";
 import {
+  castBarLabel,
+  castChargeCaption,
+  castHoldHint,
+  castLockCaption,
+  castSnapCaption,
   comboHud,
+  flopBeatCaption,
+  inboxPopup,
   liveQuote,
+  sellGoalBridge,
+  sellPopup,
   styleCallout,
 } from "../assets/scripts/domain/StyleCallout";
 import {
@@ -78,6 +114,24 @@ import {
   spawnCap,
   shouldVibrate,
   hitStopSeconds,
+  buttonFillRgb,
+  buttonRadius,
+  buttonSpec,
+  buttonStrokeWidth,
+  coinJumpAlpha,
+  coinJumpLiftPx,
+  calloutHoldMs,
+  coinJumpSeconds,
+  creamInkRgb,
+  feelPalette,
+  goldHudRgb,
+  plateFillRgba,
+  plateSize,
+  sellPunchSeconds,
+  styleHudPunchRgb,
+  styleHudPunchScaleAt,
+  styleHudPunchSeconds,
+  styleHudShouldPunch,
 } from "../assets/scripts/domain/GameFeel";
 import {
   bestStyleLine,
@@ -85,7 +139,19 @@ import {
   friendBoardHint,
 } from "../assets/scripts/domain/BoardCopy";
 import { depthScale } from "../assets/scripts/domain/DepthScale";
-import { islandPackName, harborSailWait } from "../assets/scripts/domain/IslandPack";
+import {
+  decideSailAfterPack,
+  harborPackFailCopy,
+  islandPackName,
+  harborSailWait,
+} from "../assets/scripts/domain/IslandPack";
+import {
+  canShowFriendBoardForSession,
+  persistCloudKind,
+  resolveLoginCode,
+  shouldCallCloud,
+  wechatSessionKind,
+} from "../assets/scripts/domain/WechatSession";
 import {
   beginFlop,
   crateDrop,
@@ -94,20 +160,101 @@ import {
   stepFlop,
   yankStep,
   bouncedOnDeck,
+  bounceFreezeSeconds,
   canPickUp,
+  CARRY_FEEL,
+  YANK_FEEL,
+  carryBobOffset,
+  flopPickupReady,
+  yankArcLift,
+  flopApexAboveDeck,
 } from "../assets/scripts/domain/FlopPhysics";
+import {
+  CAST_FEEL,
+  castAutoReleaseMs,
+  castAutoReleases,
+  castChargeAt,
+  castIsSpectacular,
+  castPreviewPts,
+  castQuality,
+  castStyleQuality,
+  castSweet,
+  tutorialCastAssists,
+  weakWindowOpen,
+} from "../assets/scripts/domain/CastFeel";
 import {
   deckKindForFish,
   toActorWorld,
   toBoatWorld,
 } from "../assets/scripts/domain/DeckMap";
 import {
+  healthAdviceLines,
+  healthAdviceTitle,
   privacyLines,
   wipeBody,
   wipeCaption,
   wipeDoneNotice,
 } from "../assets/scripts/domain/PrivacyCopy";
-import { sfxTone, shouldPlaySfx } from "../assets/scripts/domain/SfxFeel";
+import {
+  DEFAULT_SAIL_ISLAND_ID,
+  TUTORIAL_ISLAND_ID,
+  advanceTutorial,
+  harborChipSelected,
+  harborFeatureButtonLabel,
+  harborFeatureLockedHint,
+  harborSailCaption,
+  harborUnlocks,
+  harborUnlocksForSave,
+  isTutorialRun,
+  nextSailIsland,
+  pickupAssistDecision,
+  PICKABLE_AUTO_MS,
+  PICKABLE_HINT_MS,
+  CARRIED_AUTO_MS,
+  CARRIED_HINT_MS,
+  SETTLE_LEAVE_AUTO_MS,
+  SETTLE_LEAVE_HINT_MS,
+  INPUT_GRACE_MS,
+  settleLeaveDecision,
+  resolveHarborIsland,
+  shouldAutoReel,
+  tutorialCanLeave,
+  tutorialGuideAnchor,
+  tutorialGuideRing,
+  tutorialGuideTarget,
+  tutorialPrompt,
+  tutorialBarButtonTone,
+  battleBarButtonTone,
+  battleBarButtonVisible,
+  battleInboxCtaVisible,
+  inboxBarCaption,
+  tutorialLessonActive,
+  battleWaveNarration,
+  waveStartNarration,
+  canAffordNextUpgrade,
+  harborNextCta,
+  harborNextPrompt,
+  harborGoalPrompt,
+  harborUpgradeProgressLine,
+  harborHudPhase,
+  harborHudShowMeta,
+  harborHudShowDiscovery,
+  harborHudToastText,
+  harborToastHoldSeconds,
+  harborIslandChipCaption,
+  harborSellBridgeLine,
+  upgradeProgressRatio,
+  weakHintCaption,
+} from "../assets/scripts/domain/TutorialFlow";
+import {
+  sfxCastVoices,
+  sfxPlaceholderNote,
+  sfxTone,
+  sfxVoices,
+  shouldPlaySfx,
+} from "../assets/scripts/domain/SfxFeel";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   closedIslandCaption,
   cloudStatusLine,
@@ -121,6 +268,48 @@ import {
   harborIslandX,
   islandLook,
 } from "../assets/scripts/domain/GrayLook";
+import {
+  boatOps,
+  burstPts,
+  crateOps,
+  dockOps,
+  fishOps,
+  grainStrokes,
+  islandSetOps,
+  lanternFlickerAt,
+  recipeHasTag,
+  recipeKindCount,
+  recipeTagCount,
+  slamMarkOps,
+  speckleDots,
+  swimSway,
+  tailWagRad,
+  washBlobs,
+} from "../assets/scripts/domain/ArtRecipe";
+import {
+  CAM_FEEL,
+  CAM_REST,
+  camSmashOffset,
+  composeHuntCam,
+  smashHoldSeconds,
+  yankCamK,
+} from "../assets/scripts/domain/CameraFeel";
+import {
+  STAGE_BUDGET,
+  boatParts,
+  countParts,
+  displaceWaterPositions,
+  dockParts,
+  findPart,
+  fishParts,
+  harborExtraParts,
+  huntIsleParts,
+  stageMeshCap,
+  waterAmp,
+  waterHeight,
+  waterParts,
+  waterVertCount,
+} from "../assets/scripts/domain/ProcGeom";
 
 const fish: FishConfig = {
   id: "fish_test",
@@ -179,6 +368,15 @@ describe("StyleScoreSystem", () => {
     style.apply({ action: "weakPoint", atMs: 100 });
     const snapshot = style.apply({ action: "combo", atMs: 3_000 });
     expect(snapshot.combo).toBe(1);
+  });
+
+  it("lets free-play early charge earn less than a sweet cast", () => {
+    const sweet = new StyleScoreSystem();
+    const early = new StyleScoreSystem();
+    sweet.apply({ action: "weakPoint", atMs: 800, quality: castStyleQuality("sweet") });
+    early.apply({ action: "weakPoint", atMs: 800, quality: castStyleQuality("early") });
+    expect(sweet.getSnapshot().points).toBeGreaterThan(early.getSnapshot().points);
+    expect(sweet.getSnapshot().multiplier).toBeGreaterThan(early.getSnapshot().multiplier);
   });
 });
 
@@ -505,6 +703,16 @@ describe("SettleCopy", () => {
     const summary = session.finish(30);
     expect(settleHeadline(summary)).toContain("本局卖出");
     expect(settleRows(summary, () => "测试鱼")[0]).toContain("测试鱼");
+    expect(settleRows(summary, () => "测试鱼", [])[0]).toContain("【首次】");
+    expect(settleRows(summary, () => "测试鱼", ["fish_test"])[0]).not.toContain("首次");
+    expect(isFirstCatch("fish_test", [])).toBe(true);
+    expect(firstCatchIds(["fish_test", "fish_test"], [])).toEqual(["fish_test"]);
+    expect(coinJumpCaption(36)).toBe("+36金");
+    expect(coinJumpCaption(0)).toBe("");
+    expect(discoveryToast("湾鳍鱼")).toBe("图鉴新纪录：湾鳍鱼");
+    expect(discoveryToastLine(["湾鳍鱼"])).toBe("图鉴新纪录：湾鳍鱼");
+    expect(discoveryToastLine(["湾鳍鱼", "焰鳗"])).toBe("图鉴新纪录：湾鳍鱼 等2种");
+    expect(discoveryToastLine([])).toBe("");
     expect(settleSlogan(summary).length).toBeGreaterThan(0);
     const next = applyRunRewards(save, summary);
     expect(next.coins).toBe(save.coins + summary.totalCoins);
@@ -519,6 +727,21 @@ describe("SettleCopy", () => {
     expect(settleHeadline(summary)).toBe("空手回港");
     expect(applyRunRewards(save, summary).coins).toBe(0);
     expect(bookLines([{ id: "fish_test", name: "测试鱼" }], []).join()).toContain("未收");
+    expect(bookLines([{ id: "fish_test", name: "测试鱼" }], ["fish_test"], ["fish_test"]).join()).toContain("首次");
+  });
+
+  it("marks tutorial complete only after a tutorial island capture", () => {
+    const save = createDefaultSave(1);
+    const empty = new RunSession("run_t0", TUTORIAL_ISLAND_ID, "tool_rod", 1, 1).finish(2);
+    expect(applyRunRewards(save, empty).tutorialComplete).toBe(false);
+    const session = new RunSession("run_t1", TUTORIAL_ISLAND_ID, "tool_rod", 1, 1);
+    session.capture(fish, 1, 20);
+    const next = applyRunRewards(save, session.finish(30));
+    expect(next.tutorialComplete).toBe(true);
+    expect(next.completedRuns).toBe(1);
+    expect(resolveHarborIsland(next.tutorialComplete, TUTORIAL_ISLAND_ID)).toBe(
+      DEFAULT_SAIL_ISLAND_ID,
+    );
   });
 });
 
@@ -574,6 +797,11 @@ describe("StyleCallout", () => {
     expect(styleCallout({ weakPoint: false, airborne: false, combo: 1, perfect: true })).toBe(
       "入箱",
     );
+    expect(styleCallout({ weakPoint: false, airborne: false, combo: 1, bag: true })).toBe(
+      "入箱",
+    );
+    expect(inboxPopup(42)).toBe("入箱 +42");
+    expect(inboxPopup()).toBe("入箱");
   });
 
   it("shows the live quote going up with style", () => {
@@ -582,6 +810,8 @@ describe("StyleCallout", () => {
     expect(low).toContain("估价");
     expect(high).toContain("×2.00");
     expect(comboHud(1.4, 3)).toContain("3连");
+    expect(castSnapCaption()).toBe("钩出去了。");
+    expect(castLockCaption("湾鳍鱼")).toBe("拽住湾鳍鱼。");
   });
 });
 
@@ -599,6 +829,16 @@ describe("GameFeel", () => {
       false,
     );
     expect(settingCaption("低配", true)).toBe("低配 开");
+    expect(styleHudShouldPunch({ multiplier: 1, combo: 1 }, { multiplier: 1.2, combo: 1 })).toBe(
+      true,
+    );
+    expect(styleHudShouldPunch({ multiplier: 1.4, combo: 3 }, { multiplier: 1, combo: 0 })).toBe(
+      false,
+    );
+    expect(styleHudPunchSeconds(false)).toBeGreaterThan(styleHudPunchSeconds(true));
+    expect(styleHudPunchScaleAt(0.04, false)).toBeGreaterThan(1);
+    expect(styleHudPunchScaleAt(0.04, true)).toBeGreaterThan(1);
+    expect(styleHudPunchRgb(0.04, false)[0]).toBeGreaterThan(240);
     expect(hitStopSeconds("weak", false)).toBe(0.09);
     expect(hitStopSeconds("hit", false)).toBe(0.05);
     expect(hitStopSeconds("weak", true)).toBe(0);
@@ -609,7 +849,7 @@ describe("GameFeel", () => {
 describe("HitJuice", () => {
   it("spawns fewer bubbles on low power and fades them out", () => {
     expect(juiceCount("weak", true)).toBe(3);
-    expect(juiceCount("weak", false)).toBe(11);
+    expect(juiceCount("weak", false)).toBe(9);
     const burst = spawnJuice("weak", 10, 20);
     expect(burst.some((p) => p.kind === "star")).toBe(true);
     expect(burst[0].x).toBe(10);
@@ -618,8 +858,93 @@ describe("HitJuice", () => {
     const mid = tickJuice(spawnJuice("hit", 0, 0), 0.1);
     expect(mid.length).toBe(juiceCount("hit", false));
     expect(mid[0].life).toBeLessThan(1);
-    expect(juiceCount("splash", false)).toBe(16);
+    expect(juiceCount("splash", false)).toBe(10);
     expect(spawnJuice("splash", 0, 0).every((p) => p.kind === "bubble")).toBe(true);
+    expect(juiceWantsPunch("weak", false)).toBe(true);
+    expect(juiceWantsPunch("hit", true)).toBe(false);
+    expect(juicePunchPeak("weak", false)).toBeGreaterThan(1);
+    expect(juicePunchSeconds("catch", false)).toBeGreaterThan(0);
+    expect(juicePunchSeconds("weak", true)).toBe(0);
+    expect(juicePunchScaleAt("weak", 0.05, false)).toBeGreaterThan(1);
+    expect(juicePunchScaleAt("hit", 0, true)).toBe(1);
+    expect(juiceShakePx("weak", false)).toBeGreaterThan(0);
+    expect(juiceShakePx("weak", false)).toBeLessThanOrEqual(5);
+    expect(juiceShakeSeconds(false)).toBeLessThanOrEqual(0.12);
+    expect(juiceShakePx("hit", true)).toBe(0);
+    const flash = spawnJuiceFlash("catch", 8, 12, false);
+    expect(flash?.kind).toBe("catch");
+    expect(tickJuiceFlash(flash, 1)).toBeUndefined();
+    expect(spawnJuiceFlash("miss", 0, 0, false)).toBeUndefined();
+    expect(spawnJuiceFlash("hit", 0, 0, true)).toBeUndefined();
+    expect(juiceCount("cast", false)).toBe(4);
+    expect(juiceCount("cast", true)).toBe(2);
+    expect(spawnJuice("cast", 0, 0).every((p) => p.kind === "bubble")).toBe(true);
+    expect(juiceWantsPunch("cast", false)).toBe(false);
+    expect(juiceShakePx("cast", false)).toBe(0);
+    expect(spawnJuiceFlash("cast", 0, 0, false)?.kind).toBe("cast");
+    expect(spawnJuiceFlash("cast", 0, 0, true)).toBeUndefined();
+    expect(castFlashSeconds(true)).toBeLessThan(castFlashSeconds(false));
+    expect(castLineWidth(0, 0.16, false)).toBeGreaterThan(castLineWidth(0.16, 0.16, false));
+    expect(castTipNudgePx(0, 0.16, false)).toBeGreaterThan(castTipNudgePx(0, 0.16, true));
+    expect(castRodScaleAt(0.04, 0.16, false)).toBeGreaterThan(1);
+    expect(castRodScaleAt(0.04, 0.16, true)).toBe(1);
+  });
+
+  it("keeps cast juice lighter than a hit and weaker on low power", () => {
+    expect(juiceCount("cast", false)).toBeLessThan(juiceCount("hit", false));
+    expect(castFlashSeconds(true)).toBeLessThan(castFlashSeconds(false));
+    expect(castLineWidth(0, castFlashSeconds(false), false)).toBeGreaterThan(6);
+    expect(castTipNudgePx(0, 0.16, false)).toBeGreaterThan(0);
+    expect(castRodScaleAt(0.05, 0.16, true)).toBe(1);
+  });
+
+  it("rains gold on sell and bounces the crate on catch", () => {
+    expect(juiceCount("gold", false)).toBe(10);
+    expect(juiceCount("gold", true)).toBe(6);
+    expect(spawnGoldRain(10, 20).every((p) => p.kind === "coin")).toBe(true);
+    expect(spawnJuiceFlash("sell", 0, 0, false)?.kind).toBe("sell");
+    expect(juiceWantsPunch("sell", false)).toBe(true);
+    expect(crateBounceScaleAt(0.05, false)).toBeGreaterThan(1);
+    expect(popupLiftPx(0.2)).toBeGreaterThan(popupLiftPx(0.02));
+    expect(juiceFlashLineWidth({ x: 0, y: 0, life: 1, maxLife: 0.2, kind: "weak" })).toBeGreaterThan(6);
+    expect(juiceCount("smash", false)).toBeGreaterThan(juiceCount("hit", false));
+    expect(juiceWantsPunch("smash", false)).toBe(true);
+    expect(juiceShakePx("smash", false)).toBeGreaterThan(0);
+    const squash = smashSquashAt(0, false);
+    expect(squash.sx).toBeGreaterThan(1);
+    expect(squash.sy).toBeLessThan(1);
+    expect(smashSquashAt(smashSquashSeconds(false), false)).toEqual({ sx: 1, sy: 1 });
+    expect(smashSquashAt(0, true)).toEqual({ sx: 1, sy: 1 });
+    expect(juiceCount("dust", false)).toBe(24);
+    expect(spawnLandingDust(0, 0).every((p) => p.kind === "dust")).toBe(true);
+    expect(spawnLandingDust(0, 0)[0].size).toBeGreaterThan(18);
+    expect(smashSquashSeconds(false)).toBeGreaterThan(0.28);
+    expect(spawnJuiceFlash("dust", 0, 0, false)).toBeUndefined();
+  });
+});
+
+describe("style HUD punch and discovery toast", () => {
+  it("only punches when multiplier or combo rises", () => {
+    expect(
+      styleHudShouldPunch({ multiplier: 1, combo: 1 }, { multiplier: 1.12, combo: 2 }),
+    ).toBe(true);
+    expect(
+      styleHudShouldPunch({ multiplier: 1.4, combo: 3 }, { multiplier: 1, combo: 0 }),
+    ).toBe(false);
+    expect(styleHudPunchScaleAt(0.04, false)).toBeGreaterThan(
+      styleHudPunchScaleAt(0.04, true),
+    );
+  });
+
+  it("prints a short atlas toast without becoming a collection system", () => {
+    expect(discoveryToast("湾鳍鱼")).toBe("图鉴新纪录：湾鳍鱼");
+    expect(discoveryToastLine(["湾鳍鱼", "焰鳗"])).toContain("等2种");
+    expect(castSnapCaption().length).toBeLessThan(8);
+    expect(flopBeatCaption("slam")).toBe("砸！");
+    expect(flopBeatCaption("pick")).toContain("捡");
+    expect(sellPopup(36)).toBe("卖出 +36金");
+    expect(sellGoalBridge(11, 11, 90)).toBe("卖出 +11金 · 11/90");
+    expect(inboxPopup(12)).toBe("入箱 +12");
   });
 });
 
@@ -637,6 +962,10 @@ describe("GrayLook", () => {
     expect(islandLook("island_foam_bay", true).skyTop[0]).toBeGreaterThan(
       islandLook("island_storm_eye").skyTop[0],
     );
+    expect(islandLook("island_foam_bay", true).skyTop[0]).toBeGreaterThan(240);
+    expect(islandLook("island_foam_bay").far[1]).toBeGreaterThan(
+      islandLook("island_storm_eye").far[1],
+    );
     expect(harborIslandIds()).toEqual([
       "island_foam_bay",
       "island_prism_reef",
@@ -649,6 +978,7 @@ describe("GrayLook", () => {
 describe("CloudCopy", () => {
   it("prints local-first cloud status, notice, and closed islands", () => {
     expect(cloudStatusLine("offline")).toContain("本机");
+    expect(cloudStatusLine("unsigned")).toContain("未登录");
     expect(cloudStatusLine("cloud")).toContain("已同步");
     expect(harborNotice("  打得越漂亮，鱼越值钱。  ")).toBe(
       "打得越漂亮，鱼越值钱。",
@@ -667,6 +997,60 @@ describe("SfxFeel", () => {
     expect(sfxTone("weak").freq).toBeGreaterThan(sfxTone("hit").freq);
     expect(sfxTone("perfect").freq).toBeGreaterThan(sfxTone("catch").freq);
     expect(sfxTone("shot").ms).toBeLessThan(sfxTone("perfect").ms);
+    expect(sfxTone("smash").noise).toBe(true);
+    expect(sfxTone("splash").noise).toBe(true);
+    expect(sfxPlaceholderNote()).toContain("占位");
+    expect(sfxPlaceholderNote()).toContain("≠ 真机");
+    expect(sfxVoices("cast").length).toBeGreaterThan(1);
+    expect(sfxVoices("smash").some((v) => v.type === "noise")).toBe(true);
+    expect(sfxVoices("smash").length).toBeGreaterThan(2);
+    expect(sfxVoices("sell").length).toBeGreaterThan(sfxVoices("ui").length);
+    expect(sfxCastVoices("sweet").length).toBeGreaterThan(sfxCastVoices("early").length);
+  });
+});
+
+describe("CastFeel", () => {
+  it("gives a readable charge window and still assists the tutorial", () => {
+    expect(castChargeAt(0)).toBe(0);
+    expect(castChargeAt(CAST_FEEL.chargeMs)).toBe(1);
+    expect(castSweet(0.7)).toBe(true);
+    expect(castSweet(0.2)).toBe(false);
+    expect(castQuality(0.7)).toBe("sweet");
+    expect(castQuality(0.2)).toBe("early");
+    expect(castQuality(0.95)).toBe("late");
+    expect(tutorialCastAssists(0.2)).toBe(true);
+    expect(tutorialCastAssists(0)).toBe(false);
+    expect(castAutoReleaseMs(true)).toBe(CAST_FEEL.tutorialAutoMs);
+    expect(castAutoReleases(true)).toBe(true);
+    expect(castAutoReleases(false)).toBe(false);
+    expect(castAutoReleaseMs(false)).toBe(Number.POSITIVE_INFINITY);
+    expect(castStyleQuality("sweet")).toBe(1);
+    expect(castStyleQuality("early")).toBeLessThan(castStyleQuality("sweet"));
+    expect(castIsSpectacular("sweet")).toBe(true);
+    expect(castIsSpectacular("early")).toBe(false);
+    expect(castPreviewPts(-400, -90, 210, 20, 0.7).length).toBe(CAST_FEEL.previewPts);
+    expect(castPreviewPts(-400, -90, 210, 20, 1)[3].y).toBeGreaterThan(
+      castPreviewPts(-400, -90, 210, 20, 0)[3].y,
+    );
+    expect(weakWindowOpen(0, true)).toBe(true);
+    expect(castChargeCaption("sweet")).toContain("时机刚好");
+    expect(castChargeCaption("early")).toContain("偏早");
+    expect(castChargeCaption("late")).toContain("偏晚");
+    expect(castBarLabel("sweet")).toContain("甜区");
+    expect(castHoldHint(false)).toContain("甩出");
+    expect(castHoldHint(false)).toContain("不会自动");
+    expect(castHoldHint(true)).toContain("自动甩");
+  });
+});
+
+describe("vector art", () => {
+  it("keeps self-drawn bayfin/dock/water svg that is more than one ellipse", () => {
+    const bayfin = resolve("assets/art/vector/bayfin.svg");
+    const dock = resolve("assets/art/vector/dock.svg");
+    const water = resolve("assets/art/vector/water.svg");
+    expect(existsSync(bayfin)).toBe(true);
+    expect(existsSync(dock)).toBe(true);
+    expect(existsSync(water)).toBe(true);
   });
 });
 
@@ -690,6 +1074,8 @@ describe("BoardCopy", () => {
     ).toContain("泡沫湾");
     expect(friendBoardHint(false)).toContain("真机");
     expect(friendBoardHint(true)).toContain("好友榜");
+    expect(friendBoardHint(false, false)).toContain("未登录");
+    expect(friendBoardHint(true, false)).not.toContain("下面是微信好友榜");
   });
 });
 
@@ -699,17 +1085,505 @@ describe("IslandPack", () => {
     expect(islandPackName("island_tutorial")).toBeUndefined();
     expect(harborSailWait("泡沫湾")).toBe("正在驶向泡沫湾…");
   });
+
+  it("stays in harbor when a real pack fails, and sails only when ready", () => {
+    expect(decideSailAfterPack(true)).toBe("enter_sea");
+    expect(decideSailAfterPack(false)).toBe("stay_harbor");
+    expect(harborPackFailCopy("泡沫湾")).toContain("港口");
+    expect(harborPackFailCopy("泡沫湾")).toContain("重试");
+  });
+});
+
+describe("WechatSession", () => {
+  it("treats editor and failed login as unsigned, never as signed", () => {
+    expect(resolveLoginCode({ wechatAvailable: false, code: "x" })).toBeNull();
+    expect(
+      resolveLoginCode({ wechatAvailable: true, failed: true, code: "x" }),
+    ).toBeNull();
+    expect(resolveLoginCode({ wechatAvailable: true, code: "  " })).toBeNull();
+    expect(resolveLoginCode({ wechatAvailable: true, code: "wxcode" })).toBe(
+      "wxcode",
+    );
+    expect(
+      wechatSessionKind({ wechatAvailable: false, loginCode: null }),
+    ).toBe("editor");
+    expect(
+      wechatSessionKind({ wechatAvailable: true, loginCode: null }),
+    ).toBe("guest");
+    expect(
+      wechatSessionKind({ wechatAvailable: true, loginCode: "wxcode" }),
+    ).toBe("signed");
+    expect(shouldCallCloud("editor")).toBe(false);
+    expect(shouldCallCloud("guest")).toBe(false);
+    expect(shouldCallCloud("signed")).toBe(true);
+    expect(canShowFriendBoardForSession("guest", true)).toBe(false);
+    expect(canShowFriendBoardForSession("signed", true)).toBe(true);
+    expect(canShowFriendBoardForSession("signed", false)).toBe(false);
+    expect(persistCloudKind("editor", false)).toBe("local");
+    expect(persistCloudKind("guest", false)).toBe("unsigned");
+    expect(persistCloudKind("signed", true)).toBe("cloud");
+    expect(persistCloudKind("signed", false)).toBe("offline");
+  });
 });
 
 describe("PrivacyCopy", () => {
-  it("lists actual collection and a local wipe that starts at foam bay", () => {
-    expect(privacyLines().join(" ")).toContain("本机进度");
-    expect(privacyLines().join(" ")).toContain("不读通讯录");
-    expect(privacyLines().join(" ")).toContain("未成年人");
-    expect(privacyLines().join(" ")).not.toContain("广告画像");
-    expect(wipeCaption()).toBe("删除本机档");
-    expect(wipeBody()).toContain("泡沫湾");
-    expect(wipeDoneNotice()).toBe("本机档已清空");
+  it("lists local save, cloud save, analytics, friend board and deleteSave", () => {
+    const text = privacyLines().join(" ");
+    expect(text).toContain("本机存档");
+    expect(text).toContain("云存档");
+    expect(text).toContain("deleteSave");
+    expect(text).toContain("埋点");
+    expect(text).toContain("submitScore");
+    expect(text).toContain("不读通讯录");
+    expect(text).toContain("未成年人");
+    expect(text).toContain("未接入广告");
+    expect(text).not.toContain("广告画像");
+    expect(wipeCaption()).toBe("删除存档");
+    expect(wipeBody()).toContain("deleteSave");
+    expect(wipeDoneNotice()).toBe("存档已清空");
+    expect(healthAdviceTitle()).toBe("健康游戏忠告");
+    expect(healthAdviceLines().join(" ")).toContain("适度游戏益脑");
+  });
+});
+
+describe("TutorialFlow", () => {
+  it("sends new players to the tutorial island until the save is marked complete", () => {
+    expect(isTutorialRun(TUTORIAL_ISLAND_ID, false)).toBe(true);
+    expect(isTutorialRun(TUTORIAL_ISLAND_ID, true)).toBe(false);
+    expect(isTutorialRun("island_foam_bay", false)).toBe(false);
+    expect(nextSailIsland(false)).toBe(TUTORIAL_ISLAND_ID);
+    expect(nextSailIsland(true)).toBe(DEFAULT_SAIL_ISLAND_ID);
+  });
+
+  it("dials leftover tutorial selection back to foam bay after teaching", () => {
+    expect(resolveHarborIsland(false, DEFAULT_SAIL_ISLAND_ID)).toBe(
+      TUTORIAL_ISLAND_ID,
+    );
+    expect(resolveHarborIsland(false, TUTORIAL_ISLAND_ID)).toBe(TUTORIAL_ISLAND_ID);
+    expect(resolveHarborIsland(true, TUTORIAL_ISLAND_ID)).toBe(
+      DEFAULT_SAIL_ISLAND_ID,
+    );
+    expect(resolveHarborIsland(true, DEFAULT_SAIL_ISLAND_ID)).toBe(
+      DEFAULT_SAIL_ISLAND_ID,
+    );
+    expect(resolveHarborIsland(true, "island_storm_eye")).toBe("island_storm_eye");
+  });
+
+  it("does not pretend foam bay is selected before the tutorial is done", () => {
+    expect(
+      harborChipSelected("island_foam_bay", false, TUTORIAL_ISLAND_ID),
+    ).toBe(false);
+    expect(
+      harborChipSelected("island_foam_bay", true, DEFAULT_SAIL_ISLAND_ID),
+    ).toBe(true);
+    expect(harborSailCaption(false)).toBe("开始教学");
+    expect(harborSailCaption(true)).toBe("出海捕鱼");
+  });
+
+  it("advances cast → weak point → reel → settle", () => {
+    expect(advanceTutorial("cast", "hooked")).toBe("weakPoint");
+    expect(advanceTutorial("weakPoint", "weakHit")).toBe("reel");
+    expect(advanceTutorial("reel", "captured")).toBe("settle");
+    expect(advanceTutorial("settle", "captured")).toBe("complete");
+  });
+
+  it("teaches pick-up into the crate instead of the old green reel zone", () => {
+    expect(tutorialPrompt("cast")).toContain("抛竿");
+    expect(tutorialPrompt("cast")).toContain("湾鳍");
+    expect(tutorialPrompt("weakPoint")).toContain("弱点");
+    expect(tutorialPrompt("reel")).toContain("捡起");
+    expect(tutorialPrompt("reel")).toContain("鱼箱");
+    expect(tutorialPrompt("reel")).not.toMatch(/绿|收杆/);
+    expect(tutorialPrompt("reel", { carrying: true })).toContain("鱼箱");
+    expect(tutorialPrompt("settle")).toContain("入箱");
+    expect(tutorialPrompt("settle")).toContain("卖");
+    expect(tutorialGuideTarget("cast")).toBe("cast");
+    expect(tutorialGuideTarget("reel")).toBe("pickUp");
+    expect(tutorialGuideTarget("reel", { carrying: true })).toBe("crate");
+    expect(tutorialGuideTarget("weakPoint")).toBe("weakPoint");
+    expect(tutorialGuideTarget("settle")).toBe("return");
+    expect(tutorialPrompt("settle")).toContain("回港");
+    expect(tutorialGuideAnchor("return")?.x).toBe(530);
+    expect(tutorialCanLeave("cast")).toBe(false);
+    expect(tutorialCanLeave("reel")).toBe(false);
+    expect(tutorialCanLeave("settle")).toBe(true);
+    expect(tutorialGuideAnchor("crate")?.x).toBe(-520);
+    const ring = tutorialGuideRing(0);
+    expect(ring.lineWidth).toBeGreaterThanOrEqual(8);
+    expect(ring.maskAlpha).toBeGreaterThan(120);
+    expect(ring.fillAlpha).toBeLessThan(40);
+    expect(ring.haloWidth).toBeGreaterThan(0);
+    expect(ring.chevron).toBe(true);
+    expect(tutorialGuideRing(400).pulse).not.toBe(ring.pulse);
+  });
+
+  it("keeps tutorial narration over the warmup-tide line", () => {
+    const tide = waveStartNarration(0);
+    expect(tide).toContain("热身潮");
+    expect(tutorialLessonActive("cast")).toBe(true);
+    expect(tutorialLessonActive("weakPoint")).toBe(true);
+    expect(tutorialLessonActive("reel")).toBe(true);
+    expect(tutorialLessonActive("settle")).toBe(true);
+    expect(tutorialLessonActive("complete")).toBe(false);
+    expect(battleWaveNarration(true, "cast", tide)).toBe(tutorialPrompt("cast"));
+    expect(battleWaveNarration(true, "cast", tide)).not.toContain("热身潮");
+    expect(battleWaveNarration(true, "weakPoint", tide)).toBe(
+      tutorialPrompt("weakPoint"),
+    );
+    expect(battleWaveNarration(true, "reel", tide)).toContain("捡起");
+    expect(battleWaveNarration(true, "complete", tide)).toBe(tide);
+    expect(battleWaveNarration(false, "cast", tide)).toBe(tide);
+    expect(battleWaveNarration(false, "cast", waveStartNarration(1))).toContain(
+      "精英潮",
+    );
+  });
+
+  it("gives primary only to the current tutorial bar button", () => {
+    expect(tutorialBarButtonTone("cast", "cast")).toBe("primary");
+    expect(tutorialBarButtonTone("cast", "pickUp")).toBe("secondary");
+    expect(tutorialBarButtonTone("weakPoint", "cast")).toBe("secondary");
+    expect(tutorialBarButtonTone("weakPoint", "pickUp")).toBe("secondary");
+    expect(tutorialGuideTarget("weakPoint")).toBe("weakPoint");
+    expect(tutorialBarButtonTone("reel", "pickUp")).toBe("primary");
+    expect(tutorialBarButtonTone("reel", "cast")).toBe("secondary");
+    expect(tutorialBarButtonTone("reel", "pickUp", { carrying: true })).toBe(
+      "secondary",
+    );
+    expect(tutorialBarButtonTone("reel", "cast", { carrying: true })).toBe(
+      "secondary",
+    );
+    expect(battleBarButtonVisible({ carrying: true }, "cast")).toBe(false);
+    expect(battleBarButtonVisible({ carrying: true }, "pickUp")).toBe(false);
+    expect(battleBarButtonVisible({ carrying: false }, "cast")).toBe(true);
+    expect(battleInboxCtaVisible({ carrying: true })).toBe(true);
+    expect(battleInboxCtaVisible({ carrying: false })).toBe(false);
+    expect(inboxBarCaption()).toBe("丢掉入箱");
+    expect(tutorialBarButtonTone("settle", "cast")).toBe("secondary");
+    expect(tutorialBarButtonTone("settle", "pickUp")).toBe("secondary");
+    expect(
+      battleBarButtonTone(
+        { tutorial: false, step: "complete", pickable: false, hooked: false },
+        "cast",
+      ),
+    ).toBe("primary");
+    expect(
+      battleBarButtonTone(
+        { tutorial: false, step: "complete", pickable: false, hooked: false },
+        "pickUp",
+      ),
+    ).toBe("secondary");
+    expect(
+      battleBarButtonTone(
+        { tutorial: false, step: "complete", pickable: true },
+        "pickUp",
+      ),
+    ).toBe("primary");
+    expect(
+      battleBarButtonTone(
+        { tutorial: false, step: "complete", carrying: true, pickable: true },
+        "pickUp",
+      ),
+    ).toBe("secondary");
+    expect(
+      battleBarButtonTone(
+        { tutorial: false, step: "complete", hooked: true },
+        "cast",
+      ),
+    ).toBe("secondary");
+  });
+
+  it("points the harbor to sail, sell, then upgrade after the first sale", () => {
+    expect(
+      harborNextCta({
+        tutorialComplete: false,
+        completedRuns: 0,
+        pendingSell: false,
+        upgradeUnlocked: false,
+      }),
+    ).toBe("sail");
+    expect(
+      harborNextCta({
+        tutorialComplete: false,
+        completedRuns: 0,
+        pendingSell: true,
+        upgradeUnlocked: false,
+      }),
+    ).toBe("sell");
+    expect(
+      harborNextCta({
+        tutorialComplete: true,
+        completedRuns: 1,
+        pendingSell: false,
+        upgradeUnlocked: true,
+        coins: 90,
+        nextUpgradeCost: 90,
+      }),
+    ).toBe("upgrade");
+    expect(
+      harborNextCta({
+        tutorialComplete: true,
+        completedRuns: 2,
+        pendingSell: false,
+        upgradeUnlocked: true,
+        coins: 220,
+        nextUpgradeCost: 90,
+      }),
+    ).toBe("sail");
+    expect(harborNextPrompt("sell")).toContain("卖到鱼市");
+    expect(harborNextPrompt("sail", false)).toContain("开始教学");
+    expect(harborNextPrompt("upgrade")).toContain("升级");
+    expect(buttonFillRgb("primary")[0]).toBeGreaterThan(buttonFillRgb("secondary")[0]);
+    expect(goldHudRgb()[0]).toBe(255);
+    expect(goldHudRgb()[1]).toBeGreaterThan(180);
+    expect(feelPalette().primary[0]).toBe(buttonFillRgb("primary")[0]);
+    expect(buttonRadius()).toBe(20);
+    expect(buttonStrokeWidth("primary")).toBeGreaterThan(buttonStrokeWidth("secondary"));
+    expect(buttonSpec("hero").height).toBeGreaterThan(buttonSpec("chip").height);
+    expect(buttonSpec("bar").fontSize).toBe(28);
+    expect(plateSize().width).toBeGreaterThan(700);
+    expect(plateFillRgba(true)[3]).toBeGreaterThan(plateFillRgba(false)[3]);
+    expect(creamInkRgb()[0]).toBe(255);
+    expect(coinJumpSeconds()).toBeGreaterThan(0.6);
+    expect(coinJumpSeconds()).toBeLessThan(1);
+    expect(calloutHoldMs()).toBeLessThan(1000);
+    expect(coinJumpLiftPx(0.4)).toBeGreaterThan(10);
+    expect(coinJumpAlpha(0.1)).toBeGreaterThan(coinJumpAlpha(1));
+    expect(sellPunchSeconds(false)).toBeGreaterThan(sellPunchSeconds(true));
+  });
+
+  it("keeps sail as the harbor CTA when the next upgrade is unaffordable", () => {
+    expect(canAffordNextUpgrade(8, 90)).toBe(false);
+    expect(canAffordNextUpgrade(90, 90)).toBe(true);
+    expect(canAffordNextUpgrade(100, undefined)).toBe(false);
+    expect(
+      harborNextCta({
+        tutorialComplete: true,
+        completedRuns: 1,
+        pendingSell: false,
+        upgradeUnlocked: true,
+        coins: 8,
+        nextUpgradeCost: 90,
+      }),
+    ).toBe("sail");
+    expect(
+      harborNextCta({
+        tutorialComplete: true,
+        completedRuns: 1,
+        pendingSell: false,
+        upgradeUnlocked: true,
+      }),
+    ).toBe("sail");
+    expect(harborSailCaption(true)).toBe("出海捕鱼");
+    expect(
+      harborGoalPrompt({
+        tutorialComplete: true,
+        completedRuns: 1,
+        coins: 11,
+        nextUpgradeCost: 90,
+        upgradeUnlocked: true,
+      }),
+    ).toBe("还差 79 金升级竿（11/90）· 再出海能补");
+    expect(harborUpgradeProgressLine(11, 90)).toContain("11/90");
+    expect(harborUpgradeProgressLine(11, 90)).toContain("还差 79");
+    expect(harborUpgradeProgressLine(11, 90)).toContain("再出海能补");
+    expect(upgradeProgressRatio(11, 90)).toBeCloseTo(11 / 90);
+    expect(harborSellBridgeLine(11, 90)).toBe("卖出已入账 · 11/90 · 还差 79");
+    expect(weakHintCaption()).toBe("弱点");
+    expect(
+      harborGoalPrompt({
+        tutorialComplete: true,
+        completedRuns: 1,
+        coins: 90,
+        nextUpgradeCost: 90,
+        upgradeUnlocked: true,
+      }),
+    ).toContain("升级");
+    expect(harborHudPhase({ sellJuiceActive: true, toastActive: true })).toBe(
+      "justSold",
+    );
+    expect(harborHudShowMeta("justSold")).toBe(false);
+    expect(harborHudShowMeta("toast")).toBe(false);
+    expect(harborHudShowMeta("idle")).toBe(true);
+    expect(harborHudShowDiscovery("justSold", true)).toBe(false);
+    expect(harborHudShowDiscovery("toast", true)).toBe(true);
+    expect(
+      harborHudToastText({
+        phase: "justSold",
+        toast: "图鉴新纪录：湾鳍鱼",
+        discoveryText: "图鉴新纪录：湾鳍鱼",
+      }),
+    ).toBeUndefined();
+    expect(
+      harborHudToastText({
+        phase: "justSold",
+        toast: "金币不足",
+        discoveryText: "图鉴新纪录：湾鳍鱼",
+      }),
+    ).toBe("金币不足");
+    expect(
+      harborHudToastText({
+        phase: "toast",
+        toast: "金币不足",
+        discoveryText: "图鉴新纪录：湾鳍鱼",
+      }),
+    ).toBe("金币不足");
+    expect(harborToastHoldSeconds()).toBeGreaterThan(0.8);
+    expect(harborToastHoldSeconds()).toBeLessThan(2);
+    expect(
+      harborIslandChipCaption({
+        name: "泡沫湾",
+        unlockCost: 0,
+        unlocked: true,
+        selected: false,
+        tutorialComplete: false,
+      }),
+    ).toBe("泡沫湾 · 教学后");
+    expect(
+      harborIslandChipCaption({
+        name: "泡沫湾",
+        unlockCost: 0,
+        unlocked: true,
+        selected: true,
+        tutorialComplete: true,
+      }),
+    ).toBe("● 泡沫湾");
+    expect(
+      harborIslandChipCaption({
+        name: "棱光礁",
+        unlockCost: 240,
+        unlocked: false,
+        selected: false,
+        tutorialComplete: true,
+      }),
+    ).toBe("棱光礁 240");
+  });
+
+  it("keeps the first tutorial sale below the first rod upgrade so sail stays the goal", () => {
+    const firstSale = PriceCalculator.calculate(
+      { basePrice: 8, rarityMultiplier: 1 },
+      1,
+      1.34,
+    ).total;
+    const firstUpgrade = 90;
+    expect(firstSale).toBeGreaterThan(0);
+    expect(firstSale).toBeLessThan(firstUpgrade);
+    expect(
+      harborNextCta({
+        tutorialComplete: true,
+        completedRuns: 1,
+        pendingSell: false,
+        upgradeUnlocked: true,
+        coins: firstSale,
+        nextUpgradeCost: firstUpgrade,
+      }),
+    ).toBe("sail");
+    expect(
+      harborGoalPrompt({
+        tutorialComplete: true,
+        completedRuns: 1,
+        coins: firstSale,
+        nextUpgradeCost: firstUpgrade,
+        upgradeUnlocked: true,
+      }),
+    ).toMatch(/目标：攒够 90|11\/90|再出海|还差/);
+  });
+
+  it("locks harbor upgrade/book/board until the tutorial is finished", () => {
+    expect(harborUnlocks(0)).toEqual({
+      upgrade: false,
+      book: false,
+      board: false,
+    });
+    expect(harborUnlocksForSave({ tutorialComplete: false, completedRuns: 3 })).toEqual({
+      upgrade: false,
+      book: false,
+      board: false,
+    });
+    expect(harborUnlocksForSave({ tutorialComplete: true, completedRuns: 1 })).toEqual({
+      upgrade: true,
+      book: false,
+      board: false,
+    });
+    expect(harborUnlocksForSave({ tutorialComplete: true, completedRuns: 2 })).toEqual({
+      upgrade: true,
+      book: true,
+      board: true,
+    });
+    expect(harborFeatureLockedHint("upgrade")).toContain("教学");
+  });
+
+  it("does not blame an unfinished tutorial after the first completed run", () => {
+    const afterLesson = { tutorialComplete: true, completedRuns: 1 };
+    expect(harborFeatureLockedHint("book", afterLesson)).toBe(
+      "再出 1 局后解锁图鉴。",
+    );
+    expect(harborFeatureLockedHint("board", afterLesson)).toBe("再出 1 局后解锁榜。");
+    expect(harborFeatureLockedHint("book", afterLesson)).not.toContain("教学");
+    expect(harborFeatureButtonLabel("book", afterLesson)).toBe("再出1局后图鉴");
+    expect(harborFeatureButtonLabel("board", afterLesson)).toBe("再出1局后榜");
+    expect(harborFeatureButtonLabel("upgrade", afterLesson)).toBe("查看升级");
+    expect(
+      harborFeatureLockedHint("book", { tutorialComplete: false, completedRuns: 0 }),
+    ).toContain("教学");
+    expect(
+      harborFeatureButtonLabel("book", { tutorialComplete: false, completedRuns: 0 }),
+    ).toBe("教学后图鉴");
+    expect(
+      harborFeatureButtonLabel("book", { tutorialComplete: true, completedRuns: 2 }),
+    ).toBe("图鉴");
+  });
+
+  it("hints then auto-picks a stunned fish after 4–10 seconds", () => {
+    expect(pickupAssistDecision("pickable", PICKABLE_HINT_MS - 1)).toBe("none");
+    expect(pickupAssistDecision("pickable", PICKABLE_HINT_MS)).toBe("hint");
+    expect(pickupAssistDecision("pickable", PICKABLE_AUTO_MS - 1)).toBe("hint");
+    expect(pickupAssistDecision("pickable", PICKABLE_AUTO_MS)).toBe("auto");
+    expect(pickupAssistDecision("pickable", PICKABLE_AUTO_MS, 100)).toBe("hint");
+    expect(PICKABLE_HINT_MS).toBeLessThan(PICKABLE_AUTO_MS);
+    expect(PICKABLE_AUTO_MS - PICKABLE_HINT_MS).toBeGreaterThanOrEqual(4_000);
+    expect(PICKABLE_AUTO_MS).toBeLessThanOrEqual(12_000);
+    expect(INPUT_GRACE_MS).toBeLessThan(1_000);
+  });
+
+  it("hints then auto-stashes a carried fish after 4–10 seconds", () => {
+    expect(pickupAssistDecision("carried", CARRIED_HINT_MS - 1)).toBe("none");
+    expect(pickupAssistDecision("carried", CARRIED_HINT_MS)).toBe("hint");
+    expect(pickupAssistDecision("carried", CARRIED_AUTO_MS - 1)).toBe("hint");
+    expect(pickupAssistDecision("carried", CARRIED_AUTO_MS)).toBe("auto");
+    expect(pickupAssistDecision("carried", CARRIED_AUTO_MS, 80)).toBe("hint");
+    expect(CARRIED_AUTO_MS).toBeGreaterThanOrEqual(8_000);
+    expect(CARRIED_AUTO_MS).toBeLessThanOrEqual(12_000);
+  });
+
+  it("hints then auto-leaves after inbox without stealing a fresh tap", () => {
+    expect(settleLeaveDecision(SETTLE_LEAVE_HINT_MS - 1)).toBe("none");
+    expect(settleLeaveDecision(SETTLE_LEAVE_HINT_MS)).toBe("hint");
+    expect(settleLeaveDecision(SETTLE_LEAVE_AUTO_MS - 1)).toBe("hint");
+    expect(settleLeaveDecision(SETTLE_LEAVE_AUTO_MS)).toBe("auto");
+    expect(settleLeaveDecision(SETTLE_LEAVE_AUTO_MS, 120)).toBe("hint");
+    expect(SETTLE_LEAVE_AUTO_MS).toBeGreaterThan(3_000);
+    expect(SETTLE_LEAVE_AUTO_MS).toBeLessThan(6_000);
+  });
+
+  it("keeps the 40s tutorial battle fallback without treating a fresh stun as ready", () => {
+    expect(shouldAutoReel("reel", 0, 39_999)).toBe(false);
+    expect(shouldAutoReel("reel", 0, 40_000)).toBe(true);
+    expect(shouldAutoReel("weakPoint", 20_000, 60_000)).toBe(false);
+  });
+});
+
+describe("save validation", () => {
+  it("accepts the default save and rejects negative coins or unknown ids", () => {
+    const ok = createDefaultSave(1);
+    expect(validSave(ok)).toBe(true);
+    expect(validSave({ ...ok, coins: -1 })).toBe(false);
+    expect(validSave({ ...ok, revision: 0 })).toBe(false);
+    expect(validSave({ ...ok, unlockedIslands: ["island_unknown"] })).toBe(false);
+    expect(validSave({ ...ok, tools: [{ toolId: "tool_unknown", level: 1 }] })).toBe(
+      false,
+    );
+    expect(validSave({ ...ok, discoveredFish: ["fish_unknown"] })).toBe(false);
+    expect(validSave({ ...ok, tutorialComplete: "yes" })).toBe(false);
   });
 });
 
@@ -735,6 +1609,172 @@ describe("FlopPhysics", () => {
     ).toBe(true);
     expect(canPickUp(-400, -90, -320, -70)).toBe(true);
     expect(canPickUp(-400, -90, 80, 40)).toBe(false);
+    expect(yankArcLift(YANK_FEEL.targetX + YANK_FEEL.span / 2)).toBeGreaterThan(20);
+    expect(carryBobOffset(0.2).y).toBeGreaterThanOrEqual(0);
+    expect(CARRY_FEEL.ampY).toBeLessThan(12);
+    expect(flopApexAboveDeck()).toBeGreaterThan(90);
+    expect(bounceFreezeSeconds(0, false)).toBeGreaterThan(0.3);
+    expect(bounceFreezeSeconds(0, true)).toBe(0);
+    expect(bounceFreezeSeconds(1, false)).toBeGreaterThan(0);
+    expect(bounceFreezeSeconds(4, false)).toBe(0);
+    expect(flopPickupReady(1, 20)).toBe(true);
+    expect(flopPickupReady(0, 20)).toBe(false);
+  });
+});
+
+describe("CameraFeel", () => {
+  it("keeps yank/smash/flop short and disables smash on low power", () => {
+    expect(yankCamK(-340)).toBe(0);
+    expect(yankCamK(-340 + 210)).toBeGreaterThan(0.5);
+    expect(camSmashOffset(0.04, CAM_FEEL.smashSeconds, false).x).not.toBe(0);
+    expect(camSmashOffset(0.04, CAM_FEEL.smashSeconds, true)).toEqual({
+      x: 0,
+      y: 0,
+      z: 0,
+      pitch: 0,
+    });
+    expect(smashHoldSeconds(true)).toBe(0);
+    expect(CAM_FEEL.smashSeconds).toBeGreaterThan(0.18);
+    expect(CAM_FEEL.smashSeconds).toBeLessThanOrEqual(0.28);
+    const yanked = composeHuntCam({ yankK: 1, lowPower: false });
+    expect(yanked.z).toBeGreaterThan(CAM_REST.z);
+    expect(yanked.pitch).toBeLessThan(CAM_REST.pitch);
+    const flop = composeHuntCam({ airborne: true, lowPower: false });
+    expect(flop.y).toBeGreaterThan(CAM_REST.y);
+    expect(flop.pitch).toBeLessThan(CAM_REST.pitch);
+    expect(composeHuntCam({ airborne: true, lowPower: true }).y).toBe(CAM_REST.y);
+    expect(composeHuntCam({ airborne: true, lowPower: true }).pitch).toBe(CAM_REST.pitch);
+  });
+});
+
+describe("ProcGeom budget", () => {
+  it("keeps harbor/hunt mesh counts and fish parts inside the wechat budget", () => {
+    const water = waterParts([12, 112, 146], [8, 58, 86]);
+    const dock = dockParts();
+    const extras = harborExtraParts({
+      land: [236, 210, 118],
+      landDark: [72, 168, 112],
+      accent: [255, 148, 42],
+    });
+    const hunt = huntIsleParts("island_tutorial", {
+      land: [210, 186, 118],
+      landDark: [86, 138, 112],
+      accent: [255, 176, 72],
+    });
+    const boat = boatParts();
+    const fish = fishParts([36, 214, 178], [210, 250, 220], [18, 142, 124], 1);
+    expect(fish.length).toBeLessThanOrEqual(STAGE_BUDGET.maxFishParts);
+    expect(findPart(fish, "Face")).toBeTruthy();
+    expect(findPart(fish, "Scale")).toBeTruthy();
+    expect(findPart(fish, "Weak")!.sx).toBeGreaterThan(0.18);
+    expect(countParts([...water, ...dock, ...extras, ...boat])).toBeLessThanOrEqual(
+      stageMeshCap("harbor"),
+    );
+    expect(countParts([...water, ...dock, ...hunt, ...boat])).toBeLessThanOrEqual(
+      stageMeshCap("hunt"),
+    );
+    expect(waterVertCount()).toBeLessThanOrEqual(STAGE_BUDGET.maxWaterVerts);
+    expect(STAGE_BUDGET.textureBytes).toBe(0);
+    expect(STAGE_BUDGET.maxLights).toBe(1);
+    expect(findPart(water, "Water")?.wave).toBe(true);
+    expect(findPart(extras, "FoamHill")).toBeTruthy();
+    expect(findPart(extras, "PrismPeak")).toBeTruthy();
+    expect(findPart(dock, "Rail")).toBeTruthy();
+  });
+
+  it("makes vertex waves and silhouette kits without adding textures", () => {
+    expect(waterAmp(true)).toBe(0);
+    expect(waterAmp(false)).toBeGreaterThan(0);
+    expect(waterHeight(1, 0, 0.4)).not.toBe(waterHeight(1, 0, 1.2));
+    const pos = [0, 0, 0, 0.5, 0, 0.25];
+    const n = displaceWaterPositions(pos, 0.8, 0.05, 24, 18);
+    expect(n).toBe(2);
+    expect(pos[1]).not.toBe(0);
+    const eel = fishParts([214, 92, 64], [255, 176, 96], [255, 120, 72], 1, "eel");
+    const bay = fishParts([36, 214, 178], [210, 250, 220], [18, 142, 124], 1, "bayfin");
+    expect(eel.length).toBe(5);
+    expect(findPart(eel, "Body")!.sx).toBeGreaterThan(findPart(bay, "Body")!.sx);
+    const sail = fishParts([64, 186, 196], [186, 236, 232], [168, 92, 210], 1, "sail");
+    expect(findPart(sail, "Scale")!.sy).toBeGreaterThan(findPart(bay, "Scale")!.sy);
+  });
+});
+
+describe("ArtRecipe", () => {
+  it("paints layered water, a market pier, and a bayfin face from one recipe", () => {
+    const sea = islandSetOps("island_foam_bay", true, 0);
+    expect(recipeHasTag(sea, "caustic")).toBe(true);
+    expect(recipeHasTag(sea, "gull")).toBe(true);
+    expect(recipeHasTag(sea, "foam")).toBe(true);
+    expect(recipeHasTag(sea, "lantern")).toBe(true);
+    expect(recipeHasTag(sea, "silhouette")).toBe(true);
+    expect(recipeHasTag(sea, "lamp")).toBe(true);
+    expect(recipeHasTag(sea, "firework")).toBe(true);
+    expect(recipeHasTag(sea, "sheen")).toBe(true);
+    expect(recipeHasTag(sea, "grad")).toBe(true);
+    expect(recipeHasTag(sea, "speckle")).toBe(true);
+    expect(recipeHasTag(sea, "shadow")).toBe(true);
+    expect(recipeHasTag(sea, "paraFar")).toBe(true);
+    expect(recipeHasTag(sea, "paraMid")).toBe(true);
+    expect(recipeHasTag(sea, "terrace")).toBe(true);
+    expect(recipeHasTag(sea, "rim")).toBe(true);
+    expect(recipeHasTag(sea, "cliff")).toBe(true);
+    expect(recipeHasTag(sea, "rock")).toBe(true);
+    expect(recipeHasTag(sea, "bush")).toBe(true);
+    expect(recipeHasTag(sea, "paraNear")).toBe(true);
+    expect(recipeHasTag(sea, "grain")).toBe(true);
+    expect(recipeHasTag(sea, "brush")).toBe(true);
+    expect(recipeHasTag(sea, "hang")).toBe(true);
+    expect(recipeHasTag(sea, "depth")).toBe(true);
+    expect(recipeHasTag(sea, "ridge")).toBe(true);
+    expect(recipeHasTag(dockOps(), "nail")).toBe(true);
+    const hunt = islandSetOps("island_foam_bay", false, 0.4);
+    expect(recipeHasTag(hunt, "ridge")).toBe(true);
+    expect(recipeHasTag(hunt, "depth")).toBe(true);
+    expect(recipeHasTag(hunt, "caustic")).toBe(true);
+    expect(recipeHasTag(hunt, "foam")).toBe(true);
+    expect(recipeTagCount(hunt, "caustic")).toBeGreaterThan(12);
+    expect(recipeTagCount(hunt, "ridge")).toBeGreaterThan(16);
+    expect(recipeTagCount(hunt, "depth")).toBeGreaterThan(5);
+    expect(recipeTagCount(hunt, "foam")).toBeGreaterThan(20);
+    expect(islandSetOps("island_tutorial", false, 0).some((op) => "tag" in op && op.tag === "ridge")).toBe(
+      true,
+    );
+    expect(speckleDots({ x: 0, y: 0, w: 10, h: 10, count: 4, size: 1 }).length).toBe(4);
+    expect(grainStrokes({ x: 0, y: 0, w: 10, h: 10, count: 5, size: 4 }).length).toBe(5);
+    expect(washBlobs({ x: 0, y: 0, w: 10, h: 10, count: 3 }).length).toBe(3);
+    expect(burstPts({ x: 0, y: 0, r: 10, spikes: 7 }).length).toBe(28);
+    const slam = slamMarkOps(0, 0);
+    expect(recipeHasTag(slam, "slam")).toBe(true);
+    expect(recipeHasTag(slam, "burst")).toBe(true);
+    expect(recipeHasTag(slam, "dust")).toBe(true);
+    expect(slam.length).toBeGreaterThan(12);
+    expect(swimSway(380).x).not.toBe(swimSway(0).x);
+    expect(lanternFlickerAt(0.2, -456)).not.toBe(lanternFlickerAt(1.1, -320));
+    expect(tailWagRad(150)).not.toBe(tailWagRad(0));
+    expect(recipeKindCount(sea, "rect")).toBeGreaterThan(8);
+    expect(crateOps().length).toBeGreaterThan(6);
+    expect(boatOps().some((op) => op.t === "poly")).toBe(true);
+    const fish = fishOps("fish_bayfin", 1, {
+      decoy: false,
+      armored: false,
+      hit: false,
+      hooked: false,
+      flashing: true,
+      face: "idle",
+    });
+    expect(fish.length).toBeGreaterThan(8);
+    expect(recipeHasTag(fish, "scale")).toBe(true);
+    expect(recipeHasTag(fish, "tail")).toBe(true);
+    expect(recipeHasTag(fish, "weak")).toBe(true);
+    expect(recipeHasTag(fish, "refract")).toBe(true);
+    expect(recipeHasTag(fish, "outline")).toBe(true);
+    expect(recipeHasTag(fish, "eye")).toBe(true);
+    expect(recipeHasTag(fish, "rim")).toBe(true);
+    expect(recipeHasTag(fish, "scale")).toBe(true);
+    expect(recipeHasTag(fish, "gill")).toBe(true);
+    expect(recipeHasTag(fish, "grain")).toBe(true);
+    expect(weakReticleRadius(0)).toBeGreaterThan(16);
+    expect(weakReticleTickPx()).toBeGreaterThan(6);
   });
 });
 

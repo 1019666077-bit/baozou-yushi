@@ -1,22 +1,35 @@
 # 实施状态
 
-## 已完成
+## 官方运行时（已接线）
+
+当前唯一官方运行时是 **Boot.scene → RuntimeHome → RuntimePrototype**。Canvas 只挂 RuntimeHome；出海再挂 RuntimePrototype。
+
+`GameBootstrap`、`Battle*`、`TutorialController` 是编辑器实验/未接线代码，不要写成已交付。不存在 `Home.scene`。
+
+## 灰盒已完成
 
 - 产品规格、原创边界与微信审核表达。
-- Cocos Creator 3.8 TypeScript工程骨架与运行时组件。
-- 抛竿、鱼AI、工具、韧性、收杆、精彩度、售价、升级和岛屿推进。
-- 教学、三岛、6普通鱼、3精英鱼、1首领及30–45分钟数值曲线。
-- 本地/云存档、远程配置、埋点、好友榜和服务端反作弊。
-- 低配保护、对象池、包体预检、云函数语法检查、自动数值模拟。
-- 隐私、商店文案、真机矩阵、体验测试表和提审清单。
-- 官方Cocos Dashboard已安装。
+- 港口、出海扑腾、教学关（新玩家默认开）、三岛、6普通鱼、3精英鱼、1首领及30–45分钟数值曲线。
+- 教学完成前用 `TutorialFlow.harborUnlocks` 锁升级/图鉴/榜。
+- 本地/云存档、删档云函数、远程配置、埋点；成绩只走 `submitScore` + 共用校验。
+- 低配保护、对象池、包体预检、自动数值模拟。
+- 隐私文案与真实采集项对齐；启动路径先隐私授权，再 `wx.login` + 云初始化（非微信/登录失败降级为本机档，不阻断灰盒）。
+- 岛分包加载失败时留在港口并可重试；教学关无真实 bundle，直接成功。
+- 开放数据域以 `wechat-open-data/` 为准。
+- CI：`npm run validate` 与 `npm run simulate`。
+- 第一局体验代理与 `tools/first-run-preview/shots/` **不是** Cocos 实机证据，更 **不是** Creator 3D 证据。`v37` 对症：猎场水面浪脊/焦散/深度色带/泡沫，告别偏平水带；港 HUD 上提/靠边让海景；`skin.js` 实色浪脊/市集/远舟/天光；岛体放大；鱼/船放大；蓄力 400×30 + 甜区光晕；`YANK_FEEL.pullRate` 3.2（11/90 不动）。教学仍可自动甜区，**教完后自由局必须自己松手**。仍只能报代理分，不合 main。
+- 2.5D 港湾/猎场（`HarborStage` / `DeckStage`）只在本机 Creator 预览或 web-desktop 里能看见；云端无 Creator。期望构图示意图在 `docs/stage3d/`（`gallery.html` 顶栏写清「期望构图 ≠ Creator/真机」），**不是**实机截图。`docs/stage3d/creator-shots/` 目前只有 README，**没有**伪造的 4 张 png。
+- **Creator 可感手感 A+B**：甲板刚体短滑移、未处理逃水、弱点击退、下半屏拖运入箱、空中砸窗口/完美高光、精彩倍率 `×旧→×新`。本刀不改。
+- **C 首局经济闭环**：教学路径入箱预算 ≤60s（潮汐钟 50→60，兜底 55s→40s，40+10+10≤60）；卖出可读（`卖出 +11金 · 11/90`，不堆特效）；缺口「还差 79 · 再出海能补」+ 进度条；买不起升级写「还差79」且不抢主 CTA。**11/90 标价不动。**
+- **E 准备（本刀）**：`docs/stage3d/creator-shots/` 清单齐（`01_harbor_wide.png` / `02_dock_near.png` / `03_bayfin_weak.png` / `04_flop_smash.png`），每张写清何时截 / 应看到什么（含 A+B：短滑、完美窗口、下半屏）。`npm run shots:list` 现 **0/4**。必须本机 Creator 3.8.8 打开 Boot.scene 实拍；代理 / `first-run-preview` / expect 示意图一律不算证据。不伪造 png，不刷代理九宫格，**未约验**，等用户实拍。
 
 ## 需要发行主体或真人完成
 
-- 在Cocos Dashboard登录并安装Creator 3.8.8，然后按场景装配文档生成序列化场景。
-- 在微信公众平台注册小游戏AppID、云环境和数据库集合。
+- 在Cocos Dashboard登录并安装Creator 3.8.8，然后按 `docs/LOCAL_PREVIEW.md` 预览 `Boot.scene`。
+- 在微信公众平台注册小游戏AppID、云环境和数据库集合，部署全部云函数（含 `deleteSave`）。
 - 用至少4台真机生成体验版测试结果。
-- 招募20–50名真人填写体验表；未达到20条时报告脚本会主动失败。
+- 招募20–50名真人填写体验表；未达到20条时 `npm run playtest:report` 会主动失败。
 - 准备软著、版号/备案、隐私政策主体信息与最终素材授权。
+- 后台填写正式隐私指引；健康游戏忠告需在真机启动画面再确认一遍。
 
 这些是账号、设备、资质或真人参与事项，不能由源码自动生成，也不能用模拟数据冒充。

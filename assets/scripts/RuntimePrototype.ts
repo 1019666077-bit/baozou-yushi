@@ -38,7 +38,20 @@ import {
   advanceTutorial,
   isTutorialRun,
   shouldAutoReel,
+  pickupAssistDecision,
+  tutorialCanLeave,
+  tutorialGuideAnchor,
+  tutorialGuideRing,
+  tutorialGuideTarget,
   tutorialPrompt,
+  battleBarButtonTone,
+  battleBarButtonVisible,
+  battleInboxCtaVisible,
+  inboxBarCaption,
+  battleWaveNarration,
+  waveStartNarration,
+  settleLeaveDecision,
+  TUTORIAL_ISLAND_ID,
   type TutorialStep,
 } from "./domain/TutorialFlow";
 import {
@@ -46,8 +59,13 @@ import {
   decoyOffsets,
 } from "./domain/FishBehavior";
 import {
+  castChargeCaption,
+  castLockCaption,
   comboHud,
+  flopBeatCaption,
+  inboxPopup,
   liveQuote,
+  smashCallout,
   styleCallout,
 } from "./domain/StyleCallout";
 import {
@@ -56,9 +74,44 @@ import {
   shouldSpawn,
   waveCaption,
 } from "./domain/IslandClock";
-import { canPickUp, crateDrop } from "./domain/FlopPhysics";
+import {
+  bounceFreezeSeconds,
+  canPickUp,
+  carryBobOffset,
+  carryDragHint,
+  carryReleaseAt,
+  carryReleaseCaption,
+  clampCarry,
+  crateDrop,
+  escapeCaption,
+  smashWindowOpen,
+  airborneStyleQuality,
+} from "./domain/FlopPhysics";
+import { PLAY_LAYOUT } from "./domain/PlayLayout";
+import {
+  castAutoReleaseMs,
+  castAutoReleases,
+  castBarSpec,
+  castChargeAt,
+  castPreviewPts,
+  castQuality,
+  castStyleQuality,
+  tutorialCastAssists,
+  type CastQuality,
+} from "./domain/CastFeel";
+import { discoveryToast, isFirstCatch } from "./domain/SettleCopy";
 import { depthScale } from "./domain/DepthScale";
-import { hitStopSeconds, spawnCap, shouldVibrate } from "./domain/GameFeel";
+import {
+  calloutHoldMs,
+  hitStopSeconds,
+  spawnCap,
+  shouldVibrate,
+  styleHudPunchRgb,
+  styleHudPunchScaleAt,
+  styleHudPunchSeconds,
+  styleHudShouldPunch,
+  type ButtonTone,
+} from "./domain/GameFeel";
 import {
   keepLiveShots,
   spawnShot,
@@ -67,8 +120,23 @@ import {
   type Shot,
 } from "./domain/ShotFlight";
 import {
+  castFlashSeconds,
+  castLineWidth,
+  castRodScaleAt,
+  castTipNudgePx,
+  crateBounceScaleAt,
+  juicePunchScaleAt,
+  juicePunchSeconds,
+  juiceShakePx,
+  juiceShakeSeconds,
+  popupLiftPx,
+  smashHighlightSpec,
   spawnJuice,
+  spawnJuiceFlash,
+  spawnLandingDust,
   tickJuice,
+  tickJuiceFlash,
+  type JuiceFlash,
   type JuiceKind,
   type JuiceParticle,
 } from "./domain/HitJuice";
@@ -78,12 +146,16 @@ import { playerSave } from "./save/SaveService";
 import {
   drawOcean,
   drawBoat,
+  drawCrate,
   drawDock,
   makeButton,
   makeLabel,
+  makePlate,
+  paintButtonTone,
   replacePlayLayer,
+  tintGold,
 } from "./ui/RuntimeUi";
-import { drawJuice, drawShots } from "./ui/GrayArt";
+import { drawGuideHole, drawJuice, drawShots, drawSmashWindow } from "./ui/GrayArt";
 import { DeckStage } from "./world/DeckStage";
 import { deckFlag } from "./world/deckFlag";
 
@@ -117,6 +189,7 @@ export class RuntimePrototype extends Component {
   private session!: RunSession;
   private hookedAt = 0;
   private lastFireAt = 0;
+  // TODO: reelActive / 绿条是旧收杆模型残留；现战斗走砸晕→捡起→鱼箱，教学圈也不再指向绿区。
   private reelActive = false;
   private reelMarker = 0.08;
   private reelDir = 1;
@@ -130,12 +203,45 @@ export class RuntimePrototype extends Component {
   private battleAt = 0;
   private reelReadyAt = 0;
   private settleAt = 0;
+  private pickableSince = 0;
+  private carriedSince = 0;
+  private pickupHintShown = false;
+  private carriedHintShown = false;
+  private settleHintShown = false;
+  private lastInputAt = 0;
   private castButton?: Node;
   private reelButton?: Node;
+  private dropButton?: Node;
+  private leaveButton?: Node;
+  private lastCastTone?: ButtonTone;
+  private lastPickTone?: ButtonTone;
   private guide!: Graphics;
   private hazard!: Graphics;
   private juiceGfx!: Graphics;
   private juice: JuiceParticle[] = [];
+  private juiceFlash?: JuiceFlash;
+  private slamMarks: Array<{ x: number; y: number; life: number }> = [];
+  private punchKind: JuiceKind = "hit";
+  private punchElapsed = 0;
+  private punchLeft = 0;
+  private cratePunchLeft = 0;
+  private castFlashLeft = 0;
+  private castFlashElapsed = 0;
+  private castFlashDuration = 0;
+  private hudPunchLeft = 0;
+  private hudPunchElapsed = 0;
+  private lastHudMultiplier = 1;
+  private lastHudCombo = 0;
+  private hudRiseFrom = 1;
+  private draggingCarry = false;
+  private lastEscapeNote = "";
+  private lastSmashNote = "";
+  private shakeLeft = 0;
+  private shakePx = 0;
+  private crateLabel?: Label;
+  private crateGfx?: Graphics;
+  private crateNode?: Node;
+  private calloutBaseY = 188;
   private aimStartedAt = 0;
   private waveY = 0;
   private boatIFrame = 0;
@@ -152,6 +258,10 @@ export class RuntimePrototype extends Component {
   private closing = false;
   private shots: Shot[] = [];
   private hitStopLeft = 0;
+  private charging = false;
+  private chargeBorn = 0;
+  private chargeTarget?: FishController;
+  private lastCastQuality: CastQuality = "early";
   private callout!: Label;
   private calloutUntil = 0;
   private lowPower = false;
@@ -165,8 +275,9 @@ export class RuntimePrototype extends Component {
       RuntimePrototype.pending = undefined;
       ConfigService.ensureBundled();
       playerSave.loadLocal();
-      this.tutorial = false;
       const save = playerSave.get();
+      this.tutorial = isTutorialRun(this.launch.islandId, save.tutorialComplete);
+      if (this.tutorial) Analytics.track("tutorial_start");
       this.lowPower = save.settings.lowPower;
       this.vibration = save.settings.vibration;
       SfxPlayer.setEnabled(save.settings.sfx);
@@ -213,7 +324,9 @@ export class RuntimePrototype extends Component {
     }
     this.movePlayer(dt);
     this.tickCarry();
+    this.tickPickupAssist();
     this.tickLandFx();
+    this.tickCastCharge();
     this.tickCannon();
     this.tickShots(dt);
     if (this.hitStopLeft > 0) {
@@ -231,6 +344,7 @@ export class RuntimePrototype extends Component {
     this.sortByDepth();
     this.drawGuide();
     this.tickJuiceFx(dt);
+    this.deck?.tickWater(dt, this.lowPower);
     this.renderHud();
   }
 
@@ -251,35 +365,57 @@ export class RuntimePrototype extends Component {
     const island = ConfigService.islandById(this.launch.islandId);
     makeLabel(this.layer, `${island.name} · 潮汐猎场`, 32, 0, 318);
     this.multiplier = makeLabel(this.layer, "精彩 ×1.00", 22, -470, 318, 280);
-    this.coinsLabel = makeLabel(this.layer, "本局 0", 22, 470, 318, 280);
+    this.coinsLabel = tintGold(makeLabel(this.layer, "本局 0", 24, 470, 318, 280));
+    makePlate(this.layer, 0, 268, this.tutorial, 780, 52);
     this.status = makeLabel(
       this.layer,
       this.tutorial
         ? tutorialPrompt("cast")
-        : "抛竿拽上岸。在甲板上砸晕，搬进左边鱼箱。空中打更值钱。",
-      20,
+        : "抛竿拽上岸。在甲板上砸晕，下半屏拖进左边鱼箱。空中砸更值钱。",
+      22,
       0,
       268,
-      1100,
+      760,
     );
+    this.status.color = new Color(255, 252, 236, 255);
     this.fishName = makeLabel(this.layer, "等待抛竿", 24, 0, 228);
     this.callout = makeLabel(this.layer, "", 28, 0, 188, 900);
     this.callout.color = new Color(255, 236, 120, 255);
     this.clockLabel = makeLabel(this.layer, "热身潮 1:40", 20, -470, 268, 280);
-    makeLabel(this.layer, "鱼箱", 18, -520, -118, 120);
+    this.crateNode = new Node("Crate");
+    this.crateNode.layer = this.layer.layer;
+    this.crateNode.parent = this.layer;
+    this.crateNode.setPosition(-520, -150);
+    this.crateNode.addComponent(UITransform).setContentSize(100, 70);
+    this.crateGfx = this.crateNode.addComponent(Graphics);
+    drawCrate(this.crateGfx);
+    this.crateLabel = makeLabel(this.layer, "鱼箱", 20, -520, -96, 120);
+    this.crateLabel.color = new Color(255, 236, 180, 255);
 
-    this.bindPad("MovePad", -320, 0, 640, 420, {
-      start: (event) => this.onMoveStart(event),
-      move: (event) => this.onMove(event),
-      end: () => {
-        this.moving = false;
+    this.bindPad(
+      "MovePad",
+      PLAY_LAYOUT.movePad.x,
+      PLAY_LAYOUT.movePad.y,
+      PLAY_LAYOUT.movePad.w,
+      PLAY_LAYOUT.movePad.h,
+      {
+        start: (event) => this.onMoveStart(event),
+        move: (event) => this.onMove(event),
+        end: () => this.onMoveEnd(),
       },
-    });
-    this.bindPad("AimPad", 320, 0, 640, 420, {
-      start: (event) => this.onAimStart(event),
-      move: (event) => this.onAimMove(event),
-      end: (event) => this.onAimEnd(event),
-    });
+    );
+    this.bindPad(
+      "AimPad",
+      PLAY_LAYOUT.aimPad.x,
+      PLAY_LAYOUT.aimPad.y,
+      PLAY_LAYOUT.aimPad.w,
+      PLAY_LAYOUT.aimPad.h,
+      {
+        start: (event) => this.onAimStart(event),
+        move: (event) => this.onAimMove(event),
+        end: (event) => this.onAimEnd(event),
+      },
+    );
 
     this.fishRoot = new Node("FishRoot");
     this.fishRoot.layer = this.layer.layer;
@@ -326,10 +462,55 @@ export class RuntimePrototype extends Component {
     juiceNode.parent = this.layer;
     this.juiceGfx = juiceNode.addComponent(Graphics);
 
-    this.castButton = makeButton(this.layer, "抛竿", -390, -292, () => this.cast());
-    this.reelButton = makeButton(this.layer, "捡起", 390, -292, () => this.pickUp());
+    const castTone = this.barTone("cast");
+    const pickTone = this.barTone("pickUp");
+    this.castButton = makeButton(
+      this.layer,
+      "抛竿",
+      -390,
+      -292,
+      () => this.cast(),
+      200,
+      86,
+      28,
+      castTone,
+    );
+    this.reelButton = makeButton(
+      this.layer,
+      "捡起",
+      390,
+      -292,
+      () => this.pickUp(),
+      200,
+      86,
+      28,
+      pickTone,
+    );
+    this.dropButton = makeButton(
+      this.layer,
+      inboxBarCaption(),
+      0,
+      -292,
+      () => this.dropInbox(),
+      220,
+      86,
+      28,
+      "primary",
+    );
+    this.dropButton.active = false;
+    this.lastCastTone = castTone;
+    this.lastPickTone = pickTone;
     makeButton(this.layer, "暂停", -530, 268, () => this.togglePause(), 150, 56, 22);
-    makeButton(this.layer, "回港", 530, 268, () => this.returnHarbor(), 150, 56, 22);
+    this.leaveButton = makeButton(
+      this.layer,
+      "回港",
+      530,
+      268,
+      () => this.returnHarbor(),
+      150,
+      56,
+      22,
+    );
   }
 
   private spawnFish(config: FishConfig, x: number, y: number, decoy = false): void {
@@ -394,13 +575,17 @@ export class RuntimePrototype extends Component {
   }
 
   private onMoveStart(event: EventTouch): void {
+    this.noteInput();
     if (this.held()) return;
+    if (this.beginCarryDrag(event)) return;
     this.moving = true;
     this.onMove(event);
   }
 
   private onMove(event: EventTouch): void {
+    if (this.tickCarryDrag(event)) return;
     if (!this.moving) return;
+    this.noteInput();
     const pos = this.toLayer(event);
     this.moveTarget.set(
       Math.min(-180, Math.max(-540, pos.x)),
@@ -409,8 +594,18 @@ export class RuntimePrototype extends Component {
     );
   }
 
+  private onMoveEnd(): void {
+    if (this.draggingCarry) {
+      this.finishCarryDrag();
+      return;
+    }
+    this.moving = false;
+  }
+
   private onAimStart(event: EventTouch): void {
+    this.noteInput();
     if (this.held()) return;
+    if (this.beginCarryDrag(event)) return;
     this.aiming = true;
     this.aimStartedAt = Date.now();
     this.aimFrom.set(this.player.position);
@@ -418,16 +613,56 @@ export class RuntimePrototype extends Component {
   }
 
   private onAimMove(event: EventTouch): void {
+    if (this.tickCarryDrag(event)) return;
     if (!this.aiming) return;
     this.aimTo.set(this.toLayer(event));
   }
 
   private onAimEnd(event: EventTouch): void {
+    if (this.draggingCarry) {
+      this.finishCarryDrag();
+      return;
+    }
     if (!this.aiming) return;
     this.aimTo.set(this.toLayer(event));
     this.aiming = false;
     if (this.currentKind() === "cannon") return;
     this.fire();
+  }
+
+  private beginCarryDrag(event: EventTouch): boolean {
+    if (!this.carried?.node.active) return false;
+    this.draggingCarry = true;
+    this.moving = false;
+    this.aiming = false;
+    this.tickCarryDrag(event);
+    return true;
+  }
+
+  private tickCarryDrag(event: EventTouch): boolean {
+    if (!this.draggingCarry || !this.carried?.node.active) return false;
+    const raw = this.toLayer(event);
+    const pos = clampCarry(raw.x, raw.y);
+    this.carried.followCarry(pos.x, pos.y);
+    return true;
+  }
+
+  private finishCarryDrag(): void {
+    if (!this.draggingCarry) return;
+    this.draggingCarry = false;
+    const fish = this.carried;
+    if (!fish?.node.active) return;
+    const kind = carryReleaseAt(fish.node.position.x, fish.node.position.y);
+    if (kind === "stash") {
+      this.stashCarried();
+      return;
+    }
+    fish.dropCarry(fish.node.position.x, fish.node.position.y, kind === "drop_water");
+    if (kind === "drop_water") this.hooked = undefined;
+    else if (!this.hooked) this.hooked = fish;
+    this.carried = undefined;
+    this.carriedSince = 0;
+    this.setStatus(carryReleaseCaption(kind));
   }
 
   private movePlayer(dt: number): void {
@@ -453,18 +688,84 @@ export class RuntimePrototype extends Component {
     return ConfigService.toolById(this.launch.toolId).kind;
   }
 
+  private drawHookLine(flashing: boolean): void {
+    if (!this.hooked?.node.active) return;
+    const elapsed = this.castFlashElapsed;
+    const duration = this.castFlashDuration;
+    const width = flashing
+      ? castLineWidth(elapsed, duration, this.lowPower)
+      : 6;
+    const nudge = flashing
+      ? castTipNudgePx(elapsed, duration, this.lowPower)
+      : 0;
+    const sx = this.player.position.x + 28;
+    const sy = this.player.position.y + 18;
+    const tx = this.hooked.node.position.x;
+    const ty = this.hooked.node.position.y;
+    const dx = tx - sx;
+    const dy = ty - sy;
+    const len = Math.hypot(dx, dy) || 1;
+    this.aimLine.strokeColor = new Color(255, 214, 70, flashing ? 255 : 250);
+    this.aimLine.lineWidth = width;
+    this.aimLine.moveTo(sx + (dx / len) * nudge, sy + (dy / len) * nudge);
+    this.aimLine.lineTo(tx, ty);
+    this.aimLine.stroke();
+  }
+
+  private drawCastCharge(): void {
+    if (!this.charging || !this.chargeTarget?.node.active) return;
+    const charge = castChargeAt(Date.now() - this.chargeBorn);
+    const ox = this.player.position.x + 28;
+    const oy = this.player.position.y + 18;
+    const tx = this.chargeTarget.node.position.x;
+    const ty = this.chargeTarget.node.position.y;
+    const pts = castPreviewPts(ox, oy, tx, ty, charge);
+    this.aimLine.strokeColor = new Color(255, 226, 96, 200);
+    this.aimLine.lineWidth = 3 + charge * 4;
+    this.aimLine.moveTo(ox, oy);
+    for (const pt of pts) this.aimLine.lineTo(pt.x, pt.y);
+    this.aimLine.stroke();
+    for (const pt of pts) {
+      this.aimLine.fillColor = new Color(255, 236, 140, 220);
+      this.aimLine.circle(pt.x, pt.y, 3.2);
+      this.aimLine.fill();
+    }
+    const spec = castBarSpec();
+    const bx = 0;
+    const by = -248;
+    this.aimLine.fillColor = new Color(12, 22, 30, 210);
+    this.aimLine.roundRect(bx - spec.width / 2, by, spec.width, spec.height, 7);
+    this.aimLine.fill();
+    this.aimLine.fillColor = new Color(86, 210, 132, 90);
+    this.aimLine.rect(
+      bx - spec.width / 2 + spec.width * spec.sweetLo,
+      by + 2,
+      spec.width * (spec.sweetHi - spec.sweetLo),
+      spec.height - 4,
+    );
+    this.aimLine.fill();
+    this.aimLine.fillColor = new Color(255, 168, 42, 255);
+    this.aimLine.roundRect(
+      bx - spec.width / 2,
+      by + 2,
+      Math.max(8, spec.width * charge),
+      spec.height - 4,
+      5,
+    );
+    this.aimLine.fill();
+  }
+
   private drawAim(): void {
     this.aimLine.clear();
+    this.drawCastCharge();
+    const flashing = this.castFlashLeft > 0 && !!this.hooked?.node.active;
+    if (flashing) this.drawHookLine(true);
     if (deckFlag.live) {
       drawShots(this.aimLine, this.shots);
       return;
     }
-    if (this.hooked?.yanking && this.hooked.node.active) {
-      this.aimLine.strokeColor = new Color(255, 214, 70, 250);
-      this.aimLine.lineWidth = 6;
-      this.aimLine.moveTo(this.player.position.x + 28, this.player.position.y + 18);
-      this.aimLine.lineTo(this.hooked.node.position.x, this.hooked.node.position.y);
-      this.aimLine.stroke();
+    if (!flashing && this.hooked?.yanking && this.hooked.node.active) {
+      this.drawHookLine(false);
     }
     if (this.aiming) {
       const kind = this.currentKind();
@@ -491,16 +792,36 @@ export class RuntimePrototype extends Component {
     return tool.levels.find((item) => item.level === level) ?? tool.levels[0];
   }
 
-  private cast(): void {
+  private noteInput(): void {
+    this.lastInputAt = Date.now();
+  }
+
+  private recentInputMs(): number {
+    return this.lastInputAt ? Date.now() - this.lastInputAt : Number.POSITIVE_INFINITY;
+  }
+
+  private barInput() {
+    return {
+      tutorial: this.tutorial,
+      step: this.tutorialStep,
+      carrying: !!this.carried?.node.active,
+      pickable: !!this.nearestPickable(),
+      hooked: !!this.hooked?.node.active,
+    };
+  }
+
+  private barTone(button: "cast" | "pickUp") {
+    return battleBarButtonTone(this.barInput(), button);
+  }
+
+  private dropInbox(): void {
+    this.noteInput();
     if (this.held()) return;
-    if (this.hooked) {
-      this.setStatus(
-        this.tutorial
-          ? tutorialPrompt(this.tutorialStep)
-          : "已经锁鱼，用右半屏瞄准开火。",
-      );
-      return;
-    }
+    if (!this.carried) return;
+    this.stashCarried();
+  }
+
+  private nearestCastTarget(): FishController | undefined {
     const origin = this.player.position;
     const candidates = this.fishRoot.getComponentsInChildren(FishController)
       .filter((fish) => fish.node.active && !fish.decoy)
@@ -509,15 +830,56 @@ export class RuntimePrototype extends Component {
           Vec3.distance(a.node.position, origin) -
           Vec3.distance(b.node.position, origin),
       );
-    const target = this.tutorial
+    return this.tutorial
       ? candidates.find((fish) => fish.id === TUTORIAL_FISH_ID) ?? candidates[0]
       : candidates.find(
           (fish) =>
             Vec3.distance(fish.node.position, origin) <=
             (this.shownBoss ? 780 : 560),
         );
+  }
+
+  private cast(): void {
+    this.noteInput();
+    if (this.held()) return;
+    if (this.charging) {
+      this.commitCast();
+      return;
+    }
+    if (this.hooked) {
+      this.setStatus(
+        this.tutorial
+          ? tutorialPrompt(this.tutorialStep)
+          : "已经锁鱼，用右下半屏瞄准开火。",
+      );
+      return;
+    }
+    const target = this.nearestCastTarget();
     if (!target) {
       this.setStatus("附近没有鱼，把船再靠近一点。");
+      return;
+    }
+    this.charging = true;
+    this.chargeBorn = Date.now();
+    this.chargeTarget = target;
+    SfxPlayer.play("ui");
+  }
+
+  private tickCastCharge(): void {
+    if (!this.charging) return;
+    if (!castAutoReleases(this.tutorial)) return;
+    const hold = Date.now() - this.chargeBorn;
+    if (hold >= castAutoReleaseMs(true)) this.commitCast();
+  }
+
+  private commitCast(): void {
+    if (!this.charging) return;
+    this.charging = false;
+    const charge = castChargeAt(Date.now() - this.chargeBorn);
+    const target = this.chargeTarget;
+    this.chargeTarget = undefined;
+    if (!target?.node.active) return;
+    if (this.tutorial && !tutorialCastAssists(charge) && !target.node.active) {
       return;
     }
     this.hooked = target;
@@ -525,21 +887,37 @@ export class RuntimePrototype extends Component {
     this.hookedAt = Date.now();
     this.reelActive = false;
     this.session.resetStyle();
+    this.lastHudMultiplier = 1;
+    this.lastHudCombo = 0;
+    this.lastCastQuality = castQuality(charge);
+    this.playCastFeel(this.lastCastQuality);
     if (this.tutorial) {
-      this.hooked.setAssist({
+        this.hooked.setAssist({
         freezeSeconds: TUTORIAL_WEAK_PAUSE_SECONDS,
         forceWeak: true,
         radiusScale: 1.8,
+        noEscape: true,
       });
       this.enterTutorial("hooked");
       return;
     }
     const name = target.fishConfig?.name ?? "目标";
-    SfxPlayer.play("cast");
-    this.setStatus(`拽住${name}。钓线绷着，等它摔上甲板再砸。`);
+    this.setStatus(`${castLockCaption(name)}钓线绷着，等它摔上甲板再砸。`);
+  }
+
+  private playCastFeel(quality: ReturnType<typeof castQuality> = "early"): void {
+    const tipX = this.player.position.x + 28;
+    const tipY = this.player.position.y + 18;
+    this.castFlashDuration = castFlashSeconds(this.lowPower);
+    this.castFlashElapsed = 0;
+    this.castFlashLeft = this.castFlashDuration;
+    this.burst("cast", tipX, tipY);
+    this.showCallout(castChargeCaption(quality));
+    SfxPlayer.playCast(quality);
   }
 
   private fire(): void {
+    this.noteInput();
     if (this.held()) return;
     if (!this.hooked?.node.active) {
       this.setStatus(
@@ -667,6 +1045,7 @@ export class RuntimePrototype extends Component {
     const tool = this.equippedTool();
     const now = Date.now();
     const airborne = this.hooked.airborne;
+    const smashGrade = this.hooked.smashGrade;
     const result = this.hooked.applyHit(
       tool,
       judged.accuracy,
@@ -685,23 +1064,36 @@ export class RuntimePrototype extends Component {
     this.session.addStyle({
       action: judged.weakPoint ? "weakPoint" : "combo",
       atMs: now,
-      quality: judged.accuracy,
+      quality:
+        judged.accuracy *
+        (this.tutorial ? 1 : castStyleQuality(this.lastCastQuality)),
     });
-    if (airborne) {
-      this.session.addStyle({ action: "airborne", atMs: now });
+    if (airborne && smashWindowOpen(smashGrade)) {
+      this.session.addStyle({
+        action: "airborne",
+        atMs: now,
+        quality: airborneStyleQuality(smashGrade),
+      });
     }
     const snap = this.session.getStyleSnapshot();
     const parts = {
       weakPoint: judged.weakPoint,
-      airborne,
+      airborne: smashWindowOpen(smashGrade),
       combo: snap.combo,
     };
-    this.showCallout(styleCallout(parts));
-    const juice: JuiceKind = judged.weakPoint ? "weak" : "hit";
+    const smashLine = smashCallout(smashGrade, judged.weakPoint);
+    this.showCallout(smashLine || styleCallout(parts));
+    const juice: JuiceKind = judged.weakPoint
+      ? "weak"
+      : smashWindowOpen(smashGrade)
+        ? "smash"
+        : "hit";
     this.burst(juice, tx, ty);
-    this.beginHitStop(hitStopSeconds(juice, this.lowPower));
-    SfxPlayer.play(judged.weakPoint ? "weak" : "hit");
-    if (shouldVibrate(this.vibration, parts)) WechatAdapter.vibrate();
+    this.beginHitStop(hitStopSeconds(juice === "smash" ? "smash" : juice, this.lowPower));
+    SfxPlayer.play(judged.weakPoint ? "weak" : smashWindowOpen(smashGrade) ? "smash" : "hit");
+    if (shouldVibrate(this.vibration, { ...parts, airborne: smashWindowOpen(smashGrade) })) {
+      WechatAdapter.vibrate();
+    }
     if (result.readyToReel) {
       this.setStatus("砸晕了！点捡起，搬去左边鱼箱。");
     } else if (
@@ -712,10 +1104,14 @@ export class RuntimePrototype extends Component {
       this.setStatus(
         `甲壳挡住了。等它转身露出缝再打。韧性 ${result.remainingToughness}`,
       );
-    } else if (judged.weakPoint) {
+    } else     if (judged.weakPoint) {
       this.setStatus(`弱点击破！韧性 ${result.remainingToughness}`);
     } else {
       this.setStatus(`命中，韧性 ${result.remainingToughness}`);
+    }
+    if (this.tutorial) {
+      if (judged.weakPoint) this.enterTutorial("weakHit");
+      if (result.readyToReel) this.enterTutorial("reelReady");
     }
   }
 
@@ -751,9 +1147,18 @@ export class RuntimePrototype extends Component {
       const fx = fish.takeLandFx();
       if (fx.splash) {
         this.burst("splash", fish.node.position.x, fish.node.position.y + 24);
+        SfxPlayer.play("splash");
       }
       if (fx.bounce) {
-        this.burst("hit", fish.node.position.x, fish.node.position.y);
+        this.burst("smash", fish.node.position.x, fish.node.position.y);
+        this.juice = this.juice.concat(
+          spawnLandingDust(fish.node.position.x, fish.node.position.y, this.lowPower),
+        );
+        this.beginHitStop(
+          bounceFreezeSeconds(fx.bounceIndex ?? 0, this.lowPower),
+        );
+        if ((fx.bounceIndex ?? 0) === 0) this.showCallout(flopBeatCaption("slam"));
+        SfxPlayer.play("smash");
       }
     }
   }
@@ -761,26 +1166,37 @@ export class RuntimePrototype extends Component {
   private tickCarry(): void {
     if (!this.carried?.node.active) {
       this.carried = undefined;
+      this.draggingCarry = false;
       return;
     }
-    const p = this.player.position;
-    this.carried.followCarry(p.x + 40, p.y + 30);
+    if (!this.draggingCarry) {
+      const p = this.player.position;
+      const bob = carryBobOffset(this.runElapsed);
+      this.carried.followCarry(p.x + 40 + bob.x, p.y + 30 + bob.y);
+    }
     if (crateDrop(this.carried.node.position.x, this.carried.node.position.y)) {
+      this.draggingCarry = false;
       this.stashCarried();
     }
   }
 
-  private pickUp(): void {
-    if (this.held()) return;
-    if (this.carried) {
-      this.setStatus("已经扛着一条。走到左边鱼箱丢掉。");
-      return;
-    }
-    const near =
+  private nearestPickable(): FishController | undefined {
+    return (
       (this.hooked?.pickable ? this.hooked : undefined) ??
       this.fishRoot
-        .getComponentsInChildren(FishController)
-        .find((fish) => fish.pickable && fish.node.active);
+        ?.getComponentsInChildren(FishController)
+        .find((fish) => fish.pickable && fish.node.active)
+    );
+  }
+
+  private pickUp(): void {
+    this.noteInput();
+    if (this.held()) return;
+    if (this.carried) {
+      this.setStatus(carryDragHint());
+      return;
+    }
+    const near = this.nearestPickable();
     if (!near) {
       this.setStatus("先砸晕甲板上的鱼，再捡起来。");
       return;
@@ -799,7 +1215,11 @@ export class RuntimePrototype extends Component {
     near.startCarry();
     this.carried = near;
     if (this.hooked === near) this.hooked = undefined;
-    this.setStatus("扛上了。搬去左边鱼箱。");
+    this.setStatus(
+      this.tutorial
+        ? tutorialPrompt("reel", { carrying: true })
+        : carryDragHint(),
+    );
   }
 
   private stashCarried(): void {
@@ -816,6 +1236,8 @@ export class RuntimePrototype extends Component {
     fish.node.active = false;
     fish.setHooked(false);
     this.carried = undefined;
+    this.carriedSince = 0;
+    this.carriedHintShown = false;
     this.reelActive = false;
     this.reelBar.clear();
     Analytics.track("fish_captured", {
@@ -823,19 +1245,22 @@ export class RuntimePrototype extends Component {
       price: sold.price,
       multiplier: sold.styleMultiplier,
     });
-    this.burst(airborneBag ? "perfect" : "catch", atX, atY);
-    this.showCallout(
-      styleCallout({
-        weakPoint: false,
-        airborne: airborneBag,
-        combo: 1,
-        perfect: airborneBag,
-      }),
-    );
+    const juice: JuiceKind = airborneBag ? "perfect" : "catch";
+    this.burst(juice, atX, atY);
+    this.beginHitStop(hitStopSeconds(juice, this.lowPower));
+    this.showCallout(inboxPopup(sold.price));
+    this.cratePunchLeft = juicePunchSeconds("catch", this.lowPower);
     SfxPlayer.play(airborneBag ? "perfect" : "catch");
-    this.setStatus(
-      `${captured.name} ×${sold.styleMultiplier.toFixed(2)} → ${sold.price}金，丢进鱼箱。回港才卖。`,
-    );
+    const first = isFirstCatch(captured.id, playerSave.get().discoveredFish);
+    if (this.tutorial) {
+      this.enterTutorial("captured");
+    } else {
+      this.setStatus(
+        first
+          ? `${discoveryToast(captured.name)} 入箱 ${sold.price}金。`
+          : `${captured.name} ×${sold.styleMultiplier.toFixed(2)} → ${sold.price}金，丢进鱼箱。回港才卖。`,
+      );
+    }
     if (captured.tier === "boss") {
       this.setStatus("巨鲲入箱。收网回港。");
       this.returnHarbor();
@@ -862,6 +1287,7 @@ export class RuntimePrototype extends Component {
   }
 
   private togglePause(): void {
+    this.noteInput();
     if (this.closing || this.resumeLeft > 0) return;
     if (!this.paused) {
       this.paused = true;
@@ -899,6 +1325,8 @@ export class RuntimePrototype extends Component {
     this.aimStartedAt += ms;
     this.reelReadyAt += ms;
     this.settleAt += ms;
+    if (this.pickableSince) this.pickableSince += ms;
+    if (this.carriedSince) this.carriedSince += ms;
     this.calloutUntil += ms;
   }
 
@@ -930,6 +1358,10 @@ export class RuntimePrototype extends Component {
       this.clockLabel.string = `${waveCaption(snapshot.phase, snapshot.waveIndex)} ${formatClock(snapshot.remaining)}`;
     }
     if (snapshot.phase === "over") {
+      if (this.tutorial) {
+        this.setStatus(tutorialPrompt(this.tutorialStep));
+        return;
+      }
       if (this.liveBoss()) {
         this.setStatus(
           this.hooked?.fishConfig?.tier === "boss"
@@ -958,7 +1390,12 @@ export class RuntimePrototype extends Component {
     if (snapshot.waveIndex !== this.lastWaveIndex) {
       this.lastWaveIndex = snapshot.waveIndex;
       this.setStatus(
-        snapshot.waveIndex === 0 ? "热身潮。拽上岸，砸晕，搬进鱼箱。" : "精英潮来了。",
+        battleWaveNarration(
+          this.tutorial,
+          this.tutorialStep,
+          waveStartNarration(snapshot.waveIndex),
+          { carrying: !!this.carried?.node.active },
+        ),
       );
       this.spawnWait = 999;
       while (
@@ -1004,45 +1441,130 @@ export class RuntimePrototype extends Component {
   private tickEscape(): void {
     if (this.tutorial) return;
     if (this.carried) return;
-    if (this.hooked && !this.hooked.isHooked && !this.hooked.pickable) {
+    const hooked = this.hooked;
+    if (hooked && !hooked.isHooked && !hooked.pickable) {
       this.hooked = undefined;
-      this.setStatus("跳回海里了。再抛竿拽上来。");
+      this.setStatus(escapeCaption("gone"));
+      this.lastEscapeNote = "gone";
       return;
     }
-    if (!this.hooked?.fishConfig || this.hooked.pickable) return;
-    const limit = this.hooked.fishConfig.escapeSeconds * 1000;
+    if (!hooked?.node.active) return;
+    const phase = hooked.escapePhase;
+    if (phase !== "idle" && phase !== this.lastEscapeNote) {
+      this.lastEscapeNote = phase;
+      const line = escapeCaption(phase);
+      if (line) this.setStatus(line);
+    }
+    if (phase === "idle") this.lastEscapeNote = "";
+    if (!hooked.fishConfig || hooked.pickable || hooked.onDeck) return;
+    const limit = hooked.fishConfig.escapeSeconds * 1000;
     if (Date.now() - this.hookedAt <= limit) return;
-    this.hooked.setHooked(false);
+    hooked.setHooked(false);
     this.hooked = undefined;
     this.setStatus("鱼挣脱了。再抛竿拽一条。");
+  }
+
+  private tickPickupAssist(): void {
+    if (this.held() || this.closing) return;
+    if (this.carried?.node.active) {
+      this.pickableSince = 0;
+      this.pickupHintShown = false;
+      if (!this.carriedSince) this.carriedSince = Date.now();
+      const action = pickupAssistDecision(
+        "carried",
+        Date.now() - this.carriedSince,
+        this.recentInputMs(),
+      );
+      if (action === "hint" && !this.carriedHintShown) {
+        this.carriedHintShown = true;
+        this.setStatus("鱼箱在左边。太久不送会自动入箱。");
+      }
+      if (action === "auto") this.stashCarried();
+      return;
+    }
+    this.carriedSince = 0;
+    this.carriedHintShown = false;
+    const near = this.nearestPickable();
+    if (!near) {
+      this.pickableSince = 0;
+      this.pickupHintShown = false;
+      return;
+    }
+    if (!this.pickableSince) this.pickableSince = Date.now();
+    const action = pickupAssistDecision(
+      "pickable",
+      Date.now() - this.pickableSince,
+      this.recentInputMs(),
+    );
+    if (action === "hint" && !this.pickupHintShown) {
+      this.pickupHintShown = true;
+      this.setStatus(
+        this.tutorial
+          ? "点捡起，搬进左边鱼箱。等太久会自动帮忙。"
+          : "砸晕的鱼可以捡了。点捡起，或再等一会会自动捡起。",
+      );
+    }
+    if (action === "auto") this.autoPickUp(near);
+  }
+
+  private autoPickUp(near: FishController): void {
+    this.player.setPosition(
+      near.node.position.x - 40,
+      near.node.position.y,
+      0,
+    );
+    this.moveTarget.set(
+      this.player.position.x,
+      this.player.position.y,
+      0,
+    );
+    this.pickUp();
+    if (this.carried === near || this.held()) return;
+    if (!near.pickable || !near.node.active || this.carried) return;
+    near.startCarry();
+    this.carried = near;
+    if (this.hooked === near) this.hooked = undefined;
+    this.setStatus(
+      this.tutorial
+        ? tutorialPrompt("reel", { carrying: true })
+        : carryDragHint(),
+    );
   }
 
   private tickTutorial(): void {
     if (!this.tutorial || this.tutorialStep === "complete") return;
     if (this.tutorialStep === "settle" && this.settleAt > 0) {
-      if (Date.now() - this.settleAt >= 1_800) {
+      const action = settleLeaveDecision(
+        Date.now() - this.settleAt,
+        this.recentInputMs(),
+      );
+      if (action === "hint" && !this.settleHintShown) {
+        this.settleHintShown = true;
+        this.setStatus(tutorialPrompt("settle"));
+      }
+      if (action === "auto") {
         this.tutorialStep = "complete";
         this.returnHarbor();
       }
       return;
     }
     if (
-      this.reelActive &&
-      shouldAutoReel(
-        this.tutorialStep,
-        Date.now() - this.reelReadyAt,
-        Date.now() - this.battleAt,
-      )
+      !shouldAutoReel(this.tutorialStep, 0, Date.now() - this.battleAt)
     ) {
-      this.reelMarker = 0.5;
-      this.reel();
+      return;
     }
+    const near = this.nearestPickable();
+    if (near) this.autoPickUp(near);
   }
 
   private enterTutorial(event: "hooked" | "weakHit" | "reelReady" | "captured"): void {
     this.tutorialStep = advanceTutorial(this.tutorialStep, event);
     this.setStatus(tutorialPrompt(this.tutorialStep));
-    if (this.tutorialStep === "settle") this.settleAt = Date.now();
+    if (this.tutorialStep === "settle") {
+      this.settleAt = Date.now();
+      this.settleHintShown = false;
+      Analytics.track("tutorial_finish", { islandId: TUTORIAL_ISLAND_ID });
+    }
   }
 
   private tickCannon(): void {
@@ -1158,30 +1680,89 @@ export class RuntimePrototype extends Component {
     }
   }
 
+  private syncBarButtons(): void {
+    const input = this.barInput();
+    const showCast = battleBarButtonVisible(input, "cast");
+    const showPick = battleBarButtonVisible(input, "pickUp");
+    const showDrop = battleInboxCtaVisible(input);
+    if (this.castButton) this.castButton.active = showCast;
+    if (this.reelButton) this.reelButton.active = showPick;
+    if (this.dropButton) this.dropButton.active = showDrop;
+    const castTone = this.barTone("cast");
+    const pickTone = this.barTone("pickUp");
+    if (this.castButton && showCast && castTone !== this.lastCastTone) {
+      this.lastCastTone = castTone;
+      paintButtonTone(this.castButton, castTone);
+    }
+    if (this.reelButton && showPick && pickTone !== this.lastPickTone) {
+      this.lastPickTone = pickTone;
+      paintButtonTone(this.reelButton, pickTone);
+    }
+  }
+
   private drawGuide(): void {
+    this.syncBarButtons();
     this.guide.clear();
+    this.paintSmashWindow();
     if (!this.tutorial) return;
-    const target =
-      this.tutorialStep === "cast"
+    const focus = tutorialGuideTarget(this.tutorialStep, {
+      carrying: !!this.carried?.node.active,
+    });
+    const live =
+      focus === "cast"
         ? this.castButton
-        : this.tutorialStep === "reel"
+        : focus === "pickUp"
           ? this.reelButton
-          : undefined;
-    if (!target) return;
-    const pulse = 18 + Math.sin(Date.now() / 180) * 8;
-    this.guide.strokeColor = new Color(255, 236, 120, 230);
-    this.guide.lineWidth = 6;
-    this.guide.circle(target.position.x, target.position.y, 70 + pulse);
-    this.guide.stroke();
+          : focus === "return"
+            ? this.leaveButton
+            : undefined;
+    const fallback = tutorialGuideAnchor(focus);
+    const hooked = this.hooked?.node?.position;
+    const x = live
+      ? live.position.x
+      : focus === "weakPoint" && hooked
+        ? hooked.x
+        : fallback?.x;
+    const y = live
+      ? live.position.y
+      : focus === "weakPoint" && hooked
+        ? hooked.y
+        : fallback?.y;
+    if (x == null || y == null) return;
+    const ring = tutorialGuideRing(Date.now());
+    const hole = (fallback?.radius ?? 78) + ring.pulse * 0.35;
+    drawGuideHole(this.guide, x, y, hole, ring);
+  }
+
+  private paintSmashWindow(): void {
+    const fish = this.hooked;
+    if (!fish?.node.active) return;
+    const spec = smashHighlightSpec(fish.smashGrade, Date.now(), this.lowPower);
+    if (!spec.visible) {
+      this.lastSmashNote = "";
+      return;
+    }
+    drawSmashWindow(this.guide, fish.node.position.x, fish.node.position.y, spec);
+    if (fish.smashGrade === "perfect" && this.lastSmashNote !== spec.caption) {
+      this.lastSmashNote = spec.caption;
+      this.showCallout(spec.caption);
+    }
   }
 
   private returnHarbor(): void {
+    this.noteInput();
     if (this.closing) return;
+    if (this.tutorial && !tutorialCanLeave(this.tutorialStep)) {
+      this.setStatus("先抛竿、打中、入箱，再回港卖。");
+      return;
+    }
     this.closing = true;
     this.deck?.dispose();
     this.deck = undefined;
     this.shots = [];
     this.hitStopLeft = 0;
+    this.charging = false;
+    this.chargeTarget = undefined;
     this.unbindPads();
     FishController.setPaused(false);
     const summary = this.session.finish();
@@ -1203,12 +1784,35 @@ export class RuntimePrototype extends Component {
       this.fishRoot,
       this.hooked,
       this.aiming ? this.aimTo : undefined,
+      {
+        smashElapsed:
+          this.shakeLeft > 0
+            ? juiceShakeSeconds(this.lowPower) - this.shakeLeft
+            : 1,
+        lowPower: this.lowPower,
+        smashGrade: this.hooked?.smashGrade,
+      },
     );
     if (!this.status) return;
     const preview = this.session.preview();
     const style = this.session.getStyleSnapshot();
     this.coinsLabel.string = `本局 ${preview.coins}`;
-    this.multiplier.string = comboHud(style.multiplier, style.combo);
+    this.multiplier.string = comboHud(style.multiplier, style.combo, {
+      rising: this.hudPunchLeft > 0,
+      from: this.hudRiseFrom,
+    });
+    if (
+      styleHudShouldPunch(
+        { multiplier: this.lastHudMultiplier, combo: this.lastHudCombo },
+        { multiplier: style.multiplier, combo: style.combo },
+      )
+    ) {
+      this.hudRiseFrom = this.lastHudMultiplier;
+      this.hudPunchElapsed = 0;
+      this.hudPunchLeft = styleHudPunchSeconds(this.lowPower);
+    }
+    this.lastHudMultiplier = style.multiplier;
+    this.lastHudCombo = style.combo;
     if (this.callout) {
       this.callout.string = Date.now() < this.calloutUntil ? this.callout.string : "";
     }
@@ -1218,6 +1822,7 @@ export class RuntimePrototype extends Component {
         liveQuote(fish, style.multiplier),
         `韧性 ${this.hooked.remainingToughness}`,
         this.hooked.weakOpen ? "弱点亮" : "",
+        smashHighlightSpec(this.hooked.smashGrade, Date.now(), this.lowPower).caption,
         fish.behavior === "shield"
           ? this.hooked.shieldOpen
             ? "甲缝开"
@@ -1238,23 +1843,136 @@ export class RuntimePrototype extends Component {
 
   private burst(kind: JuiceKind, x: number, y: number): void {
     this.juice = this.juice.concat(spawnJuice(kind, x, y, this.lowPower));
+    if (kind === "smash") this.slamMarks.push({ x, y, life: 1 });
+    const flash = spawnJuiceFlash(kind, x, y, this.lowPower);
+    if (flash) this.juiceFlash = flash;
+    const punch = juicePunchSeconds(kind, this.lowPower);
+    if (punch > 0) {
+      this.punchKind = kind;
+      this.punchElapsed = 0;
+      this.punchLeft = punch;
+    }
+    const shake = juiceShakePx(kind, this.lowPower);
+    if (shake > 0) {
+      this.shakePx = shake;
+      this.shakeLeft = juiceShakeSeconds(this.lowPower);
+    }
     this.drawJuiceFx();
   }
 
   private tickJuiceFx(dt: number): void {
-    if (this.juice.length === 0) return;
-    this.juice = tickJuice(this.juice, dt);
+    this.juiceFlash = tickJuiceFlash(this.juiceFlash, dt);
+    if (this.juice.length > 0) this.juice = tickJuice(this.juice, dt);
+    if (this.slamMarks.length > 0) {
+      this.slamMarks = this.slamMarks
+        .map((mark) => ({ ...mark, life: mark.life - dt * 0.12 }))
+        .filter((mark) => mark.life > 0);
+    }
+    this.tickCastFlash(dt);
+    this.tickPunch(dt);
+    this.tickShake(dt);
+    if (
+      this.juice.length === 0 &&
+      !this.juiceFlash &&
+      this.slamMarks.length === 0 &&
+      this.punchLeft <= 0 &&
+      this.shakeLeft <= 0 &&
+      this.cratePunchLeft <= 0 &&
+      this.castFlashLeft <= 0 &&
+      this.hudPunchLeft <= 0
+    ) {
+      if (this.juiceGfx) this.juiceGfx.clear();
+      return;
+    }
     this.drawJuiceFx();
   }
 
+  private tickCastFlash(dt: number): void {
+    if (this.castFlashLeft <= 0) {
+      this.castFlashLeft = 0;
+      return;
+    }
+    this.castFlashElapsed += dt;
+    this.castFlashLeft = Math.max(0, this.castFlashLeft - dt);
+    if (!this.player?.isValid) return;
+    const scale =
+      depthScale(this.player.position.y) *
+      castRodScaleAt(
+        this.castFlashElapsed,
+        this.castFlashDuration,
+        this.lowPower,
+      );
+    this.player.setScale(scale, scale, 1);
+  }
+
+  private tickPunch(dt: number): void {
+    if (this.punchLeft > 0) {
+      this.punchElapsed += dt;
+      this.punchLeft = Math.max(0, this.punchLeft - dt);
+      const scale = juicePunchScaleAt(
+        this.punchKind,
+        this.punchElapsed,
+        this.lowPower,
+      );
+      this.callout?.node.setScale(scale, scale, 1);
+      this.callout?.node.setPosition(0, this.calloutBaseY + popupLiftPx(this.punchElapsed));
+    } else {
+      this.callout?.node.setScale(1, 1, 1);
+    }
+    if (this.cratePunchLeft > 0) {
+      this.cratePunchLeft = Math.max(0, this.cratePunchLeft - dt);
+      const duration = juicePunchSeconds("catch", this.lowPower) || 0.16;
+      const elapsed = duration - this.cratePunchLeft;
+      const scale = crateBounceScaleAt(elapsed, this.lowPower);
+      this.crateLabel?.node.setScale(scale, scale, 1);
+      this.crateNode?.setScale(scale, scale, 1);
+    } else if (this.crateLabel) {
+      this.crateLabel.node.setScale(1, 1, 1);
+      this.crateNode?.setScale(1, 1, 1);
+    }
+    if (this.hudPunchLeft > 0) {
+      this.hudPunchElapsed += dt;
+      this.hudPunchLeft = Math.max(0, this.hudPunchLeft - dt);
+      const scale = styleHudPunchScaleAt(this.hudPunchElapsed, this.lowPower);
+      const rgb = styleHudPunchRgb(this.hudPunchElapsed, this.lowPower);
+      this.multiplier?.node.setScale(scale, scale, 1);
+      if (this.multiplier) {
+        this.multiplier.color = new Color(rgb[0], rgb[1], rgb[2], 255);
+      }
+    } else if (this.multiplier) {
+      this.multiplier.node.setScale(1, 1, 1);
+      this.multiplier.color = new Color(240, 250, 255, 255);
+    }
+  }
+
+  private tickShake(dt: number): void {
+    if (!this.layer?.isValid) return;
+    if (this.shakeLeft <= 0) {
+      this.layer.setPosition(0, 0, 0);
+      return;
+    }
+    this.shakeLeft = Math.max(0, this.shakeLeft - dt);
+    const shakeDur = juiceShakeSeconds(this.lowPower) || 0.08;
+    const mag = this.shakePx * (this.shakeLeft / shakeDur);
+    this.layer.setPosition((Math.random() - 0.5) * 2 * mag, (Math.random() - 0.5) * 2 * mag, 0);
+  }
+
   private drawJuiceFx(): void {
-    if (this.juiceGfx) drawJuice(this.juiceGfx, this.juice);
+    if (this.juiceGfx) {
+      drawJuice(
+        this.juiceGfx,
+        this.juice,
+        this.juiceFlash ? [this.juiceFlash] : [],
+        this.slamMarks,
+      );
+    }
   }
 
   private showCallout(value: string): void {
     if (!this.callout) return;
     this.callout.string = value;
-    this.calloutUntil = Date.now() + 1_400;
+    this.calloutUntil = Date.now() + calloutHoldMs();
+    this.callout.node.setPosition(0, this.calloutBaseY);
   }
 
   private setStatus(value: string): void {

@@ -182,7 +182,7 @@ export const bundledIslands = [
     "targetSessionSeconds": 60,
     "waves": [
       {
-        "durationSeconds": 50,
+        "durationSeconds": 60,
         "fishPool": ["fish_bayfin"],
         "maxAlive": 1,
         "spawnIntervalSeconds": 8

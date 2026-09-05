@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { listConfigDrift } from "./sync-bundled-config.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const errors = [];
+const errors = listConfigDrift(root);
 
 function walk(dir) {
   if (!fs.existsSync(dir)) return [];

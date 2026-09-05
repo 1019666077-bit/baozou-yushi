@@ -13,6 +13,7 @@
     "assets/scripts/domain/**/*.ts",
     "assets/scripts/content/IslandFishPool.ts",
     "assets/scripts/data/types.ts",
+    "assets/scripts/platform/WechatAdapter.ts",
     "cloudfunctions/shared/**/*.ts",
     "tests/**/*.ts",
     "vitest.config.mts"

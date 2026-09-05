@@ -1,0 +1,262 @@
+/**
+ * 点完第一局体验代理并截图。非 Cocos 实机。
+ */
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const outDir = process.env.PLAYTEST_OUT || path.join(root, "reports/first-run-proxy");
+const url = process.env.PREVIEW_URL ?? "http://127.0.0.1:8766/";
+fs.mkdirSync(outDir, { recursive: true });
+
+function resolveChrome() {
+  if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) {
+    return process.env.CHROME_PATH;
+  }
+  const candidates = [
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/local/bin/google-chrome",
+    "/usr/bin/chromium",
+  ];
+  const found = candidates.find((file) => fs.existsSync(file));
+  if (!found) {
+    console.error("找不到 Chrome/Chromium");
+    process.exit(1);
+  }
+  return found;
+}
+
+function loadPuppeteer() {
+  try {
+    return require("puppeteer-core");
+  } catch {
+    console.error("缺少 puppeteer-core，请先 npm install --no-save puppeteer-core");
+    process.exit(1);
+  }
+}
+
+async function tap(page, name) {
+  const clicked = await page.evaluate((wanted) => {
+    const buttons = [...document.querySelectorAll("button.cta")];
+    const hit = buttons.find((btn) => (btn.dataset.name || btn.textContent) === wanted);
+    if (!hit) return false;
+    hit.click();
+    return true;
+  }, name);
+  return clicked;
+}
+
+async function shot(page, name) {
+  const file = path.join(outDir, `${name}.png`);
+  await page.screenshot({ path: file, fullPage: true });
+  console.log(`shot ${file}`);
+  return file;
+}
+
+async function wait(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const chrome = resolveChrome();
+const puppeteer = loadPuppeteer();
+const browser = await puppeteer.launch({
+  executablePath: chrome,
+  headless: "new",
+  args: ["--no-sandbox", "--disable-gpu"],
+  defaultViewport: { width: 1360, height: 900, deviceScaleFactor: 1 },
+});
+
+const findings = [];
+const note = (ok, message) => {
+  findings.push({ ok, message });
+  console.log(`${ok ? "OK" : "FAIL"} ${message}`);
+};
+
+const page = await browser.newPage();
+try {
+  await page.goto(url, { waitUntil: "networkidle0", timeout: 20000 });
+  await wait(400);
+  const disclaimer = await page.$eval("#disclaimer", (el) => el.textContent);
+  note(disclaimer.includes("非 Cocos 实机"), `disclaimer ${disclaimer}`);
+  note(disclaimer.includes("2D/辅助") && disclaimer.includes("Creator 3D"), "disclaimer marks 2D/辅助 ≠ Creator 3D");
+  note(disclaimer.includes("占位音效") && disclaimer.includes("≠ 真机"), "disclaimer marks WebAudio 占位");
+  await shot(page, "01-harbor-new");
+
+  const harborText = await page.evaluate(() => document.body.innerText);
+  note(harborText.includes("开始教学"), "new-save CTA 开始教学");
+  note(harborText.includes("练潮码头"), "出航行是练潮码头");
+  note(!harborText.includes("● 泡沫湾"), "教学前不假装选中泡沫湾");
+  note(harborText.includes("教学后图鉴"), "图鉴锁定");
+  note(harborText.includes("教学后"), "选岛/图鉴在教学前标明教学后");
+
+  note(await tap(page, "教学后图鉴"), "点锁定图鉴");
+  await wait(200);
+  note(
+    (await page.evaluate(() => document.body.innerText)).includes("先完成教学再查看图鉴"),
+    "锁定图鉴提示",
+  );
+
+  note(await tap(page, "开始教学"), "开始教学");
+  await wait(250);
+  await shot(page, "02-tutorial-cast");
+  const castText = await page.evaluate(() => document.body.innerText);
+  note(castText.includes("练潮码头") && castText.includes("潮汐猎场"), "教学猎场标题");
+  note(castText.includes("抛竿") && castText.includes("捡起"), "抛竿/捡起按钮");
+  const castState = await page.evaluate(() => window.proxyState());
+  note(
+    castState.status.includes("抛竿") && !castState.status.includes("热身潮"),
+    "教学旁白不被潮汐句覆盖",
+  );
+
+  note(await tap(page, "回港"), "教学中点回港");
+  await wait(150);
+  note(
+    (await page.evaluate(() => document.body.innerText)).includes("先抛竿、打中、入箱"),
+    "未入箱不能回港",
+  );
+
+  note(await tap(page, "抛竿"), "抛竿");
+  await wait(280);
+  await shot(page, "02b-charge");
+  const chargeState = await page.evaluate(() => window.proxyState());
+  note(chargeState.charging === true || chargeState.charge > 0 || chargeState.surface === "sea", "教学蓄力条可见");
+  await wait(400);
+  await shot(page, "03-tutorial-weak");
+  const weakText = await page.evaluate(() => document.body.innerText);
+  note(weakText.includes("发光鳍") || weakText.includes("弱点"), "弱点旁白");
+  note(weakText.includes("弱点"), "弱点提示可读");
+  note(weakText.includes("湾鳍"), "目标是湾鳍鱼");
+
+  note(await tap(page, "弱点"), "点发光鳍");
+  for (let i = 0; i < 36; i += 1) {
+    const slam = await page.evaluate(() => window.proxyState());
+    if (slam.bounceCount >= 1) break;
+    await wait(90);
+  }
+  await page.evaluate(() => window.proxyForceSlam());
+  await wait(60);
+  await shot(page, "04b-slam-dust");
+  const slamState = await page.evaluate(() => window.proxyState());
+  note(slamState.dust >= 8 || slamState.slamMark > 0.4, "砸拍扬尘静帧可读");
+  await wait(200);
+  await shot(page, "04-tutorial-pickup");
+  const pickText = await page.evaluate(() => document.body.innerText);
+  note(pickText.includes("捡起") && pickText.includes("鱼箱"), "捡起旁白");
+  note(pickText.includes("弱点") || pickText.includes("入箱"), `命中跳字或旁白 ${pickText.includes("弱点")}`);
+
+  note(await tap(page, "捡起"), "捡起");
+  await wait(250);
+  await shot(page, "05-tutorial-carry");
+  const carryText = await page.evaluate(() => document.body.innerText);
+  const carryButtons = await page.evaluate(() =>
+    [...document.querySelectorAll("button.cta")].map(
+      (btn) => btn.dataset.name || btn.textContent,
+    ),
+  );
+  note(carryText.includes("左边鱼箱"), "扛鱼后指向鱼箱");
+  note(carryButtons.includes("丢掉入箱"), "入箱步底栏主橙是丢掉入箱");
+  note(
+    !carryButtons.includes("抛竿") && !carryButtons.includes("捡起"),
+    "入箱步不露抛竿/捡起主操作",
+  );
+
+  note((await tap(page, "丢掉入箱")) || (await tap(page, "鱼箱")), "入箱");
+  await wait(280);
+  await shot(page, "06-tutorial-inbox");
+  const inboxText = await page.evaluate(() => document.body.innerText);
+  note(inboxText.includes("入箱"), "入箱跳字或旁白");
+  note(inboxText.includes("回港"), "入箱后指向回港");
+
+  note(await tap(page, "回港"), "入箱后点回港");
+  await wait(280);
+  await shot(page, "07-settle-sell");
+  const settleText = await page.evaluate(() => document.body.innerText);
+  note(settleText.includes("潮汐鱼市结算"), "结算页");
+  note(settleText.includes("【首次】"), "首次角标");
+  note(settleText.includes("卖到鱼市"), "卖鱼主 CTA");
+
+  note(await tap(page, "卖到鱼市"), "卖到鱼市");
+  await wait(350);
+  await shot(page, "08-harbor-after");
+  const after = await page.evaluate(() => document.body.innerText);
+  note(after.includes("潮汐港口 v34") || after.includes("潮汐港口"), "回到港口");
+  note(after.includes("11/90") || after.includes("卖出已入账"), "卖出接到攒够进度");
+  note(after.includes("出海捕鱼"), "第二局 CTA 文案");
+  note(after.includes("● 泡沫湾"), "教学后默认泡沫湾");
+  note(!after.includes("开始教学"), "开始教学已消失");
+  note(after.includes("再出1局后图鉴"), "图鉴仍锁到第二局");
+  note(after.includes("+") && after.includes("金"), "金币跳字");
+  note(after.includes("图鉴新纪录") || after.includes("卖出"), "卖出/图鉴新纪录反馈");
+  note(
+    after.includes("目标：攒够") ||
+      after.includes("11/90") ||
+      after.includes("再出海") ||
+      after.includes("还差"),
+    "卖完主目标写攒够升级进度",
+  );
+  note(!after.includes("适度游戏"), "卖完不叠健康忠告");
+  note(!after.includes("泡沫湾 · 教学后"), "教学后选岛不再写教学后");
+
+  note(await tap(page, "升级弹力鱼竿"), "点升级（首局金币不够）");
+  await wait(200);
+  await shot(page, "09-upgrade-broke");
+  const broke = await page.evaluate(() => document.body.innerText);
+  note(broke.includes("金币不足"), "买不起升级给短反馈");
+  note(
+    broke.includes("目标：攒够") ||
+      broke.includes("11/90") ||
+      broke.includes("再出海") ||
+      broke.includes("还差"),
+    "升级失败不盖掉主目标",
+  );
+
+  note(await tap(page, "出海捕鱼"), "自由局出海");
+  await wait(280);
+  const freeSail = await page.evaluate(() => window.proxyState());
+  note(freeSail.freeHunt === true, "教完后自由局不再开教学自动甜区");
+  note(await tap(page, "抛竿"), "自由局开始蓄力");
+  await page.evaluate(() => window.proxyHoldCharge(0.28));
+  await wait(80);
+  await shot(page, "10-free-charge-early");
+  const early = await page.evaluate(() => window.proxyState());
+  note(early.charging === true && early.charge < 0.5, "自由局早蓄力停在甜区前");
+  await page.evaluate(() => window.proxyHoldCharge(0.7));
+  await wait(80);
+  await shot(page, "11-free-charge-sweet");
+  const sweet = await page.evaluate(() => window.proxyState());
+  note(sweet.charge >= 0.58 && sweet.charge <= 0.8, "自由局准时蓄力停在甜区");
+  note(await tap(page, "甩出"), "自由局自己松手");
+  await wait(200);
+  const released = await page.evaluate(() => window.proxyState());
+  note(released.lastCastQuality === "sweet", "准时甩出才记精彩");
+  note(released.charging === false, "松手后不再自动蓄");
+
+  fs.writeFileSync(
+    path.join(outDir, "report.json"),
+    `${JSON.stringify(
+      {
+        url,
+        disclaimer,
+        proxy: true,
+        findings,
+        failCount: findings.filter((item) => !item.ok).length,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+} finally {
+  await browser.close();
+}
+
+const failed = findings.filter((item) => !item.ok);
+if (failed.length) {
+  console.error(`proxy playtest failed ${failed.length}`);
+  process.exitCode = 1;
+} else {
+  console.log(`proxy playtest ok → ${outDir}`);
+}

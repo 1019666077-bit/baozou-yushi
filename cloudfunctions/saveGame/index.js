@@ -1,20 +1,8 @@
 const cloud = require("wx-server-sdk");
+const { validSave } = require("../shared/saveValidator");
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
-
-function validSave(save) {
-  return (
-    save &&
-    save.schemaVersion === 1 &&
-    Number.isInteger(save.revision) &&
-    save.revision > 0 &&
-    Number.isFinite(save.coins) &&
-    save.coins >= 0 &&
-    Array.isArray(save.tools) &&
-    JSON.stringify(save).length < 32_000
-  );
-}
 
 exports.main = async (event) => {
   const { OPENID } = cloud.getWXContext();

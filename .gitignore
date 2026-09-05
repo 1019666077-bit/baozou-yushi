@@ -6,8 +6,10 @@ native/
 profiles/
 node_modules/
 reports/
+tools/first-run-preview/generated/
 *.log
 .DS_Store
 .idea/
 .vscode/
 coverage/
+tools/first-run-preview/generated/

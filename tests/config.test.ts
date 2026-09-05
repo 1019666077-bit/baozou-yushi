@@ -59,6 +59,15 @@ describe("content configuration", () => {
     }
   });
 
+  it("gives the tutorial tide a 60s clock so the first crate budget matches the wave", () => {
+    const tutorial = islands.find((item) => item.id === "island_tutorial");
+    expect(tutorial?.targetSessionSeconds).toBe(60);
+    expect(tutorial?.waves[0]?.durationSeconds).toBe(60);
+    expect(
+      tutorial!.waves.reduce((sum, wave) => sum + wave.durationSeconds, 0),
+    ).toBeLessThanOrEqual(60);
+  });
+
   it("expands island fish pools into string ids, not a Set", () => {
     const tutorial = islands.find((item) => item.id === "island_tutorial");
     expect(tutorial).toBeTruthy();

@@ -20,10 +20,12 @@ function random(seed) {
 function simulatePlayer(id) {
   const rng = random(10_000 + id * 977);
   const skill = 0.35 + (id / 49) * 0.6;
-  let coins = 0;
+  // 教学首售 11 金入账后再进泡沫湾。改前从 0 起算，会假装练潮码头没发生。
+  let coins = 11;
   let elapsedMinutes = 0;
   let prismUnlockedAt = null;
   let stormUnlockedAt = null;
+  let firstRodAt = null;
   let stage = "foam";
   let rodUpgradeBought = false;
   let cannonBought = false;
@@ -70,6 +72,7 @@ function simulatePlayer(id) {
     if (!rodUpgradeBought && coins >= 90) {
       coins -= 90;
       rodUpgradeBought = true;
+      firstRodAt = elapsedMinutes;
     }
     if (stage === "foam" && coins >= 240) {
       coins -= 240;
@@ -95,6 +98,7 @@ function simulatePlayer(id) {
     id: `sim-${String(id + 1).padStart(2, "0")}`,
     skill: Number(skill.toFixed(2)),
     runs,
+    firstRodAt,
     prismUnlockedAt,
     stormUnlockedAt,
     coins,
@@ -106,22 +110,31 @@ function simulatePlayer(id) {
 
 const players = Array.from({ length: 50 }, (_, index) => simulatePlayer(index));
 const values = players.map((item) => item.stormUnlockedAt ?? 45).sort((a, b) => a - b);
-const percentile = (p) =>
+const rodValues = players
+  .map((item) => item.firstRodAt ?? 45)
+  .sort((a, b) => a - b);
+const percentile = (p, list = values) =>
   Number(
-    values[Math.min(values.length - 1, Math.floor(p * values.length))].toFixed(
-      1,
-    ),
+    list[Math.min(list.length - 1, Math.floor(p * list.length))].toFixed(1),
   );
 const report = {
   generatedAt: new Date().toISOString(),
   kind: "automated_balance_simulation_not_human_playtest",
   simulatedPlayers: players.length,
+  tutorialSaleCoins: 11,
+  firstRodMinutes: {
+    p10: percentile(0.1, rodValues),
+    median: percentile(0.5, rodValues),
+    p90: percentile(0.9, rodValues),
+  },
   stormUnlockMinutes: {
     p10: percentile(0.1),
     median: percentile(0.5),
     p90: percentile(0.9),
   },
   target: "22–34 minutes to unlock Storm Eye",
+  economyNote:
+    "C：教学入账 11 后再进泡沫湾。标价 11/90 未改。风眼中位应仍落在 22–34。",
   players,
 };
 
@@ -131,4 +144,9 @@ fs.writeFileSync(
   path.join(reportDir, "automated-balance-report.json"),
   JSON.stringify(report, null, 2) + "\n",
 );
-console.log(JSON.stringify(report.stormUnlockMinutes));
+console.log(
+  JSON.stringify({
+    firstRodMinutes: report.firstRodMinutes,
+    stormUnlockMinutes: report.stormUnlockMinutes,
+  }),
+);

@@ -3,7 +3,7 @@
 ## 构建
 
 - [ ] Cocos Creator 3.8.x打开无丢失脚本
-- [ ] Boot与Home场景已加入构建
+- [ ] Boot.scene 已加入构建（官方运行时 RuntimeHome / RuntimePrototype；无 Home.scene）
 - [ ] 三座岛按Asset Bundle分包
 - [ ] 主包≤4MiB、总包≤20MiB
 - [ ] 微信开发者工具无红色错误

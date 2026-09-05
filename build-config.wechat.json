@@ -36,7 +36,7 @@
       "isRemote": false
     }
   ],
-  "useSplashScreen": false,
+  "useSplashScreen": true,
   "md5Cache": false,
   "sourceMaps": false,
   "packages": {
