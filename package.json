@@ -19,7 +19,9 @@
     "playtest:report": "node tools/analyze-playtest.mjs",
     "postbuild:wechat": "node tools/postbuild-wechat.mjs",
     "preview:extract": "node tools/first-run-preview/extract-copy.mjs",
-    "validate": "npm run typecheck && npm run typecheck:cocos && npm test && npm run preflight && npm run preview:extract"
+    "art:vector": "node tools/generate-vector-art.mjs",
+    "try:web-desktop": "node tools/try-web-desktop-build.mjs",
+    "validate": "npm run art:vector && npm run typecheck && npm run typecheck:cocos && npm test && npm run preflight && npm run preview:extract"
   },
   "devDependencies": {
     "@cocos/creator-types": "^3.8.8",

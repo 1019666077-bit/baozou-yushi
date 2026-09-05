@@ -196,6 +196,8 @@ import {
   harborNextPrompt,
 } from "../assets/scripts/domain/TutorialFlow";
 import { sfxTone, shouldPlaySfx } from "../assets/scripts/domain/SfxFeel";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   closedIslandCaption,
   cloudStatusLine,
@@ -865,6 +867,17 @@ describe("SfxFeel", () => {
     expect(sfxTone("weak").freq).toBeGreaterThan(sfxTone("hit").freq);
     expect(sfxTone("perfect").freq).toBeGreaterThan(sfxTone("catch").freq);
     expect(sfxTone("shot").ms).toBeLessThan(sfxTone("perfect").ms);
+  });
+});
+
+describe("vector art", () => {
+  it("keeps self-drawn bayfin/dock/water svg that is more than one ellipse", () => {
+    const bayfin = resolve("assets/art/vector/bayfin.svg");
+    const dock = resolve("assets/art/vector/dock.svg");
+    const water = resolve("assets/art/vector/water.svg");
+    expect(existsSync(bayfin)).toBe(true);
+    expect(existsSync(dock)).toBe(true);
+    expect(existsSync(water)).toBe(true);
   });
 });
 

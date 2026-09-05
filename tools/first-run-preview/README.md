@@ -1,6 +1,6 @@
 # 第一局体验代理
 
-**非 Cocos 实机，仅体验代理。**
+**非 Cocos 实机，仅体验代理。不能当真机手感 / 画面验收证据。**
 
 本目录是给没有 Creator / `build/web-desktop` 时用的临时轻量灰盒：单页 DOM+canvas，复刻 `RuntimeHome` → `RuntimePrototype` 新档第一局（港口 → 教学四步 → 卖鱼 → 回港）。
 

@@ -50,6 +50,13 @@ let last = performance.now();
 let settleGuide = false;
 let autoSettleAt = 0;
 let shakeLeft = 0;
+let fishX = 210;
+let fishY = 20;
+let fishAngle = 0;
+let flopLeft = 0;
+let flopFrom = { x: 210, y: 20 };
+let flopTo = { x: 40, y: -40 };
+let sfxCtx;
 
 function rgb(arr, a = 1) {
   return `rgba(${arr[0]},${arr[1]},${arr[2]},${a})`;
@@ -206,6 +213,30 @@ function setStatus(value) {
   statusFlash = value;
 }
 
+function playSfx(id) {
+  const tone = COPY.sfx?.[id];
+  if (!tone) return;
+  try {
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) return;
+    if (!sfxCtx) sfxCtx = new Ctor();
+    if (sfxCtx.state === "suspended") void sfxCtx.resume();
+    const osc = sfxCtx.createOscillator();
+    const gain = sfxCtx.createGain();
+    osc.type = id === "weak" ? "triangle" : "sine";
+    osc.frequency.value = tone.freq;
+    const now = sfxCtx.currentTime;
+    gain.gain.setValueAtTime(tone.gain, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + tone.ms / 1000);
+    osc.connect(gain);
+    gain.connect(sfxCtx.destination);
+    osc.start();
+    osc.stop(now + tone.ms / 1000 + 0.02);
+  } catch {
+    // mute stub：无 AudioContext 时静音，不挡流程
+  }
+}
+
 function paintPalm(ctx, x, y, s, look) {
   ctx.fillStyle = rgb(look.accent);
   ctx.fillRect(x - 3 * s, y, 6 * s, 28 * s);
@@ -348,6 +379,16 @@ function paintSea(ctx, look, harbor = false) {
     ctx.fillStyle = "rgba(142,96,52,0.9)";
     for (let i = 0; i < 8; i += 1) ctx.fillRect(8 + i * 52, 498, 5, 70);
   }
+  ctx.strokeStyle = rgb(look.haze, 0.22);
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(80, 420);
+  ctx.bezierCurveTo(200, 408, 320, 432, 460, 418);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(640, 500);
+  ctx.bezierCurveTo(780, 488, 920, 512, 1100, 498);
+  ctx.stroke();
 }
 
 function paintBoat(ctx, x, y) {
@@ -387,34 +428,58 @@ function paintFish(ctx, x, y, glow) {
   const look = COPY.looks.bayfin;
   ctx.save();
   ctx.translate(sx(x), sy(y));
+  ctx.rotate(fishAngle);
   if (glow) {
     ctx.fillStyle = "rgba(255,214,32,0.28)";
     ctx.beginPath();
     ctx.ellipse(look.weakX, -look.weakY, 22, 16, 0, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.fillStyle = rgb(look.accent);
+  ctx.beginPath();
+  ctx.moveTo(-28, 0);
+  ctx.lineTo(-68, -20);
+  ctx.lineTo(-54, 0);
+  ctx.lineTo(-68, 20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(8, 8);
+  ctx.lineTo(28, 34);
+  ctx.lineTo(32, 6);
+  ctx.closePath();
+  ctx.fill();
   ctx.fillStyle = rgb(look.body);
   ctx.beginPath();
-  ctx.ellipse(0, 0, 52, 22, 0, 0, Math.PI * 2);
+  ctx.moveTo(6, -6);
+  ctx.lineTo(2, -28);
+  ctx.lineTo(18, -8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(8, 2, 36, 18, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = rgb(look.belly);
   ctx.beginPath();
-  ctx.ellipse(4, 8, 28, 10, 0, 0, Math.PI * 2);
+  ctx.ellipse(16, 8, 22, 10, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = rgb(look.accent);
+  ctx.strokeStyle = rgb(look.accent);
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(-48, 0);
-  ctx.lineTo(-72, -16);
-  ctx.lineTo(-72, 16);
-  ctx.closePath();
+  ctx.moveTo(-6, 2);
+  ctx.quadraticCurveTo(8, 10, 22, 4);
+  ctx.stroke();
+  ctx.fillStyle = "#f7fff4";
+  ctx.beginPath();
+  ctx.arc(30, 0, 5, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "rgba(20,28,36,0.95)";
+  ctx.fillStyle = "#142018";
   ctx.beginPath();
-  ctx.arc(22, -3, 3.2, 0, Math.PI * 2);
+  ctx.arc(32, -1, 2.4, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "rgba(255,252,236,0.85)";
+  ctx.fillStyle = "#fff";
   ctx.beginPath();
-  ctx.arc(23, -4, 1.2, 0, Math.PI * 2);
+  ctx.arc(33, -2, 0.9, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = glow ? "#ffe24a" : rgb(look.accent);
   ctx.beginPath();
@@ -427,6 +492,18 @@ function paintFish(ctx, x, y, glow) {
     ctx.arc(look.weakX, -look.weakY, 16, 0, Math.PI * 2);
     ctx.stroke();
   }
+  ctx.restore();
+}
+
+function paintLine(ctx) {
+  if (!hooked && flopLeft <= 0) return;
+  ctx.save();
+  ctx.strokeStyle = flopLeft > 0 ? "rgba(255,214,70,1)" : "rgba(255,214,70,0.92)";
+  ctx.lineWidth = flopLeft > 0 ? 10 : 6;
+  ctx.beginPath();
+  ctx.moveTo(sx(-372), sy(-72));
+  ctx.lineTo(sx(fishX), sy(fishY));
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -645,8 +722,9 @@ function renderSea() {
   paintSea(ctx, COPY.looks.tutorial, false);
   paintCrate(ctx);
   paintBoat(ctx, carrying ? -430 : -400, -90);
+  paintLine(ctx);
   if (tutorialStep !== "settle") {
-    paintFish(ctx, hooked || pickable ? (carrying ? -390 : 40) : 210, carrying ? -60 : 20, tutorialStep === "weakPoint");
+    paintFish(ctx, fishX, fishY, tutorialStep === "weakPoint");
   }
   const focus =
     surface === "settle"
@@ -758,6 +836,10 @@ function sail() {
   fishName = COPY.waitingCast;
   status = COPY.waveOnCast;
   autoSettleAt = 0;
+  fishX = 210;
+  fishY = 20;
+  fishAngle = 0;
+  flopLeft = 0;
   render();
 }
 
@@ -769,6 +851,7 @@ function onCast() {
   fishName = `${COPY.firstRun.liveQuoteHooked} · 韧性 24 · 弱点亮`;
   showCallout(COPY.firstRun.castSnap);
   burst("cast", -372, -72);
+  playSfx("cast");
   render();
 }
 
@@ -780,6 +863,11 @@ function onWeak() {
   multiplier = COPY.firstRun.comboHudAfter;
   showCallout(COPY.firstRun.calloutWeak);
   burst("weak", 210, 20);
+  burst("splash", 40, -40);
+  playSfx("weak");
+  flopFrom = { x: 210, y: 20 };
+  flopTo = { x: 40, y: -40 };
+  flopLeft = 0.42;
   status = COPY.tutorialPrompts.reel;
   fishName = `${COPY.firstRun.liveQuoteHooked} · 韧性 0 · 弱点亮`;
   render();
@@ -794,6 +882,10 @@ function onPick() {
   carrying = true;
   pickable = false;
   hooked = false;
+  fishX = -390;
+  fishY = -60;
+  fishAngle = 0.4;
+  playSfx("ui");
   status = COPY.tutorialPrompts.carrying;
   render();
 }
@@ -806,6 +898,7 @@ function onCrate() {
   showCallout(COPY.firstRun.inbox);
   burst("catch", COPY.crate.x, COPY.crate.y);
   cratePunchLeft = 0.16;
+  playSfx("catch");
   status = COPY.firstRun.inboxStatus;
   autoSettleAt = performance.now() + 1800;
   render();
@@ -838,6 +931,7 @@ function confirmSettle() {
   coinJumpLeft = COPY.coinJumpSeconds;
   burst("gold", 470, 300);
   burst("sell", 0, 120);
+  playSfx("sell");
   surface = "harbor";
   statusFlash = COPY.firstRun.discovery;
   render();
@@ -854,6 +948,19 @@ function tick(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   tickParticles(dt);
+  if (flopLeft > 0) {
+    flopLeft = Math.max(0, flopLeft - dt);
+    const t = 1 - flopLeft / 0.42;
+    const bounce = Math.sin(t * Math.PI) * 36;
+    fishX = flopFrom.x + (flopTo.x - flopFrom.x) * t;
+    fishY = flopFrom.y + (flopTo.y - flopFrom.y) * t + bounce;
+    fishAngle = t * 1.2;
+    if (flopLeft === 0) {
+      fishX = flopTo.x;
+      fishY = flopTo.y;
+      fishAngle = 0.35;
+    }
+  }
   if (coinJumpLeft > 0) {
     coinJumpLeft = Math.max(0, coinJumpLeft - dt);
     if (coinJumpLeft === 0) {
@@ -867,7 +974,7 @@ function tick(now) {
   }
   paintJuice(juiceCanvas.getContext("2d"));
   if (surface === "harbor" && coinJumpLeft > 0) renderHarbor();
-  if (surface === "sea" && (particles.length || flash || (callout && now < calloutUntil + 30) || cratePunchLeft > 0)) {
+  if (surface === "sea" && (particles.length || flash || flopLeft > 0 || (callout && now < calloutUntil + 30) || cratePunchLeft > 0)) {
     void renderSea();
   }
   if (surface === "settle" && settleGuide) {

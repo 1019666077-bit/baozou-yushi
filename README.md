@@ -40,8 +40,9 @@ npm run validate
 npm run simulate
 ```
 
-- `npm run validate`：类型检查 + vitest + 预检（配置 JSON、双份配置一致性、主包体积、横屏与开放数据域）+ 第一局体验代理抽取。
-- 无 Creator 时可用 `node tools/first-run-preview/serve.mjs` 看第一局体验代理（非 Cocos 实机）。
+- `npm run validate`：自绘矢量 + 类型检查 + vitest + 预检 + 第一局体验代理抽取。
+- 无 Creator 时代验：`node tools/first-run-preview/serve.mjs` → http://127.0.0.1:8766/ 。**非 Cocos 实机，不能当真机手感证据。**
+- 本机有 Creator 才能打 `build/web-desktop`；`node tools/try-web-desktop-build.mjs` 找不到编辑器会清晰失败。细节见 `docs/LOCAL_PREVIEW.md`。
 - `npm run simulate`：50 个确定性经济角色，检查解锁节奏。
 - `npm run playtest:report`：读取 `playtest/participants.csv`。**真人有效行不足 20 条时主动失败**，这是设计，防止把自动模拟冒充人类体验测试。不要把该命令放进必过 CI。
 

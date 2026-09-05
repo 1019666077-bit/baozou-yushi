@@ -187,6 +187,19 @@ function paintWaterBands(g: Graphics, look: IslandLook): void {
   fillEllipse(g, -200, -72, 150, 11, c(look.haze, 46));
   fillEllipse(g, 180, -118, 190, 13, c(look.haze, 32));
   fillEllipse(g, 420, -200, 120, 9, c(look.haze, 24));
+  g.strokeColor = c(look.haze, 50);
+  g.lineWidth = 2;
+  g.moveTo(-520, -40);
+  g.bezierCurveTo(-360, -20, -200, -56, -40, -36);
+  g.stroke();
+  g.moveTo(40, -88);
+  g.bezierCurveTo(180, -70, 320, -104, 480, -86);
+  g.stroke();
+  g.strokeColor = c([255, 252, 236], 28);
+  g.lineWidth = 1.5;
+  g.moveTo(-300, -160);
+  g.bezierCurveTo(-140, -148, 20, -176, 180, -158);
+  g.stroke();
 }
 
 export function drawSeascape(
@@ -429,13 +442,20 @@ export function drawFishBody(
     fillPoly(g, body, [-22 * s, 2 * s, -48 * s, 18 * s, -40 * s, 0, -48 * s, -16 * s]);
     return;
   }
-  fillEllipse(g, 2 * s, 0, 32 * s, 16 * s, body);
-  fillEllipse(g, 10 * s, -6 * s, 20 * s, 9 * s, belly);
-  fillPoly(g, accent, [6 * s, 8 * s, 22 * s, 30 * s, 28 * s, 6 * s]);
-  fillPoly(g, body, [-26 * s, 0, -54 * s, 16 * s, -48 * s, 0, -54 * s, -16 * s]);
-  fillCircle(g, 22 * s, 3 * s, 3.2 * s, new Color(20, 28, 36, decoy ? 120 : 255));
-  fillCircle(g, 23 * s, 4 * s, 1.2 * s, new Color(255, 252, 236, 220));
-  fillEllipse(g, 8 * s, 4 * s, 8 * s, 3 * s, new Color(255, 255, 255, decoy ? 40 : 70));
+  fillPoly(g, accent, [-24 * s, 0, -62 * s, -18 * s, -50 * s, 0, -62 * s, 18 * s]);
+  fillPoly(g, accent, [8 * s, 8 * s, 26 * s, 32 * s, 30 * s, 6 * s]);
+  fillPoly(g, body, [6 * s, -6 * s, 2 * s, -26 * s, 16 * s, -8 * s]);
+  fillEllipse(g, 6 * s, 2 * s, 34 * s, 17 * s, body);
+  fillEllipse(g, 14 * s, 8 * s, 20 * s, 9 * s, belly);
+  g.strokeColor = accent;
+  g.lineWidth = 2;
+  g.moveTo(-4 * s, 2 * s);
+  g.bezierCurveTo(8 * s, 10 * s, 18 * s, 8 * s, 24 * s, 3 * s);
+  g.stroke();
+  fillCircle(g, 28 * s, 0, 4.6 * s, new Color(247, 255, 244, decoy ? 120 : 255));
+  fillCircle(g, 30 * s, -1 * s, 2.2 * s, new Color(20, 32, 24, decoy ? 120 : 255));
+  fillCircle(g, 31 * s, -2 * s, 0.8 * s, new Color(255, 255, 255, 230));
+  fillEllipse(g, 32 * s, 8 * s, 3.5 * s, 1.8 * s, new Color(26, 40, 32, decoy ? 90 : 220));
 }
 
 export function drawFish(

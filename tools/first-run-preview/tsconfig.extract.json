@@ -19,6 +19,7 @@
     "../../assets/scripts/domain/FlopPhysics.ts",
     "../../assets/scripts/domain/GrayLook.ts",
     "../../assets/scripts/domain/HitJuice.ts",
+    "../../assets/scripts/domain/SfxFeel.ts",
     "../../assets/scripts/domain/IslandClock.ts",
     "../../assets/scripts/domain/PriceCalculator.ts",
     "../../assets/scripts/domain/StyleScoreSystem.ts",

@@ -20,6 +20,7 @@ const FILES = [
   "FlopPhysics.ts",
   "GrayLook.ts",
   "HitJuice.ts",
+  "SfxFeel.ts",
   "IslandClock.ts",
   "PriceCalculator.ts",
   "StyleScoreSystem.ts",
@@ -64,6 +65,7 @@ function snapshot() {
   const GrayLook = load("GrayLook");
   const SaveMerge = load("SaveMerge");
   const HitJuice = load("HitJuice");
+  const SfxFeel = load("SfxFeel");
   const { RunSession } = load("RunSession");
 
   const islands = JSON.parse(
@@ -304,6 +306,13 @@ function snapshot() {
     juiceFlash: {
       weak: HitJuice.spawnJuiceFlash("weak", 0, 0, false),
       sell: HitJuice.spawnJuiceFlash("sell", 0, 0, false),
+    },
+    sfx: {
+      cast: SfxFeel.sfxTone("cast"),
+      weak: SfxFeel.sfxTone("weak"),
+      catch: SfxFeel.sfxTone("catch"),
+      sell: SfxFeel.sfxTone("sell"),
+      ui: SfxFeel.sfxTone("ui"),
     },
   };
 

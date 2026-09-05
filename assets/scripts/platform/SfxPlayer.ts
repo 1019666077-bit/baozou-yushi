@@ -42,9 +42,15 @@ function createContext(): MiniAudioContext | undefined {
   }
 }
 
+/**
+ * 音效占位：优先 WebAudio / 微信 WebAudio 短振荡。
+ * 预留 AudioSource 接线口，当前不加载外部音频包。
+ */
 export class SfxPlayer {
   private static enabled = true;
   private static ctx?: MiniAudioContext;
+  /** 预留：日后挂 Creator AudioSource，现为 mute stub。 */
+  static audioSource: { play?: (id: string) => void } | undefined;
 
   static setEnabled(value: boolean): void {
     this.enabled = value;
@@ -60,6 +66,10 @@ export class SfxPlayer {
     const ctx = this.context();
     if (!ctx) return;
     if (ctx.state === "suspended") void ctx.resume?.();
+    if (this.audioSource?.play) {
+      this.audioSource.play(id);
+      return;
+    }
     const tone = sfxTone(id);
     try {
       const osc = ctx.createOscillator();
