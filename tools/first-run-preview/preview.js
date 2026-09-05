@@ -793,7 +793,9 @@ function renderSea() {
   label(multiplier, 22, -470, 318, 280);
   label(`本局 ${runCoins}`, 24, 470, 318, 280, rgb(COPY.colors.gold));
   label(status, 22, 0, 268, 760, rgb(COPY.colors.cream));
-  label(fishName, 24, 0, 228);
+  const nameEl = label(fishName, 22, 0, 220, 780, rgb(COPY.colors.palette.hud));
+  nameEl.style.whiteSpace = "normal";
+  nameEl.style.lineHeight = "1.25";
   if (callout && performance.now() < calloutUntil) {
     const lift = Math.min(36, ((performance.now() - calloutBorn) / 450) * 36);
     label(callout, 28, 0, 188 + lift, 900, "#ffec78");

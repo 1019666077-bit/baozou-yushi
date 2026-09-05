@@ -25,4 +25,7 @@
   <circle cx="392" cy="508" r="7" fill="#ffa838"/>
   <circle cx="392" cy="508" r="3" fill="#ffe28c"/>
   <circle cx="392" cy="508" r="16" fill="rgba(255,214,118,0.196)"/>
+  <ellipse cx="240" cy="608" rx="80" ry="7" fill="rgba(255,248,230,0.125)"/>
+  <circle cx="440" cy="516" r="5" fill="#ffa838"/>
+  <circle cx="440" cy="516" r="11" fill="rgba(255,214,118,0.157)"/>
 </svg>
