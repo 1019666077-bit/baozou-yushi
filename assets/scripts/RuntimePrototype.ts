@@ -44,6 +44,9 @@ import {
   tutorialGuideRing,
   tutorialGuideTarget,
   tutorialPrompt,
+  tutorialBarButtonTone,
+  battleWaveNarration,
+  waveStartNarration,
   TUTORIAL_ISLAND_ID,
   type TutorialStep,
 } from "./domain/TutorialFlow";
@@ -65,7 +68,12 @@ import {
 } from "./domain/IslandClock";
 import { canPickUp, crateDrop } from "./domain/FlopPhysics";
 import { depthScale } from "./domain/DepthScale";
-import { hitStopSeconds, spawnCap, shouldVibrate } from "./domain/GameFeel";
+import {
+  hitStopSeconds,
+  spawnCap,
+  shouldVibrate,
+  type ButtonTone,
+} from "./domain/GameFeel";
 import {
   keepLiveShots,
   spawnShot,
@@ -94,6 +102,7 @@ import {
   drawDock,
   makeButton,
   makeLabel,
+  paintButtonTone,
   replacePlayLayer,
   tintGold,
 } from "./ui/RuntimeUi";
@@ -151,6 +160,8 @@ export class RuntimePrototype extends Component {
   private carriedHintShown = false;
   private castButton?: Node;
   private reelButton?: Node;
+  private lastCastTone?: ButtonTone;
+  private lastPickTone?: ButtonTone;
   private guide!: Graphics;
   private hazard!: Graphics;
   private juiceGfx!: Graphics;
@@ -371,6 +382,12 @@ export class RuntimePrototype extends Component {
     juiceNode.parent = this.layer;
     this.juiceGfx = juiceNode.addComponent(Graphics);
 
+    const castTone = this.tutorial
+      ? tutorialBarButtonTone(this.tutorialStep, "cast")
+      : "primary";
+    const pickTone = this.tutorial
+      ? tutorialBarButtonTone(this.tutorialStep, "pickUp")
+      : "primary";
     this.castButton = makeButton(
       this.layer,
       "抛竿",
@@ -380,7 +397,7 @@ export class RuntimePrototype extends Component {
       200,
       86,
       28,
-      "primary",
+      castTone,
     );
     this.reelButton = makeButton(
       this.layer,
@@ -391,8 +408,10 @@ export class RuntimePrototype extends Component {
       200,
       86,
       28,
-      "primary",
+      pickTone,
     );
+    this.lastCastTone = castTone;
+    this.lastPickTone = pickTone;
     makeButton(this.layer, "暂停", -530, 268, () => this.togglePause(), 150, 56, 22);
     makeButton(this.layer, "回港", 530, 268, () => this.returnHarbor(), 150, 56, 22);
   }
@@ -1041,7 +1060,12 @@ export class RuntimePrototype extends Component {
     if (snapshot.waveIndex !== this.lastWaveIndex) {
       this.lastWaveIndex = snapshot.waveIndex;
       this.setStatus(
-        snapshot.waveIndex === 0 ? "热身潮。拽上岸，砸晕，搬进鱼箱。" : "精英潮来了。",
+        battleWaveNarration(
+          this.tutorial,
+          this.tutorialStep,
+          waveStartNarration(snapshot.waveIndex),
+          { carrying: !!this.carried?.node.active },
+        ),
       );
       this.spawnWait = 999;
       while (
@@ -1306,7 +1330,23 @@ export class RuntimePrototype extends Component {
     }
   }
 
+  private syncTutorialButtons(): void {
+    if (!this.tutorial) return;
+    const extras = { carrying: !!this.carried?.node.active };
+    const castTone = tutorialBarButtonTone(this.tutorialStep, "cast", extras);
+    const pickTone = tutorialBarButtonTone(this.tutorialStep, "pickUp", extras);
+    if (this.castButton && castTone !== this.lastCastTone) {
+      this.lastCastTone = castTone;
+      paintButtonTone(this.castButton, castTone);
+    }
+    if (this.reelButton && pickTone !== this.lastPickTone) {
+      this.lastPickTone = pickTone;
+      paintButtonTone(this.reelButton, pickTone);
+    }
+  }
+
   private drawGuide(): void {
+    this.syncTutorialButtons();
     this.guide.clear();
     if (!this.tutorial) return;
     const focus = tutorialGuideTarget(this.tutorialStep, {

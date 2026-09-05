@@ -172,11 +172,19 @@ export class RuntimeHome extends Component {
     makeLabel(layer, cloudStatusLine(this.cloudKind), 18, 0, 278, 900);
     makeLabel(layer, healthAdviceLines()[1] ?? healthAdviceLines()[0], 16, 0, 262, 1100);
     const unlocks = harborUnlocksForSave(save);
+    const island = ConfigService.islandById(this.selectedIslandId);
+    const tool = ConfigService.toolById(this.selectedToolId);
+    const ownedTool = save.tools.find((entry) => entry.toolId === tool.id);
+    const nextLevel = tool.levels.find(
+      (level) => level.level === (ownedTool?.level ?? 0) + 1,
+    );
     const nextCta = harborNextCta({
       tutorialComplete: save.tutorialComplete,
       completedRuns: save.completedRuns,
       pendingSell: false,
       upgradeUnlocked: unlocks.upgrade,
+      coins: save.coins,
+      nextUpgradeCost: nextLevel?.upgradeCost,
     });
     this.status = makeLabel(
       layer,
@@ -239,12 +247,6 @@ export class RuntimeHome extends Component {
       );
     });
 
-    const island = ConfigService.islandById(this.selectedIslandId);
-    const tool = ConfigService.toolById(this.selectedToolId);
-    const ownedTool = save.tools.find((entry) => entry.toolId === tool.id);
-    const nextLevel = tool.levels.find(
-      (level) => level.level === (ownedTool?.level ?? 0) + 1,
-    );
     makeLabel(
       layer,
       `出航：${island.name} · ${tool.name} Lv${ownedTool?.level ?? 1}${

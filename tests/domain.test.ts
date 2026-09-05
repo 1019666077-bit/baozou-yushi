@@ -159,6 +159,11 @@ import {
   tutorialGuideRing,
   tutorialGuideTarget,
   tutorialPrompt,
+  tutorialBarButtonTone,
+  tutorialLessonActive,
+  battleWaveNarration,
+  waveStartNarration,
+  canAffordNextUpgrade,
   harborNextCta,
   harborNextPrompt,
 } from "../assets/scripts/domain/TutorialFlow";
@@ -924,6 +929,45 @@ describe("TutorialFlow", () => {
     expect(tutorialGuideRing(400).pulse).not.toBe(ring.pulse);
   });
 
+  it("keeps tutorial narration over the warmup-tide line", () => {
+    const tide = waveStartNarration(0);
+    expect(tide).toContain("热身潮");
+    expect(tutorialLessonActive("cast")).toBe(true);
+    expect(tutorialLessonActive("weakPoint")).toBe(true);
+    expect(tutorialLessonActive("reel")).toBe(true);
+    expect(tutorialLessonActive("settle")).toBe(true);
+    expect(tutorialLessonActive("complete")).toBe(false);
+    expect(battleWaveNarration(true, "cast", tide)).toBe(tutorialPrompt("cast"));
+    expect(battleWaveNarration(true, "cast", tide)).not.toContain("热身潮");
+    expect(battleWaveNarration(true, "weakPoint", tide)).toBe(
+      tutorialPrompt("weakPoint"),
+    );
+    expect(battleWaveNarration(true, "reel", tide)).toContain("捡起");
+    expect(battleWaveNarration(true, "complete", tide)).toBe(tide);
+    expect(battleWaveNarration(false, "cast", tide)).toBe(tide);
+    expect(battleWaveNarration(false, "cast", waveStartNarration(1))).toContain(
+      "精英潮",
+    );
+  });
+
+  it("gives primary only to the current tutorial bar button", () => {
+    expect(tutorialBarButtonTone("cast", "cast")).toBe("primary");
+    expect(tutorialBarButtonTone("cast", "pickUp")).toBe("secondary");
+    expect(tutorialBarButtonTone("weakPoint", "cast")).toBe("secondary");
+    expect(tutorialBarButtonTone("weakPoint", "pickUp")).toBe("secondary");
+    expect(tutorialGuideTarget("weakPoint")).toBe("weakPoint");
+    expect(tutorialBarButtonTone("reel", "pickUp")).toBe("primary");
+    expect(tutorialBarButtonTone("reel", "cast")).toBe("secondary");
+    expect(tutorialBarButtonTone("reel", "pickUp", { carrying: true })).toBe(
+      "secondary",
+    );
+    expect(tutorialBarButtonTone("reel", "cast", { carrying: true })).toBe(
+      "secondary",
+    );
+    expect(tutorialBarButtonTone("settle", "cast")).toBe("secondary");
+    expect(tutorialBarButtonTone("settle", "pickUp")).toBe("secondary");
+  });
+
   it("points the harbor to sail, sell, then upgrade after the first sale", () => {
     expect(
       harborNextCta({
@@ -947,6 +991,8 @@ describe("TutorialFlow", () => {
         completedRuns: 1,
         pendingSell: false,
         upgradeUnlocked: true,
+        coins: 90,
+        nextUpgradeCost: 90,
       }),
     ).toBe("upgrade");
     expect(
@@ -955,6 +1001,8 @@ describe("TutorialFlow", () => {
         completedRuns: 2,
         pendingSell: false,
         upgradeUnlocked: true,
+        coins: 220,
+        nextUpgradeCost: 90,
       }),
     ).toBe("sail");
     expect(harborNextPrompt("sell")).toContain("卖到鱼市");
@@ -963,6 +1011,31 @@ describe("TutorialFlow", () => {
     expect(buttonFillRgb("primary")[0]).toBeGreaterThan(buttonFillRgb("secondary")[0]);
     expect(goldHudRgb()[0]).toBe(255);
     expect(goldHudRgb()[1]).toBeGreaterThan(180);
+  });
+
+  it("keeps sail as the harbor CTA when the next upgrade is unaffordable", () => {
+    expect(canAffordNextUpgrade(8, 90)).toBe(false);
+    expect(canAffordNextUpgrade(90, 90)).toBe(true);
+    expect(canAffordNextUpgrade(100, undefined)).toBe(false);
+    expect(
+      harborNextCta({
+        tutorialComplete: true,
+        completedRuns: 1,
+        pendingSell: false,
+        upgradeUnlocked: true,
+        coins: 8,
+        nextUpgradeCost: 90,
+      }),
+    ).toBe("sail");
+    expect(
+      harborNextCta({
+        tutorialComplete: true,
+        completedRuns: 1,
+        pendingSell: false,
+        upgradeUnlocked: true,
+      }),
+    ).toBe("sail");
+    expect(harborSailCaption(true)).toBe("出海捕鱼");
   });
 
   it("locks harbor upgrade/book/board until the tutorial is finished", () => {

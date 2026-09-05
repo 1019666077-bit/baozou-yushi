@@ -99,6 +99,30 @@ export function makeButton(
   return node;
 }
 
+export function paintButtonTone(node: Node, tone: ButtonTone): void {
+  const transform = node.getComponent(UITransform);
+  const graphics = node.getComponent(Graphics);
+  if (!transform || !graphics) return;
+  const width = transform.contentSize.width;
+  const height = transform.contentSize.height;
+  graphics.clear();
+  const fill = buttonFillRgb(tone);
+  graphics.fillColor = new Color(fill[0], fill[1], fill[2], 255);
+  graphics.roundRect(-width / 2, -height / 2, width, height, 16);
+  graphics.fill();
+  if (tone === "primary") {
+    graphics.strokeColor = new Color(255, 236, 180, 230);
+    graphics.lineWidth = 3;
+    graphics.roundRect(-width / 2, -height / 2, width, height, 16);
+    graphics.stroke();
+  }
+  const label = node.getComponentInChildren(Label);
+  if (label) {
+    const ink = buttonLabelRgb(tone);
+    label.color = new Color(ink[0], ink[1], ink[2], 255);
+  }
+}
+
 export const PLAY_LAYER = "PlayLayer";
 
 export function replacePlayLayer(canvas: Node): Node {

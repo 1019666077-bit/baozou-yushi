@@ -1,3 +1,4 @@
+import type { ButtonTone } from "./GameFeel";
 import { CRATE_X, CRATE_Y } from "./FlopPhysics";
 
 export type TutorialStep =
@@ -96,6 +97,47 @@ export function tutorialCanLeave(step: TutorialStep): boolean {
   return step === "settle" || step === "complete";
 }
 
+/** 教学步未完成：潮汐句不盖教学旁白；时钟仍显示热身潮/精英潮。 */
+export function tutorialLessonActive(step: TutorialStep): boolean {
+  return step !== "complete";
+}
+
+export function waveStartNarration(waveIndex: number): string {
+  return waveIndex === 0
+    ? "热身潮。拽上岸，砸晕，搬进鱼箱。"
+    : "精英潮来了。";
+}
+
+export function battleWaveNarration(
+  tutorial: boolean,
+  step: TutorialStep,
+  waveLine: string,
+  extras: { carrying?: boolean } = {},
+): string {
+  if (tutorial && tutorialLessonActive(step)) {
+    return tutorialPrompt(step, extras);
+  }
+  return waveLine;
+}
+
+/** 当前教学步对应的底栏钮才用 primary；弱点/鱼箱步两个都 secondary。 */
+export function tutorialBarButtonTone(
+  step: TutorialStep,
+  button: "cast" | "pickUp",
+  extras: { carrying?: boolean } = {},
+): ButtonTone {
+  const focus = tutorialGuideTarget(step, extras);
+  if (button === "cast") return focus === "cast" ? "primary" : "secondary";
+  return focus === "pickUp" ? "primary" : "secondary";
+}
+
+export function canAffordNextUpgrade(
+  coins: number,
+  nextUpgradeCost: number | undefined,
+): boolean {
+  return nextUpgradeCost != null && coins >= nextUpgradeCost;
+}
+
 export type HarborCta = "sail" | "sell" | "upgrade";
 
 /** 港口下一步：教学出航 / 卖鱼 / 首局后升级鱼竿。 */
@@ -104,10 +146,18 @@ export function harborNextCta(input: {
   completedRuns: number;
   pendingSell: boolean;
   upgradeUnlocked: boolean;
+  coins?: number;
+  nextUpgradeCost?: number;
 }): HarborCta {
   if (input.pendingSell) return "sell";
   if (!input.tutorialComplete) return "sail";
-  if (input.completedRuns === 1 && input.upgradeUnlocked) return "upgrade";
+  if (
+    input.completedRuns === 1 &&
+    input.upgradeUnlocked &&
+    canAffordNextUpgrade(input.coins ?? 0, input.nextUpgradeCost)
+  ) {
+    return "upgrade";
+  }
   return "sail";
 }
 
