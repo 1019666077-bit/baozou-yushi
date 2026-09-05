@@ -12,7 +12,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import puppeteer from "puppeteer-core";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "reports", "playtest-v28");
@@ -294,6 +293,15 @@ async function pauseBattle(page) {
 }
 
 const chrome = assertPlaytestReady();
+
+let puppeteer;
+try {
+  puppeteer = (await import("puppeteer-core")).default;
+} catch {
+  failReady(
+    "缺少 puppeteer-core。本脚本只在实跑浏览器时需要它；validate / simulate 不依赖。请先安装再跑 playtest-live。",
+  );
+}
 
 const browser = await puppeteer.launch({
   executablePath: chrome,
