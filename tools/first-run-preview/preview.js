@@ -876,7 +876,7 @@ function onCast() {
   render();
 }
 
-function applyWeak() {
+function applyWeak(knockNow = true) {
   tutorialStep = "reel";
   hooked = true;
   pickable = true;
@@ -884,10 +884,12 @@ function applyWeak() {
   fishFace = "stunned";
   multiplier = COPY.firstRun.comboHudAfter;
   showCallout(COPY.firstRun.calloutWeak);
-  if (!flopBody) flopBody = beginFlopPreview(fishX, fishY);
-  flopBody = knockPreview(flopBody, boatX, boatY, 20);
   burst("weak", fishX, fishY);
-  burst("smash", fishX, fishY);
+  if (knockNow) {
+    if (!flopBody) flopBody = beginFlopPreview(fishX, fishY);
+    flopBody = knockPreview(flopBody, boatX, boatY, 20);
+    burst("smash", fishX, fishY);
+  }
   playSfx("weak");
   status = COPY.tutorialPrompts.reel;
   fishName = `${COPY.firstRun.liveQuoteHooked} · 韧性 0 · 弱点亮`;
@@ -895,11 +897,8 @@ function applyWeak() {
 
 function onWeak() {
   if (tutorialStep !== "weakPoint") return;
-  if (yanking) {
-    pendingWeak = true;
-    return;
-  }
-  applyWeak();
+  if (yanking) pendingWeak = true;
+  applyWeak(!yanking);
   render();
 }
 
@@ -993,7 +992,8 @@ function tick(now) {
       burst("splash", next.x, next.y + 24);
       if (pendingWeak) {
         pendingWeak = false;
-        applyWeak();
+        flopBody = knockPreview(flopBody, boatX, boatY, 20);
+        burst("smash", next.x, next.y);
       }
     }
   } else if (flopBody && !carrying) {
