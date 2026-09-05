@@ -107,8 +107,9 @@ function snapshot() {
   const data = {
     proxy: true,
     disclaimer: `非 Cocos 实机，仅 2D 辅助体验代理。2D/辅助 ≠ Creator 3D · 不是港湾真机画面 · 可浏览器代验玩法/画面 · ${SfxFeel.sfxPlaceholderNote()} · 真机 4 张只认 docs/stage3d/creator-shots/`,
-    sourceStamp: "baozou-flop-v33",
-    harborTitle: "暴走鱼市 · 潮汐港口 v33",
+    sourceStamp: "baozou-flop-v34",
+    harborTitle: "暴走鱼市 · 潮汐港口 v34",
+    castRelease: "甩出",
     huntSuffix: "潮汐猎场",
     castButton: "抛竿",
     pickButton: "捡起",
@@ -261,6 +262,7 @@ function snapshot() {
     art: {
       harbor: ArtRecipe.islandSetOps("island_foam_bay", true, 0),
       tutorial: ArtRecipe.islandSetOps(TutorialFlow.TUTORIAL_ISLAND_ID, false, 0),
+      foam: ArtRecipe.islandSetOps("island_foam_bay", false, 0),
       dock: ArtRecipe.dockOps(),
       boat: ArtRecipe.boatOps(),
       crate: ArtRecipe.crateOps(),
@@ -377,6 +379,12 @@ function snapshot() {
       afterTutorial: after.tutorialComplete,
       afterRuns: after.completedRuns,
       castSweet: StyleCallout.castChargeCaption("sweet"),
+      castEarly: StyleCallout.castChargeCaption("early"),
+      castLate: StyleCallout.castChargeCaption("late"),
+      beatHit: StyleCallout.flopBeatCaption("hit"),
+      beatFlop: StyleCallout.flopBeatCaption("flop"),
+      beatSlam: StyleCallout.flopBeatCaption("slam"),
+      beatPick: StyleCallout.flopBeatCaption("pick"),
       calloutWeak: StyleCallout.styleCallout({
         weakPoint: true,
         airborne: false,
@@ -472,6 +480,11 @@ function snapshot() {
       smash: SfxFeel.sfxVoices("smash"),
       splash: SfxFeel.sfxVoices("splash"),
       yank: SfxFeel.sfxVoices("yank"),
+    },
+    sfxCastVoices: {
+      early: SfxFeel.sfxCastVoices("early"),
+      sweet: SfxFeel.sfxCastVoices("sweet"),
+      late: SfxFeel.sfxCastVoices("late"),
     },
   };
 

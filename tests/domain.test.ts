@@ -100,6 +100,7 @@ import {
   castLockCaption,
   castSnapCaption,
   comboHud,
+  flopBeatCaption,
   inboxPopup,
   liveQuote,
   sellGoalBridge,
@@ -169,9 +170,12 @@ import {
 import {
   CAST_FEEL,
   castAutoReleaseMs,
+  castAutoReleases,
   castChargeAt,
+  castIsSpectacular,
   castPreviewPts,
   castQuality,
+  castStyleQuality,
   castSweet,
   tutorialCastAssists,
   weakWindowOpen,
@@ -241,6 +245,7 @@ import {
   weakHintCaption,
 } from "../assets/scripts/domain/TutorialFlow";
 import {
+  sfxCastVoices,
   sfxPlaceholderNote,
   sfxTone,
   sfxVoices,
@@ -355,6 +360,15 @@ describe("StyleScoreSystem", () => {
     style.apply({ action: "weakPoint", atMs: 100 });
     const snapshot = style.apply({ action: "combo", atMs: 3_000 });
     expect(snapshot.combo).toBe(1);
+  });
+
+  it("lets free-play early charge earn less than a sweet cast", () => {
+    const sweet = new StyleScoreSystem();
+    const early = new StyleScoreSystem();
+    sweet.apply({ action: "weakPoint", atMs: 800, quality: castStyleQuality("sweet") });
+    early.apply({ action: "weakPoint", atMs: 800, quality: castStyleQuality("early") });
+    expect(sweet.getSnapshot().points).toBeGreaterThan(early.getSnapshot().points);
+    expect(sweet.getSnapshot().multiplier).toBeGreaterThan(early.getSnapshot().multiplier);
   });
 });
 
@@ -893,8 +907,10 @@ describe("HitJuice", () => {
     expect(squash.sy).toBeLessThan(1);
     expect(smashSquashAt(smashSquashSeconds(false), false)).toEqual({ sx: 1, sy: 1 });
     expect(smashSquashAt(0, true)).toEqual({ sx: 1, sy: 1 });
-    expect(juiceCount("dust", false)).toBe(8);
+    expect(juiceCount("dust", false)).toBe(18);
     expect(spawnLandingDust(0, 0).every((p) => p.kind === "dust")).toBe(true);
+    expect(spawnLandingDust(0, 0)[0].size).toBeGreaterThan(12);
+    expect(smashSquashSeconds(false)).toBeGreaterThan(0.28);
     expect(spawnJuiceFlash("dust", 0, 0, false)).toBeUndefined();
   });
 });
@@ -916,6 +932,8 @@ describe("style HUD punch and discovery toast", () => {
     expect(discoveryToast("湾鳍鱼")).toBe("图鉴新纪录：湾鳍鱼");
     expect(discoveryToastLine(["湾鳍鱼", "焰鳗"])).toContain("等2种");
     expect(castSnapCaption().length).toBeLessThan(8);
+    expect(flopBeatCaption("slam")).toBe("砸！");
+    expect(flopBeatCaption("pick")).toContain("捡");
     expect(sellPopup(36)).toBe("卖出 +36金");
     expect(sellGoalBridge(11, 11, 90)).toBe("卖出 +11金 · 11/90");
     expect(inboxPopup(12)).toBe("入箱 +12");
@@ -977,7 +995,9 @@ describe("SfxFeel", () => {
     expect(sfxPlaceholderNote()).toContain("≠ 真机");
     expect(sfxVoices("cast").length).toBeGreaterThan(1);
     expect(sfxVoices("smash").some((v) => v.type === "noise")).toBe(true);
+    expect(sfxVoices("smash").length).toBeGreaterThan(2);
     expect(sfxVoices("sell").length).toBeGreaterThan(sfxVoices("ui").length);
+    expect(sfxCastVoices("sweet").length).toBeGreaterThan(sfxCastVoices("early").length);
   });
 });
 
@@ -993,13 +1013,21 @@ describe("CastFeel", () => {
     expect(tutorialCastAssists(0.2)).toBe(true);
     expect(tutorialCastAssists(0)).toBe(false);
     expect(castAutoReleaseMs(true)).toBe(CAST_FEEL.tutorialAutoMs);
+    expect(castAutoReleases(true)).toBe(true);
+    expect(castAutoReleases(false)).toBe(false);
+    expect(castAutoReleaseMs(false)).toBe(Number.POSITIVE_INFINITY);
+    expect(castStyleQuality("sweet")).toBe(1);
+    expect(castStyleQuality("early")).toBeLessThan(castStyleQuality("sweet"));
+    expect(castIsSpectacular("sweet")).toBe(true);
+    expect(castIsSpectacular("early")).toBe(false);
     expect(castPreviewPts(-400, -90, 210, 20, 0.7).length).toBe(CAST_FEEL.previewPts);
     expect(castPreviewPts(-400, -90, 210, 20, 1)[3].y).toBeGreaterThan(
       castPreviewPts(-400, -90, 210, 20, 0)[3].y,
     );
     expect(weakWindowOpen(0, true)).toBe(true);
-    expect(castChargeCaption("sweet")).toBe("时机刚好");
-    expect(castChargeCaption("early")).toBe(castSnapCaption());
+    expect(castChargeCaption("sweet")).toContain("时机刚好");
+    expect(castChargeCaption("early")).toContain("偏早");
+    expect(castChargeCaption("late")).toContain("偏晚");
   });
 });
 
@@ -1571,7 +1599,7 @@ describe("FlopPhysics", () => {
     expect(carryBobOffset(0.2).y).toBeGreaterThanOrEqual(0);
     expect(CARRY_FEEL.ampY).toBeLessThan(12);
     expect(flopApexAboveDeck()).toBeGreaterThan(90);
-    expect(bounceFreezeSeconds(0, false)).toBeGreaterThan(0.05);
+    expect(bounceFreezeSeconds(0, false)).toBeGreaterThan(0.18);
     expect(bounceFreezeSeconds(0, true)).toBe(0);
     expect(bounceFreezeSeconds(1, false)).toBeGreaterThan(0);
     expect(bounceFreezeSeconds(4, false)).toBe(0);
@@ -1592,7 +1620,8 @@ describe("CameraFeel", () => {
       pitch: 0,
     });
     expect(smashHoldSeconds(true)).toBe(0);
-    expect(CAM_FEEL.smashSeconds).toBeLessThanOrEqual(0.2);
+    expect(CAM_FEEL.smashSeconds).toBeGreaterThan(0.18);
+    expect(CAM_FEEL.smashSeconds).toBeLessThanOrEqual(0.28);
     const yanked = composeHuntCam({ yankK: 1, lowPower: false });
     expect(yanked.z).toBeGreaterThan(CAM_REST.z);
     expect(yanked.pitch).toBeLessThan(CAM_REST.pitch);
@@ -1673,6 +1702,11 @@ describe("ArtRecipe", () => {
     expect(recipeHasTag(sea, "paraFar")).toBe(true);
     expect(recipeHasTag(sea, "paraMid")).toBe(true);
     expect(recipeHasTag(sea, "terrace")).toBe(true);
+    expect(recipeHasTag(sea, "rim")).toBe(true);
+    expect(recipeHasTag(sea, "cliff")).toBe(true);
+    expect(recipeHasTag(sea, "rock")).toBe(true);
+    expect(recipeHasTag(sea, "bush")).toBe(true);
+    expect(recipeHasTag(sea, "paraNear")).toBe(true);
     expect(speckleDots({ x: 0, y: 0, w: 10, h: 10, count: 4, size: 1 }).length).toBe(4);
     expect(swimSway(380).x).not.toBe(swimSway(0).x);
     expect(lanternFlickerAt(0.2, -456)).not.toBe(lanternFlickerAt(1.1, -320));
@@ -1693,6 +1727,9 @@ describe("ArtRecipe", () => {
     expect(recipeHasTag(fish, "tail")).toBe(true);
     expect(recipeHasTag(fish, "weak")).toBe(true);
     expect(recipeHasTag(fish, "refract")).toBe(true);
+    expect(recipeHasTag(fish, "outline")).toBe(true);
+    expect(recipeHasTag(fish, "eye")).toBe(true);
+    expect(recipeHasTag(fish, "rim")).toBe(true);
     expect(weakReticleRadius(0)).toBeGreaterThan(16);
     expect(weakReticleTickPx()).toBeGreaterThan(6);
   });

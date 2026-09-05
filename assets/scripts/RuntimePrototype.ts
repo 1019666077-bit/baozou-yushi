@@ -62,6 +62,7 @@ import {
   castChargeCaption,
   castLockCaption,
   comboHud,
+  flopBeatCaption,
   inboxPopup,
   liveQuote,
   styleCallout,
@@ -80,11 +81,14 @@ import {
 } from "./domain/FlopPhysics";
 import {
   castAutoReleaseMs,
+  castAutoReleases,
   castBarSpec,
   castChargeAt,
   castPreviewPts,
   castQuality,
+  castStyleQuality,
   tutorialCastAssists,
+  type CastQuality,
 } from "./domain/CastFeel";
 import { discoveryToast, isFirstCatch } from "./domain/SettleCopy";
 import { depthScale } from "./domain/DepthScale";
@@ -242,6 +246,7 @@ export class RuntimePrototype extends Component {
   private charging = false;
   private chargeBorn = 0;
   private chargeTarget?: FishController;
+  private lastCastQuality: CastQuality = "early";
   private callout!: Label;
   private calloutUntil = 0;
   private lowPower = false;
@@ -759,7 +764,10 @@ export class RuntimePrototype extends Component {
   private cast(): void {
     this.noteInput();
     if (this.held()) return;
-    if (this.charging) return;
+    if (this.charging) {
+      this.commitCast();
+      return;
+    }
     if (this.hooked) {
       this.setStatus(
         this.tutorial
@@ -781,8 +789,9 @@ export class RuntimePrototype extends Component {
 
   private tickCastCharge(): void {
     if (!this.charging) return;
+    if (!castAutoReleases(this.tutorial)) return;
     const hold = Date.now() - this.chargeBorn;
-    if (hold >= castAutoReleaseMs(this.tutorial)) this.commitCast();
+    if (hold >= castAutoReleaseMs(true)) this.commitCast();
   }
 
   private commitCast(): void {
@@ -802,7 +811,8 @@ export class RuntimePrototype extends Component {
     this.session.resetStyle();
     this.lastHudMultiplier = 1;
     this.lastHudCombo = 0;
-    this.playCastFeel(castQuality(charge));
+    this.lastCastQuality = castQuality(charge);
+    this.playCastFeel(this.lastCastQuality);
     if (this.tutorial) {
       this.hooked.setAssist({
         freezeSeconds: TUTORIAL_WEAK_PAUSE_SECONDS,
@@ -824,7 +834,7 @@ export class RuntimePrototype extends Component {
     this.castFlashLeft = this.castFlashDuration;
     this.burst("cast", tipX, tipY);
     this.showCallout(castChargeCaption(quality));
-    SfxPlayer.play("cast");
+    SfxPlayer.playCast(quality);
   }
 
   private fire(): void {
@@ -974,7 +984,9 @@ export class RuntimePrototype extends Component {
     this.session.addStyle({
       action: judged.weakPoint ? "weakPoint" : "combo",
       atMs: now,
-      quality: judged.accuracy,
+      quality:
+        judged.accuracy *
+        (this.tutorial ? 1 : castStyleQuality(this.lastCastQuality)),
     });
     if (airborne) {
       this.session.addStyle({ action: "airborne", atMs: now });
@@ -1054,6 +1066,7 @@ export class RuntimePrototype extends Component {
         this.beginHitStop(
           bounceFreezeSeconds(fx.bounceIndex ?? 0, this.lowPower),
         );
+        if ((fx.bounceIndex ?? 0) === 0) this.showCallout(flopBeatCaption("slam"));
         SfxPlayer.play("smash");
       }
     }

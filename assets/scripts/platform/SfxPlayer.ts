@@ -1,4 +1,5 @@
-import { sfxVoices, type SfxId, type SfxVoice } from "../domain/SfxFeel";
+import { sfxCastVoices, sfxVoices, type SfxId, type SfxVoice } from "../domain/SfxFeel";
+import type { CastQuality } from "../domain/CastFeel";
 
 type MiniOscillator = {
   type: string;
@@ -118,6 +119,18 @@ export class SfxPlayer {
     }
     try {
       for (const voice of sfxVoices(id)) playVoice(ctx, voice);
+    } catch {
+      return;
+    }
+  }
+
+  static playCast(quality: CastQuality): void {
+    if (!this.enabled) return;
+    const ctx = this.context();
+    if (!ctx) return;
+    if (ctx.state === "suspended") void ctx.resume?.();
+    try {
+      for (const voice of sfxCastVoices(quality)) playVoice(ctx, voice);
     } catch {
       return;
     }

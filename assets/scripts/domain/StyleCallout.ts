@@ -54,8 +54,19 @@ export function castSnapCaption(): string {
 }
 
 export function castChargeCaption(quality: "early" | "sweet" | "late"): string {
-  if (quality === "sweet") return "时机刚好";
-  return castSnapCaption();
+  if (quality === "sweet") return "时机刚好 · 精彩";
+  if (quality === "late") return "偏晚 · 普通命中";
+  return "偏早 · 普通命中";
+}
+
+/** 命中→翻扑→砸→捡 的一段表演口令，静帧也能读出拍子。 */
+export function flopBeatCaption(
+  beat: "hit" | "flop" | "slam" | "pick",
+): string {
+  if (beat === "hit") return "命中！";
+  if (beat === "flop") return "翻扑";
+  if (beat === "slam") return "砸！";
+  return "可以捡";
 }
 
 export function castLockCaption(name: string): string {

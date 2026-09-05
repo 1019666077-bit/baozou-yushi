@@ -120,7 +120,11 @@ try {
   );
 
   note(await tap(page, "抛竿"), "抛竿");
-  await wait(620);
+  await wait(280);
+  await shot(page, "02b-charge");
+  const chargeState = await page.evaluate(() => window.proxyState());
+  note(chargeState.charging === true || chargeState.charge > 0 || chargeState.surface === "sea", "教学蓄力条可见");
+  await wait(400);
   await shot(page, "03-tutorial-weak");
   const weakText = await page.evaluate(() => document.body.innerText);
   note(weakText.includes("发光鳍") || weakText.includes("弱点"), "弱点旁白");
@@ -128,7 +132,15 @@ try {
   note(weakText.includes("湾鳍"), "目标是湾鳍鱼");
 
   note(await tap(page, "弱点"), "点发光鳍");
-  await wait(350);
+  for (let i = 0; i < 24; i += 1) {
+    const slam = await page.evaluate(() => window.proxyState());
+    if (slam.bounceCount > 0 || slam.dust > 0 || slam.slamMark > 0.2) break;
+    await wait(80);
+  }
+  await shot(page, "04b-slam-dust");
+  const slamState = await page.evaluate(() => window.proxyState());
+  note(slamState.dust > 0 || slamState.slamMark > 0 || slamState.bounceCount > 0, "砸拍扬尘静帧可读");
+  await wait(200);
   await shot(page, "04-tutorial-pickup");
   const pickText = await page.evaluate(() => document.body.innerText);
   note(pickText.includes("捡起") && pickText.includes("鱼箱"), "捡起旁白");
@@ -169,7 +181,7 @@ try {
   await wait(350);
   await shot(page, "08-harbor-after");
   const after = await page.evaluate(() => document.body.innerText);
-  note(after.includes("潮汐港口 v33"), "回到港口");
+  note(after.includes("潮汐港口 v34") || after.includes("潮汐港口"), "回到港口");
   note(after.includes("11/90") || after.includes("卖出已入账"), "卖出接到攒够进度");
   note(after.includes("出海捕鱼"), "第二局 CTA 文案");
   note(after.includes("● 泡沫湾"), "教学后默认泡沫湾");
@@ -193,6 +205,27 @@ try {
     broke.includes("目标：攒够") || broke.includes("11/90") || broke.includes("再出海"),
     "升级失败不盖掉主目标",
   );
+
+  note(await tap(page, "出海捕鱼"), "自由局出海");
+  await wait(280);
+  const freeSail = await page.evaluate(() => window.proxyState());
+  note(freeSail.freeHunt === true, "教完后自由局不再开教学自动甜区");
+  note(await tap(page, "抛竿"), "自由局开始蓄力");
+  await page.evaluate(() => window.proxyHoldCharge(0.28));
+  await wait(80);
+  await shot(page, "10-free-charge-early");
+  const early = await page.evaluate(() => window.proxyState());
+  note(early.charging === true && early.charge < 0.5, "自由局早蓄力停在甜区前");
+  await page.evaluate(() => window.proxyHoldCharge(0.7));
+  await wait(80);
+  await shot(page, "11-free-charge-sweet");
+  const sweet = await page.evaluate(() => window.proxyState());
+  note(sweet.charge >= 0.58 && sweet.charge <= 0.8, "自由局准时蓄力停在甜区");
+  note(await tap(page, "甩出"), "自由局自己松手");
+  await wait(200);
+  const released = await page.evaluate(() => window.proxyState());
+  note(released.lastCastQuality === "sweet", "准时甩出才记精彩");
+  note(released.charging === false, "松手后不再自动蓄");
 
   fs.writeFileSync(
     path.join(outDir, "report.json"),

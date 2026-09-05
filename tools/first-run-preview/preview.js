@@ -79,6 +79,10 @@ let ambientSparks = [];
 let charging = false;
 let chargeBorn = 0;
 let bounceCount = 0;
+let freeHunt = false;
+let lastCastQuality = "early";
+let chargeHold = null;
+let slamMark = 0;
 
 function rgb(arr, a = 1) {
   return `rgba(${arr[0]},${arr[1]},${arr[2]},${a})`;
@@ -202,7 +206,7 @@ function burst(kind, x, y) {
         Math.sin(angle) * speed +
         (coin ? 140 : kind === "smash" || kind === "splash" ? 90 : kind === "cast" || kind === "yank" ? 18 : 8),
       life: 1,
-      maxLife: coin || kind === "catch" ? 0.4 : kind === "smash" ? 0.26 : 0.3,
+      maxLife: coin || kind === "catch" ? 0.4 : kind === "dust" ? 0.62 : kind === "smash" ? 0.32 : 0.3,
       kind: coin
         ? "coin"
         : kind === "dust" || (kind === "smash" && i % 3 === 0)
@@ -211,7 +215,7 @@ function burst(kind, x, y) {
             ? "star"
             : "bubble",
       size:
-        coin ? 6 : kind === "catch" ? 8 : kind === "smash" || kind === "splash" ? 9 : kind === "dust" ? 7 : kind === "weak" ? 7 : kind === "cast" || kind === "yank" ? 4 : 5,
+        coin ? 6 : kind === "catch" ? 8 : kind === "smash" || kind === "splash" ? 9 : kind === "dust" ? 16 + (i % 3) * 4 : kind === "weak" ? 7 : kind === "cast" || kind === "yank" ? 4 : 5,
     });
   }
   if (kind !== "yank" && kind !== "splash" && kind !== "dust") {
@@ -237,8 +241,12 @@ function burst(kind, x, y) {
     splashRings.push({ x: x + 10, y: y - 6, life: 1, maxLife: kind === "smash" ? 0.22 : 0.26 });
   }
   if (kind === "smash") {
-    smashLeft = COPY.smashSquashSeconds ?? 0.22;
+    smashLeft = COPY.smashSquashSeconds ?? 0.34;
     smashElapsed = 0;
+    slamMark = 1;
+  }
+  if (kind === "dust") {
+    slamMark = Math.max(slamMark, 0.85);
   }
 }
 
@@ -614,7 +622,7 @@ function carryBob(elapsed) {
 }
 
 function paintSea(ctx, _look, harbor = false) {
-  const ops = harbor ? COPY.art?.harbor : COPY.art?.tutorial;
+  const ops = harbor ? COPY.art?.harbor : freeHunt && COPY.art?.foam ? COPY.art.foam : COPY.art?.tutorial;
   if (ops) {
     paintOps(ctx, ops, performance.now() / 520);
     if (!harbor && COPY.art?.dock) paintOps(ctx, COPY.art.dock, performance.now() / 520);
@@ -707,8 +715,22 @@ function castFeel() {
 }
 
 function chargeNow() {
+  if (chargeHold != null) return Math.min(1, Math.max(0, chargeHold));
   if (!charging) return 0;
-  return Math.min(1, Math.max(0, (performance.now() - chargeBorn) / (castFeel().chargeMs ?? 720)));
+  return Math.min(1, Math.max(0, (performance.now() - chargeBorn) / (castFeel().chargeMs ?? 880)));
+}
+
+function judgeCharge(charge) {
+  const feel = castFeel();
+  if (charge < (feel.sweetLo ?? 0.58)) return "early";
+  if (charge > (feel.sweetHi ?? 0.8)) return "late";
+  return "sweet";
+}
+
+function chargeCaption(quality) {
+  if (quality === "sweet") return COPY.firstRun.castSweet ?? "时机刚好 · 精彩";
+  if (quality === "late") return COPY.firstRun.castLate ?? "偏晚 · 普通命中";
+  return COPY.firstRun.castEarly ?? "偏早 · 普通命中";
 }
 
 function castPreview(ox, oy, tx, ty, charge) {
@@ -765,16 +787,26 @@ function paintCharge(ctx) {
     spec.width * (spec.sweetHi - spec.sweetLo),
     spec.height - 6,
   );
-  ctx.fillStyle = charge >= spec.sweetLo && charge <= spec.sweetHi ? "#ffb432" : "#ffe27a";
+  const quality = judgeCharge(charge);
+  ctx.fillStyle = quality === "sweet" ? "#ff9a1a" : quality === "late" ? "#c8d0d6" : "#ffe27a";
   if (ctx.roundRect) {
     ctx.beginPath();
     ctx.roundRect(bx - spec.width / 2, by + 3, Math.max(10, spec.width * charge), spec.height - 6, 6);
     ctx.fill();
   } else ctx.fillRect(bx - spec.width / 2, by + 3, Math.max(10, spec.width * charge), spec.height - 6);
-  ctx.fillStyle = "#ffe9a8";
-  ctx.font = "800 16px PingFang SC, Noto Sans SC, sans-serif";
+  ctx.fillStyle = quality === "sweet" ? "#fff3c0" : "#ffe9a8";
+  ctx.font = "800 18px PingFang SC, Noto Sans SC, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(charge >= spec.sweetLo && charge <= spec.sweetHi ? "甜区" : "蓄力", bx, by - 8);
+  ctx.fillText(
+    quality === "sweet" ? "甜区 · 精彩" : quality === "late" ? "偏晚 · 普通" : "蓄力 · 偏早",
+    bx,
+    by - 10,
+  );
+  if (freeHunt) {
+    ctx.font = "700 14px PingFang SC, Noto Sans SC, sans-serif";
+    ctx.fillStyle = "#d8e8f0";
+    ctx.fillText("自由局：再点「甩出」才松手，不会自动进甜区", bx, by + spec.height + 18);
+  }
   ctx.restore();
 }
 
@@ -880,9 +912,13 @@ function paintJuice(ctx) {
       ctx.ellipse(px - p.size * 0.2, py - p.size * 0.15, p.size * 0.35, p.size * 0.22, 0, 0, Math.PI * 2);
       ctx.fill();
     } else if (p.kind === "dust") {
-      ctx.fillStyle = "rgba(186,142,78,0.85)";
+      ctx.fillStyle = `rgba(168,118,58,${0.55 + 0.4 * p.life})`;
       ctx.beginPath();
-      ctx.ellipse(px, py, p.size * 1.4, p.size * 0.55, 0, 0, Math.PI * 2);
+      ctx.ellipse(px, py, p.size * 2.1, p.size * 0.85, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = `rgba(230,186,110,${0.35 * p.life})`;
+      ctx.beginPath();
+      ctx.ellipse(px - p.size * 0.2, py - p.size * 0.15, p.size * 0.9, p.size * 0.4, 0, 0, Math.PI * 2);
       ctx.fill();
     } else if (p.kind === "star") {
       ctx.fillStyle = "#ffe24a";
@@ -961,6 +997,25 @@ function paintJuice(ctx) {
     }
   }
   ctx.globalAlpha = 1;
+  if (slamMark > 0) {
+    const deckY = flopFeel().deckY ?? -118;
+    const x = flopBody ? flopBody.x : fishX;
+    ctx.globalAlpha = Math.min(1, slamMark);
+    ctx.fillStyle = "rgba(186,132,64,0.55)";
+    ctx.beginPath();
+    ctx.ellipse(sx(x), sy(deckY + 4), 78, 22, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,214,140,0.35)";
+    ctx.beginPath();
+    ctx.ellipse(sx(x), sy(deckY + 8), 46, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,236,180,0.7)";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.ellipse(sx(x), sy(deckY + 6), 64, 16, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
   if (shakeLeft > 0) ctx.restore();
 }
 
@@ -1104,7 +1159,7 @@ function renderSea() {
     paintFish(ctx, fishX, fishY);
   }
   const focus =
-    surface === "settle"
+    freeHunt || surface === "settle"
       ? "none"
       : carrying
         ? COPY.guideTargets.carrying
@@ -1130,7 +1185,17 @@ function renderSea() {
   if (tutorialStep === "settle") {
     // 入箱后只圈回港，不再露抛竿/捡起抢主目标
   } else if (!carrying) {
-    cta(COPY.castButton, -390, -292, bar.width, bar.height, bar.fontSize, barTone("cast"), onCast);
+    cta(
+      charging ? COPY.castRelease ?? "甩出" : COPY.castButton,
+      -390,
+      -292,
+      bar.width,
+      bar.height,
+      bar.fontSize,
+      charging || tutorialStep === "cast" ? "primary" : barTone("cast"),
+      onCast,
+      charging ? "甩出" : COPY.castButton,
+    );
     cta(COPY.pickButton, 390, -292, bar.width, bar.height, bar.fontSize, barTone("pickUp"), onPick);
   } else {
     cta(
@@ -1266,7 +1331,14 @@ function sail() {
   castFlashLeft = 0;
   charging = false;
   chargeBorn = 0;
+  chargeHold = null;
   bounceCount = 0;
+  slamMark = 0;
+  freeHunt = save.tutorialComplete === true;
+  if (freeHunt) {
+    status = "自由局：点抛竿蓄力，再点「甩出」才松手。早/晚是普通命中。";
+    fishName = "泡沫湾 · 湾鳍";
+  }
   splashRings = [];
   ambientSparks = [];
   hitStopLeft = 0;
@@ -1276,31 +1348,42 @@ function sail() {
 function commitCast() {
   if (surface !== "sea" || tutorialStep !== "cast" || yanking) return;
   const charge = chargeNow();
-  const feel = castFeel();
-  const sweet = charge >= feel.sweetLo && charge <= feel.sweetHi;
+  const quality = judgeCharge(charge);
+  lastCastQuality = quality;
   charging = false;
+  chargeHold = null;
   hooked = true;
   yanking = true;
   flopBody = null;
   stunned = false;
   fishFace = "hooked";
   tutorialStep = "weakPoint";
-  status = COPY.tutorialPrompts.weakPoint;
+  status = freeHunt
+    ? quality === "sweet"
+      ? "准时！再打弱点，精彩倍率吃满。"
+      : "普通命中。再打弱点，倍率不会涨满。"
+    : COPY.tutorialPrompts.weakPoint;
   fishName = `${COPY.firstRun.liveQuoteHooked} · 韧性 24 · 弱点亮`;
-  showCallout(sweet ? COPY.firstRun.castSweet ?? "时机刚好" : COPY.firstRun.castSnap);
+  multiplier = quality === "sweet" ? COPY.firstRun.comboHudAfter : COPY.firstRun.comboHud;
+  showCallout(chargeCaption(quality));
   burst("cast", boatX + 28, boatY + 18);
   burst("yank", fishX, fishY);
   castFlashLeft = COPY.castFlashSeconds ?? 0.26;
   castFlashElapsed = 0;
-  playSfx("cast");
+  playSfx(quality === "sweet" ? "cast" : "yank");
   playSfx("yank");
   render();
 }
 
 function onCast() {
-  if (surface !== "sea" || tutorialStep !== "cast" || charging || yanking) return;
+  if (surface !== "sea" || tutorialStep !== "cast" || yanking) return;
+  if (charging) {
+    commitCast();
+    return;
+  }
   charging = true;
   chargeBorn = performance.now();
+  chargeHold = null;
   playSfx("ui");
   render();
 }
@@ -1312,7 +1395,7 @@ function applyWeak(knockNow = true) {
   stunned = true;
   fishFace = "stunned";
   multiplier = COPY.firstRun.comboHudAfter;
-  showCallout(COPY.firstRun.calloutWeak);
+  showCallout(COPY.firstRun.calloutWeak ?? COPY.firstRun.beatHit ?? "命中！");
   burst("weak", fishX, fishY);
   if (knockNow) {
     if (!flopBody) flopBody = beginFlopPreview(fishX, fishY);
@@ -1348,6 +1431,7 @@ function onPick() {
   carryTo = { x: -470, y: -118 };
   carryWalk = flopFeel().carryWalkSeconds ?? 0.36;
   playSfx("ui");
+  showCallout(COPY.firstRun.beatPick ?? "可以捡");
   status = COPY.tutorialPrompts.carrying;
   render();
 }
@@ -1420,6 +1504,7 @@ function tick(now) {
     smashElapsed += dt;
     smashLeft = Math.max(0, smashLeft - dt);
   }
+  if (slamMark > 0) slamMark = Math.max(0, slamMark - dt * 0.7);
   if (castFlashLeft > 0) {
     castFlashElapsed += dt;
     castFlashLeft = Math.max(0, castFlashLeft - dt);
@@ -1427,8 +1512,8 @@ function tick(now) {
   splashRings = splashRings
     .map((ring) => ({ ...ring, life: ring.life - dt / ring.maxLife }))
     .filter((ring) => ring.life > 0);
-  if (charging && surface === "sea") {
-    const auto = castFeel().tutorialAutoMs ?? 420;
+  if (charging && surface === "sea" && !freeHunt && chargeHold == null) {
+    const auto = castFeel().tutorialAutoMs ?? 610;
     if (now - chargeBorn >= auto) commitCast();
   }
   if (surface === "sea" && tutorialStep === "cast" && !yanking && !flopBody && !carrying) {
@@ -1478,11 +1563,12 @@ function tick(now) {
       burst("smash", flopBody.x, flopBody.y);
       burst("dust", flopBody.x, flopBody.y);
       const freeze = bounceCount === 0
-        ? (flopFeel().bounceFreeze ?? 0.09)
+        ? (flopFeel().bounceFreeze ?? 0.22)
         : bounceCount === 1
-          ? 0.05
+          ? 0.1
           : 0;
       hitStopLeft = Math.max(hitStopLeft, freeze);
+      if (bounceCount === 0) showCallout(COPY.firstRun.beatSlam ?? "砸！");
       bounceCount += 1;
       playSfx("smash");
     }
@@ -1536,5 +1622,39 @@ requestAnimationFrame(tick);
 
 Object.assign(window, {
   PROXY_COPY: COPY,
-  proxyState: () => ({ surface, tutorialStep, carrying, status, coins: save.coins }),
+  proxyState: () => ({
+    surface,
+    tutorialStep,
+    carrying,
+    status,
+    coins: save.coins,
+    charging,
+    charge: chargeNow(),
+    freeHunt,
+    lastCastQuality,
+    bounceCount,
+    smashLeft,
+    slamMark,
+    dust: particles.filter((p) => p.kind === "dust").length,
+    tutorialComplete: save.tutorialComplete,
+  }),
+  proxyHoldCharge: (value) => {
+    charging = true;
+    chargeHold = Math.min(1, Math.max(0, Number(value) || 0));
+    chargeBorn = performance.now() - chargeHold * (castFeel().chargeMs ?? 880);
+  },
+  proxyReleaseCast: () => commitCast(),
+  proxyForceSlam: () => {
+    const x = flopBody ? flopBody.x : -320;
+    const y = flopFeel().deckY ?? -118;
+    fishX = x;
+    fishY = y;
+    burst("smash", x, y);
+    burst("dust", x, y);
+    smashLeft = COPY.smashSquashSeconds ?? 0.34;
+    slamMark = 1;
+    hitStopLeft = flopFeel().bounceFreeze ?? 0.22;
+    showCallout(COPY.firstRun.beatSlam ?? "砸！");
+    playSfx("smash");
+  },
 });

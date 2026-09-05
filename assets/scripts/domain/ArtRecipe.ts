@@ -231,6 +231,122 @@ function softShadow(x: number, y: number, rx: number, ry: number, a = 90): DrawO
   };
 }
 
+function hatchStrokes(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: Rgba,
+  count: number,
+  width: number,
+  seed = 1,
+): DrawOp[] {
+  const ops: DrawOp[] = [];
+  for (let i = 0; i < count; i++) {
+    const n = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453;
+    const u = n - Math.floor(n);
+    const m = Math.sin((i + 3) * 4.1414 + seed * 19.19) * 23421.196;
+    const v = m - Math.floor(m);
+    const x1 = x + u * w;
+    const y1 = y + v * h;
+    ops.push({
+      t: "line",
+      x1,
+      y1,
+      x2: x1 + 6 + u * 10,
+      y2: y1 + (i % 2 === 0 ? 3 : -2),
+      color,
+      width,
+    });
+  }
+  return ops;
+}
+
+function rockOps(x: number, y: number, s: number, look: IslandLook): DrawOp[] {
+  return [
+    {
+      t: "ellipse",
+      x,
+      y: y - 2 * s,
+      rx: 10 * s,
+      ry: 4 * s,
+      fill: rgba([8, 20, 28], 90),
+      tag: "shadow",
+    },
+    {
+      t: "ellipse",
+      x,
+      y,
+      rx: 9 * s,
+      ry: 5.2 * s,
+      fill: rgba(mix(look.landDark, [48, 42, 36], 0.45)),
+      tag: "rock",
+    },
+    {
+      t: "ellipse",
+      x: x + 2 * s,
+      y: y + 1.6 * s,
+      rx: 4 * s,
+      ry: 2 * s,
+      fill: rgba([255, 226, 170], 70),
+      tag: "rim",
+    },
+  ];
+}
+
+function bushOps(x: number, y: number, s: number, look: IslandLook): DrawOp[] {
+  return [
+    {
+      t: "ellipse",
+      x,
+      y,
+      rx: 8 * s,
+      ry: 6 * s,
+      fill: rgba(look.landDark),
+      tag: "bush",
+    },
+    {
+      t: "ellipse",
+      x: x + 3 * s,
+      y: y + 2 * s,
+      rx: 5 * s,
+      ry: 3.4 * s,
+      fill: rgba(mix(look.land, look.accent, 0.35)),
+      tag: "bush",
+    },
+    {
+      t: "ellipse",
+      x: x - 2 * s,
+      y: y + 3 * s,
+      rx: 3.2 * s,
+      ry: 2 * s,
+      fill: rgba([255, 236, 150], 55),
+      tag: "rim",
+    },
+  ];
+}
+
+function foamLace(
+  x: number,
+  y: number,
+  w: number,
+  _look: IslandLook,
+): DrawOp[] {
+  const ops: DrawOp[] = [];
+  for (let i = 0; i < 7; i++) {
+    ops.push({
+      t: "ellipse",
+      x: x + (i - 3) * (w / 7),
+      y: y + (i % 2 === 0 ? 2 : -1),
+      rx: 10 + (i % 3) * 3,
+      ry: 3.2,
+      fill: rgba([255, 248, 230], 46 + (i % 3) * 10),
+      tag: "foam",
+    });
+  }
+  return ops;
+}
+
 export function skyWaterOps(look: IslandLook, phase = 0): DrawOp[] {
   const ops: DrawOp[] = [
     {
@@ -281,9 +397,10 @@ export function skyWaterOps(look: IslandLook, phase = 0): DrawOp[] {
     { t: "rect", x: -640, y: -8, w: 1280, h: 14, fill: rgba(mix(look.far, look.mid, 0.45), 90) },
     { t: "rect", x: -640, y: -96, w: 1280, h: 10, fill: rgba(mix(look.mid, look.near, 0.5), 70) },
     { t: "rect", x: -640, y: -248, w: 1280, h: 8, fill: rgba(mix(look.near, look.deep, 0.4), 80) },
-    speckleField(-640, -176, 1280, 148, rgba([210, 246, 255], 36), 48, 1.5, 3, "speckle"),
-    speckleField(-640, -360, 1280, 196, rgba([8, 40, 64], 46), 40, 1.8, 7, "speckle"),
-    speckleField(-640, 110, 1280, 220, rgba([255, 248, 220], 22), 22, 1.3, 11, "speckle"),
+    speckleField(-640, -176, 1280, 148, rgba([210, 246, 255], 42), 64, 1.7, 3, "speckle"),
+    speckleField(-640, -360, 1280, 196, rgba([8, 40, 64], 52), 56, 2, 7, "speckle"),
+    speckleField(-640, 110, 1280, 220, rgba([255, 248, 220], 28), 32, 1.4, 11, "speckle"),
+    speckleField(-640, -40, 1280, 80, rgba([255, 236, 180], 22), 24, 1.6, 15, "speckle"),
   ];
   if ((look.skyTop[0] ?? 0) > 240) {
     push(
@@ -745,144 +862,195 @@ function hutOps(x: number, y: number, s: number, look: IslandLook): DrawOp[] {
 }
 
 export function foamIsleOps(x: number, y: number, s: number, look: IslandLook): DrawOp[] {
-  return [
-    softShadow(x, y - 4 * s, 96 * s, 16 * s, 120),
-    { t: "ellipse", x, y, rx: 90 * s, ry: 22 * s, fill: rgba(look.deep, 150) },
+  const ops: DrawOp[] = [
+    softShadow(x, y - 6 * s, 108 * s, 18 * s, 140),
+    { t: "ellipse", x, y: y - 4 * s, rx: 102 * s, ry: 24 * s, fill: rgba(look.deep, 170) },
     {
       t: "ellipse",
-      x,
-      y: y + 6 * s,
-      rx: 80 * s,
-      ry: 20 * s,
-      fill: rgba(look.landDark, 220),
+      x: x - 6 * s,
+      y: y + 4 * s,
+      rx: 88 * s,
+      ry: 22 * s,
+      fill: rgba(mix(look.landDark, [42, 36, 28], 0.25), 230),
+    },
+    {
+      t: "poly",
+      pts: [
+        x - 78 * s, y + 2 * s,
+        x - 62 * s, y + 22 * s,
+        x - 28 * s, y + 36 * s,
+        x + 8 * s, y + 28 * s,
+        x - 40 * s, y + 4 * s,
+      ],
+      fill: rgba(mix(look.landDark, [56, 46, 32], 0.4)),
+      tag: "cliff",
     },
     {
       t: "ellipse",
       x,
       y: y + 16 * s,
-      rx: 72 * s,
-      ry: 18 * s,
+      rx: 76 * s,
+      ry: 20 * s,
       fill: rgba(look.land),
       tag: "paraMid",
     },
     {
       t: "poly",
-      pts: [x - 54 * s, y + 10 * s, x - 20 * s, y + 28 * s, x + 8 * s, y + 12 * s, x - 40 * s, y + 6 * s],
-      fill: rgba(mix(look.land, look.landDark, 0.35)),
+      pts: [x - 58 * s, y + 10 * s, x - 22 * s, y + 34 * s, x + 6 * s, y + 16 * s, x - 36 * s, y + 6 * s],
+      fill: rgba(mix(look.land, look.landDark, 0.4)),
       tag: "terrace",
     },
     {
       t: "poly",
-      pts: [x - 8 * s, y + 14 * s, x + 22 * s, y + 32 * s, x + 48 * s, y + 14 * s, x + 16 * s, y + 10 * s],
-      fill: rgba(mix(look.land, [255, 226, 140], 0.28)),
+      pts: [x - 10 * s, y + 16 * s, x + 20 * s, y + 40 * s, x + 52 * s, y + 16 * s, x + 18 * s, y + 10 * s],
+      fill: rgba(mix(look.land, [255, 226, 140], 0.32)),
       tag: "terrace",
     },
     {
       t: "ellipse",
-      x: x + 12 * s,
-      y: y + 24 * s,
-      rx: 26 * s,
-      ry: 12 * s,
+      x: x + 14 * s,
+      y: y + 28 * s,
+      rx: 28 * s,
+      ry: 13 * s,
       fill: rgba(look.landDark),
     },
     {
       t: "ellipse",
-      x: x - 10 * s,
-      y: y + 12 * s,
-      rx: 18 * s,
+      x: x + 22 * s,
+      y: y + 32 * s,
+      rx: 16 * s,
       ry: 5 * s,
-      fill: rgba([255, 248, 214], 100),
+      fill: rgba([255, 236, 170], 90),
+      tag: "rim",
     },
     {
       t: "ellipse",
-      x: x - 36 * s,
+      x: x - 12 * s,
+      y: y + 14 * s,
+      rx: 22 * s,
+      ry: 6 * s,
+      fill: rgba([255, 248, 214], 110),
+      tag: "rim",
+    },
+    {
+      t: "ellipse",
+      x: x - 40 * s,
       y: y + 2 * s,
+      rx: 26 * s,
+      ry: 6 * s,
+      fill: rgba([255, 248, 230], 88),
+      tag: "foam",
+    },
+    {
+      t: "ellipse",
+      x: x + 36 * s,
+      y: y + 1 * s,
       rx: 22 * s,
       ry: 5 * s,
-      fill: rgba([255, 248, 230], 80),
+      fill: rgba([210, 246, 255], 60),
       tag: "foam",
     },
-    {
-      t: "ellipse",
-      x: x + 30 * s,
-      y: y + 1 * s,
-      rx: 18 * s,
-      ry: 4 * s,
-      fill: rgba([210, 246, 255], 54),
-      tag: "foam",
-    },
-    speckleField(x - 60 * s, y + 6 * s, 120 * s, 28 * s, rgba(look.landDark, 50), 14, 1.6 * s, 5, "speckle"),
-    ...palmOps(x - 24 * s, y + 12 * s, s, look),
-    ...palmOps(x + 22 * s, y + 10 * s, 0.7 * s, look),
-    ...palmOps(x - 44 * s, y + 8 * s, 0.48 * s, look),
-    ...hutOps(x + 2 * s, y + 8 * s, s * 0.88, look),
-    { t: "ellipse", x: x + 28 * s, y: y + 8 * s, rx: 5 * s, ry: 3.2 * s, fill: rgba(WOOD.dark) },
-    { t: "ellipse", x: x + 36 * s, y: y + 7 * s, rx: 4 * s, ry: 2.6 * s, fill: rgba(WOOD.plank) },
-    { t: "circle", x: x - 8 * s, y: y + 18 * s, r: 2.2 * s, fill: rgba([46, 96, 72], 180), tag: "paraMid" },
+    speckleField(x - 70 * s, y + 4 * s, 140 * s, 36 * s, rgba(look.landDark, 70), 28, 1.8 * s, 5, "speckle"),
+    speckleField(x - 50 * s, y + 10 * s, 100 * s, 22 * s, rgba([255, 236, 170], 40), 16, 1.3 * s, 8, "speckle"),
+    ...hatchStrokes(x - 56 * s, y + 8 * s, 110 * s, 24 * s, rgba(WOOD.grain, 55), 16, 1.1, 4),
+    ...palmOps(x - 26 * s, y + 14 * s, s, look),
+    ...palmOps(x + 24 * s, y + 12 * s, 0.72 * s, look),
+    ...palmOps(x - 48 * s, y + 8 * s, 0.5 * s, look),
+    ...palmOps(x + 40 * s, y + 8 * s, 0.42 * s, look),
+    ...hutOps(x + 2 * s, y + 10 * s, s * 0.9, look),
+    ...rockOps(x - 62 * s, y + 4 * s, s * 0.9, look),
+    ...rockOps(x + 58 * s, y + 3 * s, s * 0.7, look),
+    ...bushOps(x - 8 * s, y + 22 * s, s, look),
+    ...bushOps(x + 18 * s, y + 18 * s, 0.7 * s, look),
+    { t: "ellipse", x: x + 30 * s, y: y + 8 * s, rx: 6 * s, ry: 3.4 * s, fill: rgba(WOOD.dark) },
+    { t: "ellipse", x: x + 38 * s, y: y + 7 * s, rx: 4.6 * s, ry: 2.8 * s, fill: rgba(WOOD.plank) },
+    { t: "ellipse", x: x + 34 * s, y: y + 9 * s, rx: 2.4 * s, ry: 1.2 * s, fill: rgba(WOOD.highlight, 140) },
+    { t: "circle", x: x - 10 * s, y: y + 20 * s, r: 2.4 * s, fill: rgba([46, 96, 72], 190), tag: "paraMid" },
+    ...foamLace(x, y - 2 * s, 150 * s, look),
   ];
+  return ops;
 }
 
 export function prismIsleOps(x: number, y: number, s: number, look: IslandLook): DrawOp[] {
   return [
-    softShadow(x, y - 3 * s, 78 * s, 12 * s, 90),
-    { t: "ellipse", x, y, rx: 72 * s, ry: 16 * s, fill: rgba(look.landDark, 160) },
+    softShadow(x, y - 4 * s, 86 * s, 14 * s, 110),
+    { t: "ellipse", x, y, rx: 80 * s, ry: 18 * s, fill: rgba(look.landDark, 180) },
     {
       t: "poly",
-      pts: [x - 42 * s, y + 6 * s, x - 8 * s, y + 56 * s, x + 18 * s, y + 6 * s],
+      pts: [x - 46 * s, y + 4 * s, x - 10 * s, y + 60 * s, x + 16 * s, y + 6 * s],
       fill: rgba(look.land),
     },
     {
       t: "poly",
-      pts: [x - 6 * s, y + 6 * s, x + 16 * s, y + 64 * s, x + 36 * s, y + 6 * s],
+      pts: [x - 8 * s, y + 6 * s, x + 14 * s, y + 70 * s, x + 34 * s, y + 6 * s],
       fill: rgba(look.accent),
     },
     {
       t: "poly",
-      pts: [x + 8 * s, y + 6 * s, x + 42 * s, y + 38 * s, x + 54 * s, y + 6 * s],
+      pts: [x + 6 * s, y + 6 * s, x + 40 * s, y + 42 * s, x + 56 * s, y + 6 * s],
       fill: rgba(look.landDark),
     },
     {
-      t: "ellipse",
-      x: x + 8 * s,
-      y: y + 28 * s,
-      rx: 8 * s,
-      ry: 4 * s,
-      fill: rgba([255, 248, 220], 70),
+      t: "poly",
+      pts: [x - 18 * s, y + 28 * s, x - 8 * s, y + 52 * s, x + 4 * s, y + 30 * s],
+      fill: rgba(mix(look.land, [255, 236, 210], 0.35)),
+      tag: "rim",
     },
+    {
+      t: "ellipse",
+      x: x + 10 * s,
+      y: y + 30 * s,
+      rx: 9 * s,
+      ry: 4.4 * s,
+      fill: rgba([255, 248, 220], 90),
+      tag: "rim",
+    },
+    speckleField(x - 40 * s, y + 6 * s, 90 * s, 40 * s, rgba([255, 220, 255], 36), 12, 1.4 * s, 6, "speckle"),
+    ...rockOps(x - 50 * s, y + 2 * s, 0.7 * s, look),
+    ...foamLace(x, y - 1 * s, 120 * s, look),
   ];
 }
 
 export function stormIsleOps(x: number, y: number, s: number, look: IslandLook): DrawOp[] {
   return [
-    softShadow(x, y - 4 * s, 96 * s, 14 * s, 100),
-    { t: "ellipse", x, y, rx: 90 * s, ry: 20 * s, fill: rgba(look.landDark, 200) },
+    softShadow(x, y - 5 * s, 104 * s, 16 * s, 120),
+    { t: "ellipse", x, y, rx: 96 * s, ry: 22 * s, fill: rgba(look.landDark, 210) },
     {
       t: "poly",
-      pts: [x - 50 * s, y + 4 * s, x, y + 60 * s, x + 50 * s, y + 4 * s],
+      pts: [x - 56 * s, y + 4 * s, x - 8 * s, y + 52 * s, x, y + 66 * s, x + 54 * s, y + 4 * s],
       fill: rgba(look.land),
     },
     {
       t: "poly",
-      pts: [x - 18 * s, y + 38 * s, x, y + 74 * s, x + 18 * s, y + 38 * s],
+      pts: [x - 22 * s, y + 36 * s, x, y + 80 * s, x + 20 * s, y + 36 * s],
       fill: rgba(look.landDark),
     },
-    { t: "ellipse", x, y: y + 60 * s, rx: 12 * s, ry: 6 * s, fill: rgba(look.accent) },
+    {
+      t: "poly",
+      pts: [x + 6 * s, y + 40 * s, x + 18 * s, y + 62 * s, x + 32 * s, y + 38 * s],
+      fill: rgba(mix(look.land, look.accent, 0.25)),
+      tag: "rim",
+    },
+    { t: "ellipse", x, y: y + 62 * s, rx: 13 * s, ry: 6.5 * s, fill: rgba(look.accent) },
     {
       t: "ellipse",
       x: x + 6 * s,
-      y: y + 82 * s,
-      rx: 16 * s,
-      ry: 10 * s,
-      fill: rgba(look.haze, 140),
+      y: y + 84 * s,
+      rx: 18 * s,
+      ry: 11 * s,
+      fill: rgba(look.haze, 150),
     },
     {
       t: "ellipse",
-      x: x + 20 * s,
-      y: y + 96 * s,
-      rx: 20 * s,
-      ry: 8 * s,
+      x: x + 22 * s,
+      y: y + 100 * s,
+      rx: 22 * s,
+      ry: 9 * s,
       fill: rgba(look.haze, 80),
     },
+    speckleField(x - 40 * s, y + 8 * s, 80 * s, 36 * s, rgba([20, 18, 16], 50), 14, 1.5 * s, 2, "speckle"),
+    ...rockOps(x - 48 * s, y + 3 * s, 0.8 * s, look),
+    ...rockOps(x + 46 * s, y + 2 * s, 0.65 * s, look),
   ];
 }
 
@@ -984,18 +1152,18 @@ export function harborAmbienceOps(look: IslandLook): DrawOp[] {
       t: "ellipse",
       x: -180,
       y: 236,
-      rx: 90,
-      ry: 14,
-      fill: rgba([255, 236, 210], 36),
+      rx: 96,
+      ry: 16,
+      fill: rgba([255, 236, 210], 42),
       tag: "cloud",
     },
     {
       t: "ellipse",
       x: 40,
       y: 250,
-      rx: 70,
-      ry: 12,
-      fill: rgba([255, 244, 220], 28),
+      rx: 76,
+      ry: 13,
+      fill: rgba([255, 244, 220], 32),
       tag: "cloud",
     },
     ...gullOps(-80, 200, 1),
@@ -1005,85 +1173,158 @@ export function harborAmbienceOps(look: IslandLook): DrawOp[] {
       t: "ellipse",
       x: -200,
       y: -230,
-      rx: 70,
-      ry: 8,
-      fill: rgba([255, 248, 230], 36),
+      rx: 78,
+      ry: 9,
+      fill: rgba([255, 248, 230], 42),
       tag: "foam",
     },
     {
       t: "ellipse",
       x: -360,
       y: -238,
-      rx: 50,
-      ry: 6,
-      fill: rgba([210, 246, 255], 28),
+      rx: 56,
+      ry: 7,
+      fill: rgba([210, 246, 255], 32),
       tag: "foam",
     },
     {
       t: "poly",
-      pts: [220, -210, 280, -198, 268, -188, 210, -200],
+      pts: [220, -210, 286, -196, 272, -186, 208, -200],
       fill: rgba(shade(WOOD.plank, 0.72)),
     },
-    { t: "rect", x: 232, y: -198, w: 28, h: 10, r: 3, fill: rgba(WOOD.highlight) },
-    { t: "poly", pts: [246, -188, 268, -168, 246, -176], fill: rgba(look.accent) },
-    { t: "ellipse", x: 80, y: 220, rx: 110, ry: 16, fill: rgba([255, 232, 200], 24), tag: "cloud" },
-    { t: "ellipse", x: 340, y: 242, rx: 80, ry: 12, fill: rgba([255, 244, 214], 22), tag: "cloud" },
+    { t: "rect", x: 232, y: -198, w: 30, h: 11, r: 3, fill: rgba(WOOD.highlight) },
+    { t: "poly", pts: [246, -188, 270, -166, 246, -176], fill: rgba(look.accent) },
+    { t: "ellipse", x: 80, y: 220, rx: 118, ry: 18, fill: rgba([255, 232, 200], 28), tag: "cloud" },
+    { t: "ellipse", x: 340, y: 242, rx: 86, ry: 13, fill: rgba([255, 244, 214], 26), tag: "cloud" },
     ...gullOps(320, 196, 0.7),
     ...gullOps(-200, 188, 0.55),
+    ...foamLace(-280, -242, 220, look),
   ];
+}
+
+/** 近景装饰：桩、网、灯笼、水草，把码头从色块抬成可上架前景。 */
+export function harborForegroundOps(): DrawOp[] {
+  const ops: DrawOp[] = [
+    { t: "rect", x: -618, y: -320, w: 22, h: 88, r: 5, fill: rgba(WOOD.pile), tag: "paraNear" },
+    { t: "rect", x: -612, y: -300, w: 6, h: 50, fill: rgba(WOOD.highlight, 110), tag: "paraNear" },
+    { t: "rect", x: 520, y: -316, w: 20, h: 80, r: 5, fill: rgba(WOOD.pile), tag: "paraNear" },
+    { t: "rect", x: 526, y: -298, w: 5, h: 46, fill: rgba(WOOD.highlight, 90), tag: "paraNear" },
+    {
+      t: "bezier",
+      x1: -610,
+      y1: -240,
+      c1x: -520,
+      c1y: -210,
+      c2x: -430,
+      c2y: -250,
+      x2: -340,
+      y2: -226,
+      color: rgba(WOOD.rope, 200),
+      width: 2.4,
+    },
+    {
+      t: "poly",
+      pts: [-560, -236, -500, -228, -492, -248, -552, -256],
+      fill: rgba([36, 72, 78], 90),
+      tag: "paraNear",
+    },
+    { t: "ellipse", x: -200, y: -268, rx: 18, ry: 28, fill: rgba([18, 92, 78], 120), tag: "paraNear" },
+    { t: "ellipse", x: -178, y: -258, rx: 12, ry: 20, fill: rgba([28, 122, 96], 110), tag: "paraNear" },
+    { t: "circle", x: -540, y: -218, r: 9, fill: rgba(MARKET.lantern), tag: "lantern" },
+    { t: "circle", x: -540, y: -218, r: 20, fill: rgba(MARKET.glow, 48), tag: "lantern" },
+    { t: "circle", x: -400, y: -210, r: 7, fill: rgba(MARKET.lantern), tag: "lantern" },
+    { t: "circle", x: -400, y: -210, r: 16, fill: rgba(MARKET.glow, 40), tag: "lantern" },
+    { t: "ellipse", x: 80, y: -250, rx: 26, ry: 6, fill: rgba([255, 248, 230], 36), tag: "foam" },
+  ];
+  return ops;
 }
 
 export function dockOps(): DrawOp[] {
   const ops: DrawOp[] = [
-    { t: "ellipse", x: -420, y: -250, rx: 220, ry: 16, fill: rgba(WOOD.shadow, 210) },
+    { t: "ellipse", x: -420, y: -252, rx: 236, ry: 18, fill: rgba(WOOD.shadow, 220) },
   ];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 7; i++) {
     ops.push({
       t: "rect",
-      x: -620 + i * 68,
-      y: -268,
-      w: 14,
-      h: 44,
-      r: 3,
-      fill: rgba(WOOD.pile),
+      x: -628 + i * 62,
+      y: -274,
+      w: 16,
+      h: 50,
+      r: 4,
+      fill: rgba(i % 2 === 0 ? WOOD.pile : shade(WOOD.pile, 0.86)),
+    });
+    ops.push({
+      t: "rect",
+      x: -624 + i * 62,
+      y: -236,
+      w: 5,
+      h: 22,
+      fill: rgba(WOOD.highlight, 90),
+    });
+    ops.push({
+      t: "ellipse",
+      x: -620 + i * 62,
+      y: -274,
+      rx: 14,
+      ry: 4,
+      fill: rgba([210, 246, 255], 40),
+      tag: "foam",
     });
   }
   push(
     ops,
-    { t: "rect", x: -640, y: -230, w: 460, h: 108, r: 14, fill: rgba(WOOD.plank) },
-    { t: "rect", x: -640, y: -230, w: 460, h: 18, r: 10, fill: rgba(WOOD.highlight) },
+    { t: "rect", x: -640, y: -232, w: 468, h: 112, r: 12, fill: rgba(WOOD.dark) },
+    { t: "rect", x: -636, y: -228, w: 460, h: 104, r: 10, fill: rgba(WOOD.plank) },
+    { t: "rect", x: -636, y: -228, w: 460, h: 16, r: 8, fill: rgba(WOOD.highlight) },
+    { t: "rect", x: -636, y: -214, w: 460, h: 6, fill: rgba([255, 236, 180], 70), tag: "rim" },
   );
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 9; i++) {
     ops.push({
       t: "rect",
-      x: -628 + i * 54,
-      y: -214,
-      w: 6,
-      h: 82,
-      fill: rgba(WOOD.grain),
+      x: -628 + i * 50,
+      y: -210,
+      w: 7,
+      h: 84,
+      fill: rgba(i % 3 === 0 ? WOOD.grain : shade(WOOD.grain, 0.82)),
     });
+    if (i % 2 === 0) {
+      ops.push({
+        t: "ellipse",
+        x: -610 + i * 50,
+        y: -168,
+        rx: 16,
+        ry: 5,
+        fill: rgba([72, 48, 28], 50),
+      });
+    }
   }
   push(
     ops,
-    { t: "line", x1: -630, y1: -172, x2: -200, y2: -172, color: rgba(WOOD.dark, 200), width: 3 },
-    { t: "line", x1: -630, y1: -196, x2: -200, y2: -196, color: rgba(WOOD.dark, 90), width: 1.6 },
-    { t: "rect", x: -560, y: -186, w: 88, h: 68, r: 12, fill: rgba([28, 168, 176]) },
-    { t: "rect", x: -550, y: -176, w: 68, h: 18, r: 4, fill: rgba([16, 86, 98]) },
-    { t: "rect", x: -542, y: -172, w: 20, h: 8, r: 3, fill: rgba([255, 226, 140], 170) },
-    { t: "circle", x: -248, y: -148, r: 7, fill: rgba(MARKET.lantern), tag: "lantern" },
-    { t: "circle", x: -248, y: -148, r: 3, fill: rgba(MARKET.sign) },
-    { t: "circle", x: -248, y: -148, r: 16, fill: rgba(MARKET.glow, 50), tag: "lantern" },
-    { t: "ellipse", x: -400, y: -248, rx: 80, ry: 7, fill: rgba([255, 248, 230], 32), tag: "foam" },
-    { t: "circle", x: -200, y: -156, r: 5, fill: rgba(MARKET.lantern), tag: "lantern" },
-    { t: "circle", x: -200, y: -156, r: 11, fill: rgba(MARKET.glow, 40), tag: "lantern" },
-    { t: "circle", x: -320, y: -144, r: 6, fill: rgba(MARKET.lantern), tag: "lantern" },
-    { t: "circle", x: -320, y: -144, r: 14, fill: rgba(MARKET.glow, 46), tag: "lantern" },
-    { t: "ellipse", x: -248, y: -228, rx: 20, ry: 5, fill: rgba(MARKET.glow, 30), tag: "lantern" },
-    { t: "ellipse", x: -320, y: -226, rx: 16, ry: 4, fill: rgba(MARKET.glow, 24), tag: "lantern" },
-    softShadow(-420, -236, 200, 12, 100),
-    speckleField(-640, -230, 460, 108, rgba(WOOD.grain, 55), 28, 1.3, 13, "speckle"),
-    { t: "rect", x: -610, y: -148, w: 22, h: 8, r: 2, fill: rgba(MARKET.awningB), tag: "banner" },
-    { t: "ellipse", x: -580, y: -248, rx: 18, ry: 5, fill: rgba([255, 248, 230], 40), tag: "foam" },
+    { t: "line", x1: -630, y1: -170, x2: -190, y2: -170, color: rgba(WOOD.dark, 210), width: 3.2 },
+    { t: "line", x1: -630, y1: -194, x2: -190, y2: -194, color: rgba(WOOD.dark, 100), width: 1.8 },
+    { t: "rect", x: -562, y: -188, w: 92, h: 70, r: 12, fill: rgba([22, 150, 158]) },
+    { t: "rect", x: -552, y: -178, w: 72, h: 16, r: 4, fill: rgba([14, 78, 90]) },
+    { t: "rect", x: -546, y: -174, w: 22, h: 8, r: 3, fill: rgba([255, 226, 140], 180) },
+    { t: "rect", x: -548, y: -154, w: 64, h: 10, r: 3, fill: rgba([10, 56, 68], 160) },
+    { t: "circle", x: -248, y: -146, r: 8, fill: rgba(MARKET.lantern), tag: "lantern" },
+    { t: "circle", x: -248, y: -146, r: 3.2, fill: rgba(MARKET.sign) },
+    { t: "circle", x: -248, y: -146, r: 18, fill: rgba(MARKET.glow, 55), tag: "lantern" },
+    { t: "ellipse", x: -400, y: -250, rx: 90, ry: 8, fill: rgba([255, 248, 230], 40), tag: "foam" },
+    { t: "circle", x: -200, y: -154, r: 6, fill: rgba(MARKET.lantern), tag: "lantern" },
+    { t: "circle", x: -200, y: -154, r: 13, fill: rgba(MARKET.glow, 44), tag: "lantern" },
+    { t: "circle", x: -320, y: -142, r: 7, fill: rgba(MARKET.lantern), tag: "lantern" },
+    { t: "circle", x: -320, y: -142, r: 16, fill: rgba(MARKET.glow, 50), tag: "lantern" },
+    { t: "ellipse", x: -248, y: -226, rx: 22, ry: 6, fill: rgba(MARKET.glow, 34), tag: "lantern" },
+    { t: "ellipse", x: -320, y: -224, rx: 18, ry: 5, fill: rgba(MARKET.glow, 28), tag: "lantern" },
+    softShadow(-420, -238, 210, 13, 110),
+    speckleField(-636, -228, 460, 104, rgba(WOOD.grain, 70), 42, 1.5, 13, "speckle"),
+    ...hatchStrokes(-620, -220, 430, 90, rgba(WOOD.dark, 60), 22, 1.2, 11),
+    { t: "rect", x: -612, y: -146, w: 24, h: 9, r: 2, fill: rgba(MARKET.awningB), tag: "banner" },
+    { t: "ellipse", x: -580, y: -250, rx: 20, ry: 6, fill: rgba([255, 248, 230], 48), tag: "foam" },
+    { t: "ellipse", x: -500, y: -148, rx: 10, ry: 7, fill: rgba(WOOD.dark), tag: "paraNear" },
+    { t: "ellipse", x: -486, y: -146, rx: 8, ry: 6, fill: rgba(WOOD.plank), tag: "paraNear" },
+    { t: "rect", x: -240, y: -168, w: 36, h: 8, r: 2, fill: rgba(WOOD.rope) },
+    { t: "bezier", x1: -240, y1: -164, c1x: -210, c1y: -150, c2x: -190, c2y: -172, x2: -168, y2: -156, color: rgba(WOOD.rope, 190), width: 2.2 },
   );
   return ops;
 }
@@ -1143,78 +1384,152 @@ function faceOps(
 ): DrawOp[] {
   const white = decoy ? 120 : 255;
   const ops: DrawOp[] = [
-    { t: "circle", x: eyeX * s, y: eyeY * s, r: 6.4 * s, fill: rgba([255, 252, 244], white) },
+    {
+      t: "circle",
+      x: (eyeX - 0.6) * s,
+      y: (eyeY - 0.4) * s,
+      r: 7.6 * s,
+      fill: rgba([12, 28, 26], decoy ? 80 : 220),
+      tag: "outline",
+    },
+    { t: "circle", x: eyeX * s, y: eyeY * s, r: 6.8 * s, fill: rgba([255, 252, 244], white), tag: "eye" },
+    {
+      t: "circle",
+      x: (eyeX + 0.4) * s,
+      y: (eyeY - 0.6) * s,
+      r: 5.2 * s,
+      fill: rgba([186, 236, 210], white),
+      tag: "eye",
+    },
   ];
   if (face === "stunned") {
     ops.push(
-      { t: "circle", x: (eyeX + 0.6) * s, y: eyeY * s, r: 2.2 * s, fill: rgba([18, 28, 24], white) },
+      { t: "circle", x: (eyeX + 0.8) * s, y: eyeY * s, r: 2.4 * s, fill: rgba([18, 28, 24], white), tag: "eye" },
       {
         t: "ellipse",
         x: (eyeX + 6) * s,
-        y: (eyeY - 8) * s,
-        rx: 5 * s,
-        ry: 2.2 * s,
-        fill: rgba([22, 40, 32], decoy ? 90 : 200),
+        y: (eyeY - 9) * s,
+        rx: 5.4 * s,
+        ry: 2.4 * s,
+        fill: rgba([22, 40, 32], decoy ? 90 : 210),
+      },
+      {
+        t: "ellipse",
+        x: (eyeX + 8) * s,
+        y: (eyeY - 2) * s,
+        rx: 3.2 * s,
+        ry: 1.4 * s,
+        fill: rgba([18, 110, 96], decoy ? 70 : 180),
+        tag: "mouth",
       },
     );
     return ops;
   }
-  const lid = face === "carry" || face === "happy" ? 0.55 : face === "hooked" ? 1.15 : 1;
-  const pupil = face === "hooked" ? 3.6 : 3;
+  const lid = face === "carry" || face === "happy" ? 0.5 : face === "hooked" ? 1.2 : 1;
+  const pupil = face === "hooked" ? 3.8 : 3.2;
   ops.push(
     {
       t: "circle",
-      x: (eyeX + 2) * s,
+      x: (eyeX + 2.1) * s,
       y: eyeY * s,
       r: pupil * s * lid,
       fill: rgba([18, 28, 24], white),
+      tag: "eye",
     },
     {
       t: "circle",
-      x: (eyeX + 3.2) * s,
-      y: (eyeY - 1.2) * s,
-      r: 1.15 * s,
-      fill: rgba([255, 255, 255], 240),
+      x: (eyeX + 3.4) * s,
+      y: (eyeY + 0.4) * s,
+      r: 1.05 * s,
+      fill: rgba([40, 64, 52], 200),
+      tag: "eye",
+    },
+    {
+      t: "circle",
+      x: (eyeX + 3.6) * s,
+      y: (eyeY - 1.4) * s,
+      r: 1.35 * s,
+      fill: rgba([255, 255, 255], 250),
+      tag: "eye",
+    },
+    {
+      t: "circle",
+      x: (eyeX + 1.2) * s,
+      y: (eyeY - 2.2) * s,
+      r: 0.7 * s,
+      fill: rgba([255, 255, 255], 180),
+      tag: "eye",
     },
   );
   if (face === "hooked") {
-    ops.push({
-      t: "ellipse",
-      x: (eyeX + 4) * s,
-      y: (eyeY - 10) * s,
-      rx: 4.2 * s,
-      ry: 3.2 * s,
-      fill: rgba([36, 48, 44], decoy ? 90 : 230),
-    });
+    ops.push(
+      {
+        t: "ellipse",
+        x: (eyeX + 4) * s,
+        y: (eyeY - 11) * s,
+        rx: 4.6 * s,
+        ry: 3.4 * s,
+        fill: rgba([36, 48, 44], decoy ? 90 : 230),
+      },
+      {
+        t: "ellipse",
+        x: (eyeX + 10) * s,
+        y: (eyeY - 3) * s,
+        rx: 3.6 * s,
+        ry: 1.8 * s,
+        fill: rgba([16, 86, 74], decoy ? 80 : 210),
+        tag: "mouth",
+      },
+    );
   } else if (face === "carry" || face === "happy") {
     ops.push(
       {
         t: "ellipse",
         x: (eyeX + 4) * s,
         y: (eyeY - 8) * s,
-        rx: 4 * s,
-        ry: 1.4 * s,
+        rx: 4.2 * s,
+        ry: 1.5 * s,
         fill: rgba([22, 40, 32], decoy ? 90 : 210),
       },
       {
         t: "ellipse",
         x: (eyeX + 6) * s,
-        y: (eyeY - 12) * s,
-        rx: 5.2 * s,
-        ry: 2.4 * s,
+        y: (eyeY - 13) * s,
+        rx: 5.4 * s,
+        ry: 2.6 * s,
         fill: rgba([22, 48, 40], decoy ? 80 : 210),
+      },
+      {
+        t: "ellipse",
+        x: (eyeX + 9) * s,
+        y: (eyeY - 4) * s,
+        rx: 4.2 * s,
+        ry: 1.6 * s,
+        fill: rgba([20, 120, 102], decoy ? 70 : 200),
+        tag: "mouth",
       },
     );
   } else {
-    ops.push({
-      t: "ellipse",
-      x: (eyeX + 4) * s,
-      y: (eyeY - 10) * s,
-      rx: 4 * s,
-      ry: 2 * s,
-      fill: rgba([22, 40, 32], decoy ? 90 : 220),
-      tag: "lid",
-    });
+    ops.push(
+      {
+        t: "ellipse",
+        x: (eyeX + 4) * s,
+        y: (eyeY - 11) * s,
+        rx: 4.4 * s,
+        ry: 2.2 * s,
+        fill: rgba([22, 40, 32], decoy ? 90 : 220),
+        tag: "lid",
+      },
+      {
+        t: "ellipse",
+        x: (eyeX + 9) * s,
+        y: (eyeY - 3) * s,
+        rx: 3.4 * s,
+        ry: 1.3 * s,
+        fill: rgba([18, 110, 96], decoy ? 70 : 190),
+        tag: "mouth",
+      },
+    );
   }
   return ops;
 }
@@ -1335,19 +1650,34 @@ export function fishBodyOps(
     ];
   }
   return [
-    { t: "ellipse", x: 2 * s, y: -10 * s, rx: 40 * s, ry: 10 * s, fill: rgba(WOOD.shadow, decoy ? 50 : 90) },
+    { t: "ellipse", x: 2 * s, y: -12 * s, rx: 44 * s, ry: 12 * s, fill: rgba(WOOD.shadow, decoy ? 50 : 110) },
+    {
+      t: "ellipse",
+      x: 6 * s,
+      y: 2 * s,
+      rx: 40 * s,
+      ry: 21 * s,
+      fill: rgba([10, 36, 34], decoy ? 70 : 200),
+      tag: "outline",
+    },
+    { t: "poly", pts: [-24 * s, 0, -72 * s, -22 * s, -54 * s, 0, -72 * s, 22 * s], fill: rgba(shade(accent, 0.72)), tag: "outline" },
     { t: "poly", pts: [-24 * s, 0, -68 * s, -20 * s, -52 * s, 0, -68 * s, 20 * s], fill: rgba(accent), tag: "tail" },
+    { t: "poly", pts: [-40 * s, -4 * s, -62 * s, -12 * s, -50 * s, -2 * s], fill: rgba([255, 236, 170], decoy ? 40 : 90), tag: "rim" },
+    { t: "poly", pts: [8 * s, 8 * s, 30 * s, 40 * s, 36 * s, 6 * s], fill: rgba(shade(accent, 0.75)), tag: "outline" },
     { t: "poly", pts: [8 * s, 8 * s, 28 * s, 36 * s, 34 * s, 6 * s], fill: rgba(accent) },
+    { t: "poly", pts: [16 * s, 18 * s, 26 * s, 30 * s, 28 * s, 12 * s], fill: rgba([255, 236, 180], decoy ? 40 : 80), tag: "rim" },
+    { t: "poly", pts: [6 * s, -6 * s, -2 * s, -34 * s, 20 * s, -8 * s], fill: rgba(shade(body, 0.78)), tag: "outline" },
     { t: "poly", pts: [6 * s, -6 * s, 0, -30 * s, 18 * s, -8 * s], fill: rgba(body) },
     { t: "ellipse", x: 6 * s, y: 2 * s, rx: 36 * s, ry: 18 * s, fill: rgba(body) },
     { t: "ellipse", x: 16 * s, y: 8 * s, rx: 22 * s, ry: 10 * s, fill: rgba(belly) },
     {
       t: "ellipse",
       x: 14 * s,
-      y: 6 * s,
-      rx: 10 * s,
-      ry: 4 * s,
-      fill: rgba([255, 252, 236], decoy ? 40 : 70),
+      y: 8 * s,
+      rx: 14 * s,
+      ry: 5 * s,
+      fill: rgba([255, 252, 236], decoy ? 40 : 90),
+      tag: "rim",
     },
     {
       t: "ellipse",
@@ -1355,64 +1685,82 @@ export function fishBodyOps(
       y: -2 * s,
       rx: 8 * s,
       ry: 5 * s,
-      fill: rgba([255, 168, 140], decoy ? 80 : 160),
+      fill: rgba([255, 168, 140], decoy ? 80 : 170),
     },
     {
       t: "bezier",
-      x1: -6 * s,
-      y1: 2 * s,
-      c1x: 8 * s,
-      c1y: 12 * s,
-      c2x: 20 * s,
-      c2y: 10 * s,
-      x2: 26 * s,
-      y2: 3 * s,
-      color: rgba(accent),
-      width: 2.4,
+      x1: -8 * s,
+      y1: 4 * s,
+      c1x: 6 * s,
+      c1y: 14 * s,
+      c2x: 18 * s,
+      c2y: 12 * s,
+      x2: 28 * s,
+      y2: 4 * s,
+      color: rgba(shade(accent, 0.7)),
+      width: 3.2,
     },
     {
       t: "ellipse",
       x: 4 * s,
       y: 8 * s,
-      rx: 7 * s,
-      ry: 4 * s,
-      fill: rgba(accent, decoy ? 80 : 190),
+      rx: 7.4 * s,
+      ry: 4.2 * s,
+      fill: rgba(accent, decoy ? 80 : 200),
       tag: "scale",
     },
     {
       t: "ellipse",
       x: -6 * s,
       y: 6 * s,
-      rx: 6 * s,
-      ry: 3.4 * s,
-      fill: rgba(mix(body, [255, 236, 140], 0.35), decoy ? 70 : 160),
+      rx: 6.4 * s,
+      ry: 3.6 * s,
+      fill: rgba(mix(body, [255, 236, 140], 0.35), decoy ? 70 : 170),
       tag: "scale",
     },
     {
       t: "ellipse",
       x: 12 * s,
       y: 1 * s,
-      rx: 5 * s,
-      ry: 3 * s,
-      fill: rgba(mix(belly, accent, 0.45), decoy ? 60 : 150),
+      rx: 5.4 * s,
+      ry: 3.2 * s,
+      fill: rgba(mix(belly, accent, 0.45), decoy ? 60 : 160),
       tag: "scale",
     },
     {
       t: "ellipse",
       x: 22 * s,
       y: 5 * s,
-      rx: 5 * s,
-      ry: 2.6 * s,
-      fill: rgba(mix(belly, [255, 252, 236], 0.4), decoy ? 50 : 120),
+      rx: 5.2 * s,
+      ry: 2.8 * s,
+      fill: rgba(mix(belly, [255, 252, 236], 0.4), decoy ? 50 : 140),
       tag: "scale",
     },
     {
       t: "ellipse",
       x: -2 * s,
       y: -2 * s,
+      rx: 5.4 * s,
+      ry: 3 * s,
+      fill: rgba(mix(body, accent, 0.3), decoy ? 50 : 140),
+      tag: "scale",
+    },
+    {
+      t: "ellipse",
+      x: -14 * s,
+      y: 3 * s,
       rx: 5 * s,
-      ry: 2.8 * s,
-      fill: rgba(mix(body, accent, 0.3), decoy ? 50 : 130),
+      ry: 2.6 * s,
+      fill: rgba(mix(body, [255, 226, 140], 0.25), decoy ? 40 : 120),
+      tag: "scale",
+    },
+    {
+      t: "ellipse",
+      x: 8 * s,
+      y: -4 * s,
+      rx: 4.6 * s,
+      ry: 2.4 * s,
+      fill: rgba([255, 248, 210], decoy ? 40 : 110),
       tag: "scale",
     },
     {
@@ -1421,17 +1769,25 @@ export function fishBodyOps(
       y: 4 * s,
       rx: 20 * s,
       ry: 10 * s,
-      fill: rgba([90, 230, 214], decoy ? 28 : 46),
+      fill: rgba([90, 230, 214], decoy ? 28 : 52),
       tag: "refract",
     },
     {
       t: "ellipse",
       x: 24 * s,
       y: 2 * s,
-      rx: 8 * s,
-      ry: 4 * s,
-      fill: rgba([160, 255, 240], decoy ? 20 : 36),
+      rx: 9 * s,
+      ry: 4.4 * s,
+      fill: rgba([160, 255, 240], decoy ? 20 : 42),
       tag: "refract",
+    },
+    {
+      t: "ellipse",
+      x: 0,
+      y: -6 * s,
+      rx: 16 * s,
+      ry: 3.2 * s,
+      fill: rgba([8, 48, 44], decoy ? 50 : 140),
     },
     ...faceOps(s, face, decoy, 30, 1),
   ];
@@ -1521,6 +1877,7 @@ export function islandSetOps(
       ...stormIsleOps(470, 76, 0.85, islandLook("island_storm_eye")),
       ...pierMarketOps(look),
       ...harborAmbienceOps(look),
+      ...harborForegroundOps(),
     );
     return ops;
   }
@@ -1544,6 +1901,7 @@ export function islandSetOps(
     ...sunOps(460, 248, look),
     ...foamIsleOps(380, 80, 1.1, look),
     ...foamIsleOps(-420, 74, 0.7, look),
+    ...harborForegroundOps(),
   );
   return ops;
 }

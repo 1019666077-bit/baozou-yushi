@@ -26,7 +26,7 @@ export interface JuiceParticle {
 export function juiceCount(kind: JuiceKind, lowPower: boolean): number {
   if (kind === "cast" || kind === "yank") return lowPower ? 2 : 4;
   if (kind === "gold" || kind === "sell") return lowPower ? 6 : 10;
-  if (kind === "dust") return lowPower ? 4 : 8;
+  if (kind === "dust") return lowPower ? 8 : 18;
   if (lowPower) return kind === "miss" ? 2 : 3;
   if (kind === "miss") return 4;
   if (kind === "splash") return 10;
@@ -71,7 +71,7 @@ export function spawnJuice(
       kind === "splash" || kind === "smash"
         ? 90
         : kind === "dust"
-          ? 46
+          ? 72
           : kind === "miss"
             ? 30
             : kind === "cast" || kind === "yank"
@@ -91,7 +91,7 @@ export function spawnJuice(
           : kind === "smash"
             ? 0.26
             : kind === "dust"
-              ? 0.3
+              ? 0.58
               : kind === "splash"
                 ? 0.28
                 : 0.32,
@@ -100,7 +100,7 @@ export function spawnJuice(
         kind === "splash" || kind === "smash"
           ? 9
           : kind === "dust"
-            ? 7
+            ? 16
             : kind === "perfect"
               ? 8
               : kind === "weak"
@@ -124,7 +124,8 @@ export interface JuiceFlash {
 
 export function juiceShakePx(kind: JuiceKind, lowPower: boolean): number {
   if (lowPower) return 0;
-  if (kind === "weak" || kind === "perfect" || kind === "smash") return 5;
+  if (kind === "smash") return 8;
+  if (kind === "weak" || kind === "perfect") return 5;
   if (kind === "hit" || kind === "catch") return 3;
   return 0;
 }
@@ -275,7 +276,7 @@ export function castLineWidth(
   return lowPower ? 6 + 3 * t : 6 + 10 * t;
 }
 
-/** 砸甲板落地扬尘：横向铺开，短、不挡捡起。 */
+/** 砸甲板落地扬尘：横向铺开、颗粒大，静帧也能读出拍子。 */
 export function spawnLandingDust(
   x: number,
   y: number,
@@ -283,8 +284,10 @@ export function spawnLandingDust(
 ): JuiceParticle[] {
   return spawnJuice("dust", x, y, lowPower).map((p, i) => ({
     ...p,
-    vx: (i % 2 === 0 ? -1 : 1) * (48 + (i % 4) * 22),
-    vy: 36 + (i % 3) * 12,
+    vx: (i % 2 === 0 ? -1 : 1) * (70 + (i % 5) * 28),
+    vy: 48 + (i % 4) * 18,
+    size: lowPower ? 10 : 16 + (i % 3) * 4,
+    maxLife: lowPower ? 0.32 : 0.62,
     kind: "dust" as const,
   }));
 }
@@ -303,7 +306,7 @@ export function crateBounceScaleAt(elapsed: number, lowPower: boolean): number {
 
 /** 砸甲板短挤压：横向撑开、纵向压扁，低配关掉。 */
 export function smashSquashSeconds(lowPower = false): number {
-  return lowPower ? 0 : 0.22;
+  return lowPower ? 0 : 0.34;
 }
 
 export function smashSquashAt(
@@ -315,7 +318,7 @@ export function smashSquashAt(
     return { sx: 1, sy: 1 };
   }
   const t = 1 - elapsed / duration;
-  return { sx: 1 + 0.34 * t, sy: 1 - 0.38 * t };
+  return { sx: 1 + 0.52 * t, sy: 1 - 0.56 * t };
 }
 
 /** 弱点准星半径：读得出窗口，不挡点。 */

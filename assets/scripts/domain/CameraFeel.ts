@@ -36,8 +36,8 @@ export const CAM_FEEL = {
   yankPitch: -2.4,
   yankYaw: 1.5,
   /** 命中微震。低配为 0。 */
-  smashSeconds: 0.15,
-  smashAmp: 0.09,
+  smashSeconds: 0.22,
+  smashAmp: 0.14,
   /** 翻扑跟镜：鱼在空中时略抬并低头看鱼，贴地立刻回。 */
   flopLiftY: 0.34,
   flopPullZ: 0.22,

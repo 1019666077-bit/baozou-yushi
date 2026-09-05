@@ -54,13 +54,13 @@ export const CARRY_FEEL = {
 };
 
 /**
- * 翻扑落地节奏层：第一下冻结帧 + 扬尘，第二下短顿。
+ * 翻扑落地节奏层：第一下冻结要够长，静帧也能看见砸拍+扬尘。
  * 不改经济，只改「砸甲板」能不能读出物理拍子。
  */
 export const FLOP_RHYTHM = {
-  freezeSeconds: 0.09,
-  secondFreeze: 0.05,
-  dustCount: 8,
+  freezeSeconds: 0.22,
+  secondFreeze: 0.1,
+  dustCount: 18,
   settleVy: 80,
 };
 

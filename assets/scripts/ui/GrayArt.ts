@@ -267,8 +267,11 @@ export function drawJuice(
       continue;
     }
     if (particle.kind === "dust") {
-      g.fillColor = new Color(186, 142, 78, Math.round(alpha * 0.85));
-      g.ellipse(particle.x, particle.y, r * 1.4, r * 0.55);
+      g.fillColor = new Color(168, 118, 58, Math.round(alpha * 0.9));
+      g.ellipse(particle.x, particle.y, r * 2.1, r * 0.85);
+      g.fill();
+      g.fillColor = new Color(230, 186, 110, Math.round(alpha * 0.4));
+      g.ellipse(particle.x - r * 0.2, particle.y + r * 0.15, r * 0.9, r * 0.4);
       g.fill();
       continue;
     }
