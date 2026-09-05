@@ -6,6 +6,7 @@
 - Vitest：2个测试文件、70个测试通过（含教学开关、港口解锁、捡起超时决策、存档校验、成绩校验、隐私文案）。
 - 云函数与开放数据域JavaScript语法检查：通过。
 - 预检：4个配置JSON有效；`assets/config` 与 `assets/resources/config` / `bundledConfig` 一致；主包候选源码低于4MiB红线。
+- `tools/playtest-live.mjs`：`node --check` 通过；本环境无 web 构建，脚本按设计清晰失败，未实跑浏览器。
 - 50个确定性经济模拟角色：
   - P10解锁风眼环礁：16.4分钟
   - 中位数：24.5分钟
