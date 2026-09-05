@@ -94,6 +94,8 @@ export function tutorialGuideRing(nowMs: number): {
   fillAlpha: number;
   maskAlpha: number;
   stroke: [number, number, number, number];
+  haloWidth: number;
+  chevron: boolean;
 } {
   return {
     pulse: 18 + Math.sin(nowMs / 160) * 10,
@@ -101,6 +103,8 @@ export function tutorialGuideRing(nowMs: number): {
     fillAlpha: 26,
     maskAlpha: 176,
     stroke: [255, 220, 72, 250],
+    haloWidth: 4,
+    chevron: true,
   };
 }
 

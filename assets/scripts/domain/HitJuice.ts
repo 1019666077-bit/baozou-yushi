@@ -271,6 +271,23 @@ export function crateBounceScaleAt(elapsed: number, lowPower: boolean): number {
   return juicePunchScaleAt("catch", elapsed, lowPower);
 }
 
+/** 砸甲板短挤压：横向撑开、纵向压扁，低配关掉。 */
+export function smashSquashSeconds(lowPower = false): number {
+  return lowPower ? 0 : 0.18;
+}
+
+export function smashSquashAt(
+  elapsed: number,
+  lowPower = false,
+  duration = smashSquashSeconds(lowPower),
+): { sx: number; sy: number } {
+  if (lowPower || duration <= 0 || elapsed < 0 || elapsed >= duration) {
+    return { sx: 1, sy: 1 };
+  }
+  const t = 1 - elapsed / duration;
+  return { sx: 1 + 0.24 * t, sy: 1 - 0.3 * t };
+}
+
 export function popupLiftPx(elapsed: number, duration = 0.45): number {
   const t = duration <= 0 ? 1 : Math.min(1, Math.max(0, elapsed / duration));
   return 36 * (1 - (1 - t) * (1 - t));

@@ -253,6 +253,7 @@ export function drawGuideHole(
     fillAlpha: number;
     maskAlpha: number;
     stroke: [number, number, number, number];
+    haloWidth?: number;
   },
 ): void {
   g.clear();
@@ -298,4 +299,16 @@ export function drawGuideHole(
   g.lineWidth = spec.lineWidth;
   g.circle(cx, cy, holeRadius);
   g.stroke();
+  const halo = spec.haloWidth ?? 4;
+  if (halo > 0) {
+    g.lineWidth = halo;
+    g.strokeColor = new Color(
+      spec.stroke[0],
+      spec.stroke[1],
+      spec.stroke[2],
+      Math.max(40, Math.round(spec.stroke[3] * 0.45)),
+    );
+    g.circle(cx, cy, holeRadius + 10);
+    g.stroke();
+  }
 }

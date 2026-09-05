@@ -27,12 +27,14 @@
       .disclaimer {
         width: min(var(--stage-w), 100%);
         margin-bottom: 8px;
-        padding: 8px 12px;
-        border: 1px dashed #d4a017;
-        background: #1a1408;
+        padding: 10px 14px;
+        border: 2px dashed #f0c040;
+        background: #2a1a08;
         color: #ffe9a8;
         font-size: 14px;
+        font-weight: 700;
         letter-spacing: 0.02em;
+        box-shadow: 0 0 0 3px rgba(58, 34, 8, 0.8);
       }
       .stage {
         position: relative;
@@ -41,8 +43,9 @@
         max-width: 100%;
         aspect-ratio: 1280 / 720;
         overflow: hidden;
-        border-radius: 12px;
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+        border-radius: 14px;
+        border: 3px solid #d4a017;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 220, 140, 0.25);
         background: #0a3a4e;
       }
       canvas {
@@ -66,7 +69,8 @@
         text-align: center;
         white-space: nowrap;
         pointer-events: none;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+        text-shadow: 0 2px 0 rgba(20, 12, 4, 0.45), 0 0 12px rgba(8, 20, 28, 0.35);
+        letter-spacing: 0.01em;
       }
       .label.wrap {
         white-space: normal;
@@ -78,6 +82,7 @@
         transform: translate(-50%, -50%);
         border-radius: 12px;
         pointer-events: none;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
       }
       button.cta {
         position: absolute;
@@ -92,9 +97,19 @@
       }
       button.cta.primary {
         box-shadow: 0 0 0 3px rgba(255, 236, 180, 0.9), 0 5px 0 rgba(0, 0, 0, 0.2);
+        animation: ctaPulse 1.15s ease-in-out infinite;
       }
       button.cta:active {
         transform: translate(-50%, calc(-50% + 2px));
+      }
+      @keyframes ctaPulse {
+        0%,
+        100% {
+          filter: brightness(1);
+        }
+        50% {
+          filter: brightness(1.12);
+        }
       }
       .popup {
         position: absolute;

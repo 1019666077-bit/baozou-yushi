@@ -82,6 +82,8 @@ import {
   castLineWidth,
   castRodScaleAt,
   castTipNudgePx,
+  smashSquashAt,
+  smashSquashSeconds,
 } from "../assets/scripts/domain/HitJuice";
 import {
   BOSS_SECONDS,
@@ -857,6 +859,11 @@ describe("HitJuice", () => {
     expect(juiceCount("smash", false)).toBeGreaterThan(juiceCount("hit", false));
     expect(juiceWantsPunch("smash", false)).toBe(true);
     expect(juiceShakePx("smash", false)).toBeGreaterThan(0);
+    const squash = smashSquashAt(0, false);
+    expect(squash.sx).toBeGreaterThan(1);
+    expect(squash.sy).toBeLessThan(1);
+    expect(smashSquashAt(smashSquashSeconds(false), false)).toEqual({ sx: 1, sy: 1 });
+    expect(smashSquashAt(0, true)).toEqual({ sx: 1, sy: 1 });
   });
 });
 
@@ -1103,6 +1110,8 @@ describe("TutorialFlow", () => {
     expect(ring.lineWidth).toBeGreaterThanOrEqual(8);
     expect(ring.maskAlpha).toBeGreaterThan(120);
     expect(ring.fillAlpha).toBeLessThan(40);
+    expect(ring.haloWidth).toBeGreaterThan(0);
+    expect(ring.chevron).toBe(true);
     expect(tutorialGuideRing(400).pulse).not.toBe(ring.pulse);
   });
 
@@ -1580,6 +1589,9 @@ describe("ArtRecipe", () => {
   it("paints layered water, a market pier, and a bayfin face from one recipe", () => {
     const sea = islandSetOps("island_foam_bay", true, 0);
     expect(recipeHasTag(sea, "caustic")).toBe(true);
+    expect(recipeHasTag(sea, "gull")).toBe(true);
+    expect(recipeHasTag(sea, "foam")).toBe(true);
+    expect(recipeHasTag(sea, "lantern")).toBe(true);
     expect(recipeKindCount(sea, "rect")).toBeGreaterThan(8);
     expect(crateOps().length).toBeGreaterThan(6);
     expect(boatOps().some((op) => op.t === "poly")).toBe(true);
@@ -1592,6 +1604,7 @@ describe("ArtRecipe", () => {
       face: "idle",
     });
     expect(fish.length).toBeGreaterThan(8);
+    expect(recipeHasTag(fish, "scale")).toBe(true);
   });
 });
 

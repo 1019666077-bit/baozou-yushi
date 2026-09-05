@@ -64,8 +64,10 @@ describe("Creator preview / shot path", () => {
     const extract = read("tools/first-run-preview/extract-copy.mjs");
     expect(extract).toMatch(/2D\/辅助 ≠ Creator 3D/);
     expect(extract).toContain("docs/stage3d/creator-shots");
+    expect(extract).toMatch(/可浏览器代验/);
     const html = read("tools/first-run-preview/index.html");
     expect(html).toMatch(/2D\/辅助 ≠ Creator 3D/);
+    expect(html).toMatch(/ctaPulse/);
     expect(read("tools/first-run-preview/shots/README.md")).toMatch(/2D\/辅助 ≠ Creator 3D/);
   });
 

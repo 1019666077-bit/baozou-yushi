@@ -68,6 +68,11 @@ let boatX = -400;
 let boatY = -90;
 let fishFace = "idle";
 let sfxCtx;
+let smashLeft = 0;
+let smashElapsed = 0;
+let castFlashLeft = 0;
+let castFlashElapsed = 0;
+let splashRings = [];
 
 function rgb(arr, a = 1) {
   return `rgba(${arr[0]},${arr[1]},${arr[2]},${a})`;
@@ -198,6 +203,13 @@ function burst(kind, x, y) {
   if (kind === "weak" || kind === "catch" || kind === "sell" || kind === "smash") {
     shakeLeft = COPY.juiceShakeSeconds ?? 0.08;
   }
+  if (kind === "smash" || kind === "splash") {
+    splashRings.push({ x, y, life: 1, maxLife: kind === "smash" ? 0.28 : 0.34 });
+  }
+  if (kind === "smash") {
+    smashLeft = COPY.smashSquashSeconds ?? 0.18;
+    smashElapsed = 0;
+  }
 }
 
 function tickParticles(dt) {
@@ -281,22 +293,28 @@ function fillOf(arr) {
 function paintOps(ctx, ops, phase = 0, local = false) {
   const px = (x, tag) => {
     const drift =
-      tag === "caustic" || tag === "shaft" || tag === "spark"
-        ? Math.sin(phase + x * 0.01) * 10
+      tag === "caustic" || tag === "shaft" || tag === "spark" || tag === "gull" || tag === "cloud"
+        ? Math.sin(phase + x * 0.01) * (tag === "gull" || tag === "cloud" ? 16 : 10)
         : 0;
     return local ? x + drift : 640 + x + drift;
   };
   const py = (y) => (local ? y : 360 - y);
+  const flicker = (tag, x = 0) =>
+    tag === "lantern" ? 0.68 + 0.32 * (0.5 + 0.5 * Math.sin(phase * 2.6 + x * 0.03)) : 1;
   for (const op of ops) {
     if (op.t === "ellipse") {
-      ctx.fillStyle = fillOf(op.fill);
+      const k = flicker(op.tag, op.x);
+      const fill = op.fill;
+      ctx.fillStyle = rgb(fill.slice(0, 3), ((fill[3] ?? 255) / 255) * k);
       ctx.beginPath();
       ctx.ellipse(px(op.x, op.tag), py(op.y), op.rx, op.ry, 0, 0, Math.PI * 2);
       ctx.fill();
       continue;
     }
     if (op.t === "circle") {
-      ctx.fillStyle = fillOf(op.fill);
+      const k = flicker(op.tag, op.x);
+      const fill = op.fill;
+      ctx.fillStyle = rgb(fill.slice(0, 3), ((fill[3] ?? 255) / 255) * k);
       ctx.beginPath();
       ctx.arc(px(op.x, op.tag), py(op.y), op.r, 0, Math.PI * 2);
       ctx.fill();
@@ -463,17 +481,37 @@ function bayfinOps() {
   return COPY.art?.bayfinIdle ?? [];
 }
 
+function smashScale() {
+  const mid = COPY.smashSquashMid;
+  const dur = COPY.smashSquashSeconds ?? 0.18;
+  if (!mid || smashLeft <= 0 || dur <= 0) return { sx: 1, sy: 1 };
+  const t = smashLeft / dur;
+  return { sx: 1 + (mid.sx - 1) * t, sy: 1 + (mid.sy - 1) * t };
+}
+
 function paintFish(ctx, x, y) {
-  paintLocal(ctx, bayfinOps(), x, y, fishAngle);
+  const squash = smashScale();
+  ctx.save();
+  ctx.translate(sx(x), sy(y));
+  ctx.scale(squash.sx, -squash.sy);
+  ctx.rotate(fishAngle);
+  paintOps(ctx, bayfinOps(), 0, true);
+  ctx.restore();
 }
 
 function paintLine(ctx) {
-  if (!hooked && !yanking && !flopBody) return;
+  if (!hooked && !yanking && !flopBody && castFlashLeft <= 0) return;
+  const duration = COPY.castFlashSeconds ?? 0.26;
+  const wide = COPY.castLineWide ?? 16;
+  const flashT = duration > 0 ? Math.max(0, castFlashLeft / duration) : 0;
+  const width = yanking ? 10 + 6 * flashT : 6 + (wide - 6) * flashT;
   ctx.save();
-  ctx.strokeStyle = yanking ? "rgba(255,214,70,1)" : "rgba(255,214,70,0.88)";
-  ctx.lineWidth = yanking ? 10 : 6;
+  ctx.strokeStyle = yanking || flashT > 0 ? "rgba(255,226,96,1)" : "rgba(255,214,70,0.88)";
+  ctx.lineWidth = width;
+  ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(sx(boatX + 28), sy(boatY + 18));
+  const tip = COPY.castTipNudge ?? 10;
+  ctx.moveTo(sx(boatX + 28 + tip * flashT), sy(boatY + 18));
   ctx.lineTo(sx(fishX), sy(fishY));
   ctx.stroke();
   ctx.restore();
@@ -508,10 +546,10 @@ function paintGuide(ctx, focus) {
   const cy = sy(y);
   ctx.save();
   ctx.fillStyle = `rgba(4,10,18,${ring.maskAlpha / 255})`;
-  ctx.fillRect(0, 0, W, Math.max(0, cy - hole));
-  ctx.fillRect(0, Math.min(H, cy + hole), W, H);
-  ctx.fillRect(0, cy - hole, Math.max(0, cx - hole), hole * 2);
-  ctx.fillRect(cx + hole, cy - hole, W, hole * 2);
+  ctx.beginPath();
+  ctx.rect(0, 0, W, H);
+  ctx.arc(cx, cy, hole, 0, Math.PI * 2, true);
+  ctx.fill("evenodd");
   ctx.beginPath();
   ctx.arc(cx, cy, hole, 0, Math.PI * 2);
   ctx.fillStyle = `rgba(${ring.stroke[0]},${ring.stroke[1]},${ring.stroke[2]},${ring.fillAlpha / 255})`;
@@ -519,6 +557,20 @@ function paintGuide(ctx, focus) {
   ctx.lineWidth = ring.lineWidth;
   ctx.strokeStyle = `rgba(${ring.stroke[0]},${ring.stroke[1]},${ring.stroke[2]},${ring.stroke[3] / 255})`;
   ctx.stroke();
+  ctx.lineWidth = ring.haloWidth ?? 4;
+  ctx.strokeStyle = `rgba(${ring.stroke[0]},${ring.stroke[1]},${ring.stroke[2]},0.4)`;
+  ctx.beginPath();
+  ctx.arc(cx, cy, hole + 10, 0, Math.PI * 2);
+  ctx.stroke();
+  if (ring.chevron !== false) {
+    ctx.fillStyle = `rgba(${ring.stroke[0]},${ring.stroke[1]},${ring.stroke[2]},0.95)`;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - hole - 18);
+    ctx.lineTo(cx - 10, cy - hole - 4);
+    ctx.lineTo(cx + 10, cy - hole - 4);
+    ctx.closePath();
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -539,6 +591,10 @@ function paintJuice(ctx) {
       ctx.beginPath();
       ctx.ellipse(px, py, p.size * 1.15, p.size * 0.85, 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.fillStyle = "rgba(255,248,200,0.7)";
+      ctx.beginPath();
+      ctx.ellipse(px - p.size * 0.2, py - p.size * 0.15, p.size * 0.35, p.size * 0.22, 0, 0, Math.PI * 2);
+      ctx.fill();
     } else if (p.kind === "star") {
       ctx.fillStyle = "#ffe24a";
       ctx.beginPath();
@@ -552,6 +608,10 @@ function paintJuice(ctx) {
       ctx.beginPath();
       ctx.arc(px, py, p.size, 0, Math.PI * 2);
       ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.beginPath();
+      ctx.arc(px - p.size * 0.25, py - p.size * 0.2, p.size * 0.32, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
   if (flash) {
@@ -564,6 +624,23 @@ function paintJuice(ctx) {
     ctx.beginPath();
     const grow = flash.kind === "catch" || flash.kind === "sell" ? 42 : flash.kind === "weak" ? 28 : 30;
     ctx.arc(sx(flash.x), sy(flash.y), 18 + grow * (1 - flash.life), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  for (const ring of splashRings) {
+    ctx.globalAlpha = Math.max(0, ring.life);
+    ctx.strokeStyle = "rgba(210,246,255,0.85)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(sx(ring.x), sy(ring.y), 16 + 36 * (1 - ring.life), 7 + 10 * (1 - ring.life), 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  if (hooked && tutorialStep === "weakPoint") {
+    const pulse = 0.65 + 0.35 * Math.sin(performance.now() / 140);
+    ctx.globalAlpha = pulse;
+    ctx.strokeStyle = "#ffe24a";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(sx(fishX + COPY.looks.bayfin.weakX), sy(fishY + COPY.looks.bayfin.weakY), 16 + pulse * 6, 0, Math.PI * 2);
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
@@ -856,6 +933,10 @@ function sail() {
   boatX = -400;
   boatY = -90;
   fishFace = "idle";
+  smashLeft = 0;
+  smashElapsed = 0;
+  castFlashLeft = 0;
+  splashRings = [];
   render();
 }
 
@@ -872,6 +953,8 @@ function onCast() {
   showCallout(COPY.firstRun.castSnap);
   burst("cast", boatX + 28, boatY + 18);
   burst("yank", fishX, fishY);
+  castFlashLeft = COPY.castFlashSeconds ?? 0.26;
+  castFlashElapsed = 0;
   playSfx("cast");
   render();
 }
@@ -981,6 +1064,22 @@ function tick(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   tickParticles(dt);
+  if (smashLeft > 0) {
+    smashElapsed += dt;
+    smashLeft = Math.max(0, smashLeft - dt);
+  }
+  if (castFlashLeft > 0) {
+    castFlashElapsed += dt;
+    castFlashLeft = Math.max(0, castFlashLeft - dt);
+  }
+  splashRings = splashRings
+    .map((ring) => ({ ...ring, life: ring.life - dt / ring.maxLife }))
+    .filter((ring) => ring.life > 0);
+  if (surface === "sea" && tutorialStep === "cast" && !yanking && !flopBody && !carrying) {
+    fishX = 210 + Math.sin(now / 420) * 10;
+    fishY = 20 + Math.sin(now / 310) * 7;
+    fishAngle = Math.sin(now / 360) * 0.14;
+  }
   if (yanking) {
     const next = yankStepPreview(fishX, fishY, dt);
     fishX = next.x;

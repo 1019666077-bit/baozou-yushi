@@ -14,6 +14,7 @@ import {
   yankCamK,
 } from "../domain/CameraFeel";
 import { toActorWorld, toBoatWorld, deckKindForFish } from "../domain/DeckMap";
+import { smashSquashAt } from "../domain/HitJuice";
 import { fishLook, islandLook } from "../domain/GrayLook";
 import {
   boatParts,
@@ -243,12 +244,8 @@ export class DeckStage {
   private squashFish(puppet: Node, feel: DeckFeel): void {
     const dur = smashHoldSeconds(feel.lowPower === true);
     const elapsed = feel.smashElapsed ?? 1;
-    if (dur > 0 && elapsed >= 0 && elapsed < dur) {
-      const t = 1 - elapsed / dur;
-      puppet.setScale(1 + t * 0.16, 1 - t * 0.24, 1 + t * 0.16);
-    } else {
-      puppet.setScale(1, 1, 1);
-    }
+    const squash = smashSquashAt(elapsed, feel.lowPower === true, dur);
+    puppet.setScale(squash.sx, squash.sy, squash.sx);
   }
 
   private pulseWeaks(): void {

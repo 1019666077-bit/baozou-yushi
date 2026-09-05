@@ -2,7 +2,7 @@
 
 **非 Cocos 实机，仅 2D 辅助体验代理。2D/辅助 ≠ Creator 3D 港湾/低模鱼，不能当真机手感 / 3D 画面证据。**
 
-3D 请本机打开 `Boot.scene`（▶ 或 Ctrl/Cmd+P），按 `docs/LOCAL_PREVIEW.md` 截 4 张进 `docs/stage3d/creator-shots/`。`docs/stage3d/expect_*.jpg` 是示意图：期望构图 ≠ Creator/真机。
+本页是当前可浏览器代验的主路径。3D / Creator 文档仍在 `docs/STAGE_3D.md`，**不阻塞**这套代理。`docs/stage3d/expect_*.jpg` 是示意图：期望构图 ≠ Creator/真机。真机 4 张仍只认 `docs/stage3d/creator-shots/`（现为空是预期）。
 
 本目录是给没有 Creator / `build/web-desktop` 时用的临时轻量灰盒：单页 DOM+canvas，复刻 `RuntimeHome` → `RuntimePrototype` 新档第一局（港口 → 教学四步 → 卖鱼 → 回港）。
 

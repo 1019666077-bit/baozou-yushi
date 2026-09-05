@@ -126,6 +126,36 @@ export function skyWaterOps(look: IslandLook, phase = 0): DrawOp[] {
     { t: "rect", x: -640, y: -176, w: 1280, h: 148, fill: rgba(look.near) },
     { t: "rect", x: -640, y: -360, w: 1280, h: 196, fill: rgba(look.deep) },
   ];
+  if ((look.skyTop[0] ?? 0) > 240) {
+    push(
+      ops,
+      {
+        t: "rect",
+        x: -640,
+        y: 268,
+        w: 1280,
+        h: 92,
+        fill: rgba([255, 92, 42], 72),
+      },
+      {
+        t: "ellipse",
+        x: 380,
+        y: 228,
+        rx: 340,
+        ry: 42,
+        fill: rgba([255, 168, 72], 64),
+      },
+      {
+        t: "ellipse",
+        x: 300,
+        y: 18,
+        rx: 420,
+        ry: 20,
+        fill: rgba([255, 150, 64], 40),
+        tag: "caustic",
+      },
+    );
+  }
   push(
     ops,
     {
@@ -162,6 +192,8 @@ export function skyWaterOps(look: IslandLook, phase = 0): DrawOp[] {
     [40 + drift * 0.8, -96, 70, 6, 26],
     [-360 + drift * 0.3, -148, 110, 8, 20],
     [280 - drift * 0.5, -248, 90, 6, 18],
+    [-480 + drift * 0.2, -88, 80, 6, 22],
+    [520 - drift * 0.3, -140, 100, 7, 20],
   ];
   for (const [x, y, rx, ry, a] of caustics) {
     push(ops, {
@@ -488,14 +520,91 @@ export function pierMarketOps(look: IslandLook): DrawOp[] {
     { t: "rect", x: -388, y: -176, w: 28, h: 22, r: 4, fill: rgba(WOOD.plank) },
     { t: "rect", x: -384, y: -168, w: 20, h: 8, r: 2, fill: rgba(WOOD.highlight) },
     { t: "rect", x: -352, y: -172, w: 18, h: 16, r: 3, fill: rgba(WOOD.dark) },
-    { t: "circle", x: -456, y: -128, r: 6, fill: rgba(MARKET.lantern) },
-    { t: "circle", x: -456, y: -128, r: 14, fill: rgba(MARKET.glow, 70) },
-    { t: "circle", x: -430, y: -122, r: 5, fill: rgba(MARKET.lantern) },
-    { t: "circle", x: -430, y: -122, r: 12, fill: rgba(MARKET.glow, 50) },
+    { t: "circle", x: -456, y: -128, r: 6, fill: rgba(MARKET.lantern), tag: "lantern" },
+    { t: "circle", x: -456, y: -128, r: 14, fill: rgba(MARKET.glow, 70), tag: "lantern" },
+    { t: "circle", x: -430, y: -122, r: 5, fill: rgba(MARKET.lantern), tag: "lantern" },
+    { t: "circle", x: -430, y: -122, r: 12, fill: rgba(MARKET.glow, 50), tag: "lantern" },
     { t: "ellipse", x: -300, y: -188, rx: 10, ry: 5, fill: rgba([36, 196, 168]) },
     { t: "ellipse", x: -278, y: -184, rx: 8, ry: 4, fill: rgba([255, 168, 96]) },
+    { t: "rect", x: -360, y: -168, w: 72, h: 40, r: 7, fill: rgba(MARKET.awningB) },
+    { t: "rect", x: -352, y: -158, w: 56, h: 10, r: 3, fill: rgba(MARKET.sign) },
+    { t: "poly", pts: [-330, -128, -318, -104, -306, -128], fill: rgba(MARKET.awningA) },
+    { t: "circle", x: -324, y: -118, r: 5, fill: rgba(MARKET.lantern), tag: "lantern" },
+    { t: "circle", x: -324, y: -118, r: 12, fill: rgba(MARKET.glow, 48), tag: "lantern" },
+    { t: "ellipse", x: -250, y: -196, rx: 9, ry: 4, fill: rgba([255, 214, 96]) },
+    { t: "ellipse", x: -232, y: -192, rx: 7, ry: 3.4, fill: rgba([46, 186, 168]) },
   );
   return ops;
+}
+
+function gullOps(x: number, y: number, s: number): DrawOp[] {
+  return [
+    {
+      t: "bezier",
+      x1: x - 14 * s,
+      y1: y,
+      c1x: x - 5 * s,
+      c1y: y + 7 * s,
+      c2x: x + 5 * s,
+      c2y: y + 7 * s,
+      x2: x + 14 * s,
+      y2: y,
+      color: rgba([36, 24, 18], 170),
+      width: 2.4,
+      tag: "gull",
+    },
+  ];
+}
+
+export function harborAmbienceOps(look: IslandLook): DrawOp[] {
+  return [
+    {
+      t: "ellipse",
+      x: -180,
+      y: 236,
+      rx: 90,
+      ry: 14,
+      fill: rgba([255, 236, 210], 36),
+      tag: "cloud",
+    },
+    {
+      t: "ellipse",
+      x: 40,
+      y: 250,
+      rx: 70,
+      ry: 12,
+      fill: rgba([255, 244, 220], 28),
+      tag: "cloud",
+    },
+    ...gullOps(-80, 200, 1),
+    ...gullOps(60, 214, 0.75),
+    ...gullOps(210, 188, 0.6),
+    {
+      t: "ellipse",
+      x: -200,
+      y: -230,
+      rx: 70,
+      ry: 8,
+      fill: rgba([255, 248, 230], 36),
+      tag: "foam",
+    },
+    {
+      t: "ellipse",
+      x: -360,
+      y: -238,
+      rx: 50,
+      ry: 6,
+      fill: rgba([210, 246, 255], 28),
+      tag: "foam",
+    },
+    {
+      t: "poly",
+      pts: [220, -210, 280, -198, 268, -188, 210, -200],
+      fill: rgba(shade(WOOD.plank, 0.72)),
+    },
+    { t: "rect", x: 232, y: -198, w: 28, h: 10, r: 3, fill: rgba(WOOD.highlight) },
+    { t: "poly", pts: [246, -188, 268, -168, 246, -176], fill: rgba(look.accent) },
+  ];
 }
 
 export function dockOps(): DrawOp[] {
@@ -535,9 +644,12 @@ export function dockOps(): DrawOp[] {
     { t: "rect", x: -560, y: -186, w: 88, h: 68, r: 12, fill: rgba([28, 168, 176]) },
     { t: "rect", x: -550, y: -176, w: 68, h: 18, r: 4, fill: rgba([16, 86, 98]) },
     { t: "rect", x: -542, y: -172, w: 20, h: 8, r: 3, fill: rgba([255, 226, 140], 170) },
-    { t: "circle", x: -248, y: -148, r: 7, fill: rgba(MARKET.lantern) },
+    { t: "circle", x: -248, y: -148, r: 7, fill: rgba(MARKET.lantern), tag: "lantern" },
     { t: "circle", x: -248, y: -148, r: 3, fill: rgba(MARKET.sign) },
-    { t: "circle", x: -248, y: -148, r: 16, fill: rgba(MARKET.glow, 50) },
+    { t: "circle", x: -248, y: -148, r: 16, fill: rgba(MARKET.glow, 50), tag: "lantern" },
+    { t: "ellipse", x: -400, y: -248, rx: 80, ry: 7, fill: rgba([255, 248, 230], 32), tag: "foam" },
+    { t: "circle", x: -200, y: -156, r: 5, fill: rgba(MARKET.lantern), tag: "lantern" },
+    { t: "circle", x: -200, y: -156, r: 11, fill: rgba(MARKET.glow, 40), tag: "lantern" },
   );
   return ops;
 }
@@ -813,6 +925,33 @@ export function fishBodyOps(
       color: rgba(accent),
       width: 2.4,
     },
+    {
+      t: "ellipse",
+      x: 4 * s,
+      y: 8 * s,
+      rx: 7 * s,
+      ry: 4 * s,
+      fill: rgba(accent, decoy ? 80 : 190),
+      tag: "scale",
+    },
+    {
+      t: "ellipse",
+      x: -6 * s,
+      y: 6 * s,
+      rx: 6 * s,
+      ry: 3.4 * s,
+      fill: rgba(mix(body, [255, 236, 140], 0.35), decoy ? 70 : 160),
+      tag: "scale",
+    },
+    {
+      t: "ellipse",
+      x: 12 * s,
+      y: 1 * s,
+      rx: 5 * s,
+      ry: 3 * s,
+      fill: rgba(mix(belly, accent, 0.45), decoy ? 60 : 150),
+      tag: "scale",
+    },
     ...faceOps(s, face, decoy, 30, 1),
   ];
 }
@@ -860,14 +999,14 @@ export function fishOps(
       t: "circle",
       x: look.weakX * s,
       y: look.weakY * s,
-      r: (state.flashing ? 12 : 7) * s,
+      r: (state.flashing ? 14 : 9) * s,
       fill: rgba(glow),
     },
     {
       t: "ring",
       x: look.weakX * s,
       y: look.weakY * s,
-      r: (state.flashing ? 17 : 11) * s,
+      r: (state.flashing ? 20 : 13) * s,
       color: rgba([255, 255, 255], state.flashing ? 255 : 220),
       width: state.flashing ? 5 : 3,
     },
@@ -889,6 +1028,7 @@ export function islandSetOps(
       ...prismIsleOps(170, 82, 1, islandLook("island_prism_reef")),
       ...stormIsleOps(470, 76, 0.85, islandLook("island_storm_eye")),
       ...pierMarketOps(look),
+      ...harborAmbienceOps(look),
     );
     return ops;
   }

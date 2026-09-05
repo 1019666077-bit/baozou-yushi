@@ -49,5 +49,5 @@ const server = http.createServer((req, res) => {
 server.listen(port, "127.0.0.1", () => {
   console.log(`first-run proxy http://127.0.0.1:${port}/`);
   console.log("非 Cocos 实机，仅 2D 辅助体验代理。2D/辅助 ≠ Creator 3D");
-  console.log("3D 4 张请本机 Creator 截进 docs/stage3d/creator-shots/ ；清单：node tools/stage3d-shot-checklist.mjs");
+  console.log("可浏览器代验玩法/画面。2D/辅助 ≠ Creator 3D，不能当 3D 实机证据。");
 });
