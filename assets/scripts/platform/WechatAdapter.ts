@@ -22,8 +22,18 @@ declare const wx:
           fail: (error: unknown) => void;
         }): void;
       };
-      setUserCloudStorage?(options: {
-        KVDataList: Array<{ key: string; value: string }>;
+      getPrivacySetting?(options: {
+        success: (result: {
+          needAuthorization: boolean;
+          privacyContractName?: string;
+        }) => void;
+        fail?: (error: unknown) => void;
+      }): void;
+      requirePrivacyAuthorize?(options: {
+        success?: () => void;
+        fail?: (error: unknown) => void;
+      }): void;
+      openPrivacyContract?(options?: {
         success?: () => void;
         fail?: (error: unknown) => void;
       }): void;
@@ -33,6 +43,8 @@ declare const wx:
       };
     }
   | undefined;
+
+export const CLOUD_CALL_TIMEOUT_MS = 6000;
 
 export class WechatAdapter {
   static get available(): boolean {
@@ -59,7 +71,10 @@ export class WechatAdapter {
       return Promise.reject(new Error("WeChat cloud is unavailable"));
     }
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("cloud timeout")), 800);
+      const timer = setTimeout(
+        () => reject(new Error("cloud timeout")),
+        CLOUD_CALL_TIMEOUT_MS,
+      );
       wx.cloud!.callFunction({
         name,
         data,
@@ -73,6 +88,41 @@ export class WechatAdapter {
         },
       });
     });
+  }
+
+  /**
+   * 微信小游戏隐私授权。编辑器/非微信环境直接通过。
+   * 拒绝授权时仍返回 false，调用方不得阻断单人主流程。
+   */
+  static async ensurePrivacyAuthorized(): Promise<boolean> {
+    if (!this.available || !wx) return true;
+    const getSetting = wx.getPrivacySetting;
+    if (typeof getSetting !== "function") return true;
+    return new Promise((resolve) => {
+      getSetting.call(wx, {
+        success: (res) => {
+          if (!res.needAuthorization) {
+            resolve(true);
+            return;
+          }
+          const requireAuth = wx?.requirePrivacyAuthorize;
+          if (typeof requireAuth !== "function") {
+            resolve(true);
+            return;
+          }
+          requireAuth.call(wx, {
+            success: () => resolve(true),
+            fail: () => resolve(false),
+          });
+        },
+        fail: () => resolve(true),
+      });
+    });
+  }
+
+  static openPrivacyContract(): void {
+    if (!this.available || typeof wx?.openPrivacyContract !== "function") return;
+    wx.openPrivacyContract();
   }
 
   static vibrate(): void {
@@ -127,18 +177,9 @@ export class WechatAdapter {
     if (canvas.height !== nextHeight) canvas.height = nextHeight;
   }
 
-  static submitStyleScore(score: number): void {
-    if (!this.available || !wx?.setUserCloudStorage) return;
-    wx.setUserCloudStorage({
-      KVDataList: [
-        {
-          key: "best_style",
-          value: JSON.stringify({
-            wxgame: { score, update_time: Math.floor(Date.now() / 1000) },
-          }),
-        },
-      ],
-    });
+  /** 已禁用：好友榜只由 submitScore 云函数写入，客户端不得 setUserCloudStorage。 */
+  static submitStyleScore(_score: number): void {
+    return;
   }
 
   static requestFriendRank(selfScore = 0): void {

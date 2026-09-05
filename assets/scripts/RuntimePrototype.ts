@@ -39,6 +39,7 @@ import {
   isTutorialRun,
   shouldAutoReel,
   tutorialPrompt,
+  TUTORIAL_ISLAND_ID,
   type TutorialStep,
 } from "./domain/TutorialFlow";
 import {
@@ -165,8 +166,9 @@ export class RuntimePrototype extends Component {
       RuntimePrototype.pending = undefined;
       ConfigService.ensureBundled();
       playerSave.loadLocal();
-      this.tutorial = false;
       const save = playerSave.get();
+      this.tutorial = isTutorialRun(this.launch.islandId, save.tutorialComplete);
+      if (this.tutorial) Analytics.track("tutorial_start");
       this.lowPower = save.settings.lowPower;
       this.vibration = save.settings.vibration;
       SfxPlayer.setEnabled(save.settings.sfx);
@@ -712,10 +714,14 @@ export class RuntimePrototype extends Component {
       this.setStatus(
         `甲壳挡住了。等它转身露出缝再打。韧性 ${result.remainingToughness}`,
       );
-    } else if (judged.weakPoint) {
+    } else     if (judged.weakPoint) {
       this.setStatus(`弱点击破！韧性 ${result.remainingToughness}`);
     } else {
       this.setStatus(`命中，韧性 ${result.remainingToughness}`);
+    }
+    if (this.tutorial) {
+      if (judged.weakPoint) this.enterTutorial("weakHit");
+      if (result.readyToReel) this.enterTutorial("reelReady");
     }
   }
 
@@ -836,6 +842,7 @@ export class RuntimePrototype extends Component {
     this.setStatus(
       `${captured.name} ×${sold.styleMultiplier.toFixed(2)} → ${sold.price}金，丢进鱼箱。回港才卖。`,
     );
+    if (this.tutorial) this.enterTutorial("captured");
     if (captured.tier === "boss") {
       this.setStatus("巨鲲入箱。收网回港。");
       this.returnHarbor();
@@ -930,6 +937,10 @@ export class RuntimePrototype extends Component {
       this.clockLabel.string = `${waveCaption(snapshot.phase, snapshot.waveIndex)} ${formatClock(snapshot.remaining)}`;
     }
     if (snapshot.phase === "over") {
+      if (this.tutorial) {
+        this.setStatus(tutorialPrompt(this.tutorialStep));
+        return;
+      }
       if (this.liveBoss()) {
         this.setStatus(
           this.hooked?.fishConfig?.tier === "boss"
@@ -1042,7 +1053,10 @@ export class RuntimePrototype extends Component {
   private enterTutorial(event: "hooked" | "weakHit" | "reelReady" | "captured"): void {
     this.tutorialStep = advanceTutorial(this.tutorialStep, event);
     this.setStatus(tutorialPrompt(this.tutorialStep));
-    if (this.tutorialStep === "settle") this.settleAt = Date.now();
+    if (this.tutorialStep === "settle") {
+      this.settleAt = Date.now();
+      Analytics.track("tutorial_finish", { islandId: TUTORIAL_ISLAND_ID });
+    }
   }
 
   private tickCannon(): void {

@@ -11,6 +11,10 @@ import { playerSave } from "./save/SaveService";
 
 const { ccclass, property } = _decorator;
 
+/**
+ * @deprecated 编辑器实验栈，未挂到正式场景，不要当作已交付主路径。
+ * 当前唯一官方运行时是 Boot.scene → RuntimeHome → RuntimePrototype（见 RuntimeAutoStart）。
+ */
 @ccclass("GameBootstrap")
 export class GameBootstrap extends Component {
   @property({ type: JsonAsset })

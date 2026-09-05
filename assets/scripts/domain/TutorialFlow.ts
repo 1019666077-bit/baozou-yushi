@@ -63,3 +63,26 @@ export function harborUnlocks(completedRuns: number): {
     board: completedRuns >= 2,
   };
 }
+
+export function harborUnlocksForSave(save: {
+  tutorialComplete: boolean;
+  completedRuns: number;
+}): {
+  upgrade: boolean;
+  book: boolean;
+  board: boolean;
+} {
+  return harborUnlocks(save.tutorialComplete ? save.completedRuns : 0);
+}
+
+export function nextSailIsland(tutorialComplete: boolean): string {
+  return tutorialComplete ? "island_foam_bay" : TUTORIAL_ISLAND_ID;
+}
+
+export function harborFeatureLockedHint(
+  feature: "upgrade" | "book" | "board",
+): string {
+  if (feature === "upgrade") return "先完成教学再升级。";
+  if (feature === "book") return "先完成教学再查看图鉴。";
+  return "先完成教学再看榜。";
+}

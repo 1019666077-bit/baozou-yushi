@@ -1,4 +1,5 @@
 import type { PlayerSave, RunSummary } from "../data/types";
+import { TUTORIAL_ISLAND_ID } from "./TutorialFlow";
 
 export function settleHeadline(summary: RunSummary): string {
   if (summary.fish.length === 0) return "空手回港";
@@ -47,6 +48,9 @@ export function applyRunRewards(
       save.bestStyleScore,
       Math.round(summary.bestMultiplier * 100),
     ),
+    tutorialComplete:
+      save.tutorialComplete ||
+      (summary.islandId === TUTORIAL_ISLAND_ID && summary.fish.length > 0),
     completedRuns: (save.completedRuns ?? 0) + 1,
     recentRuns: [
       {

@@ -38,6 +38,8 @@ import { FriendBoardView } from "./ui/FriendBoardView";
 import { ensureIslandPack } from "./content/IslandPackLoader";
 import { harborSailWait } from "./domain/IslandPack";
 import {
+  healthAdviceLines,
+  healthAdviceTitle,
   privacyBackCaption,
   privacyLines,
   privacyTitle,
@@ -48,6 +50,11 @@ import {
   wipeDoneNotice,
   wipeTitle,
 } from "./domain/PrivacyCopy";
+import {
+  TUTORIAL_ISLAND_ID,
+  harborFeatureLockedHint,
+  harborUnlocksForSave,
+} from "./domain/TutorialFlow";
 import { RuntimePrototype } from "./RuntimePrototype";
 
 const { ccclass } = _decorator;
@@ -76,6 +83,7 @@ export class RuntimeHome extends Component {
   protected onLoad(): void {
     try {
       ConfigService.ensureBundled();
+      WechatAdapter.initializeCloud();
       playerSave.loadLocal();
       const save = playerSave.get();
       this.selectedIslandId = "island_foam_bay";
@@ -91,6 +99,7 @@ export class RuntimeHome extends Component {
 
   private async bootstrapCloud(): Promise<void> {
     this.cloudKind = "syncing";
+    await WechatAdapter.ensurePrivacyAuthorized();
     try {
       const response = await WechatAdapter.callCloud<{ config: RemoteConfig }>(
         "getRemoteConfig",
@@ -101,6 +110,10 @@ export class RuntimeHome extends Component {
     }
     await playerSave.load();
     this.cloudKind = playerSave.cloudKind();
+    const save = playerSave.get();
+    if (save.tutorialComplete && this.selectedIslandId === TUTORIAL_ISLAND_ID) {
+      this.selectedIslandId = "island_foam_bay";
+    }
     if (this.surface === "harbor") this.showHarbor();
   }
 
@@ -116,12 +129,16 @@ export class RuntimeHome extends Component {
     this.coinsLabel = makeLabel(layer, `金币 ${save.coins}`, 24, 470, 310, 280);
     makeButton(layer, "设置", -530, 310, () => this.showSettings(), 140, 52, 22);
     makeLabel(layer, cloudStatusLine(this.cloudKind), 18, 0, 278, 900);
+    makeLabel(layer, healthAdviceLines()[1] ?? healthAdviceLines()[0], 16, 0, 262, 1100);
+    const unlocks = harborUnlocksForSave(save);
     this.status = makeLabel(
       layer,
       this.statusFlash ??
         (this.lastSummary
           ? `${settleHeadline(this.lastSummary)}。${settleSlogan(this.lastSummary)}`
-          : harborNotice(ConfigService.remoteConfig().notice)),
+          : save.tutorialComplete
+            ? harborNotice(ConfigService.remoteConfig().notice)
+            : "先完成练潮码头教学，再自由出航。"),
       20,
       0,
       248,
@@ -193,10 +210,23 @@ export class RuntimeHome extends Component {
       1100,
     );
 
-    makeButton(layer, "出海捕鱼", -80, -230, () => this.sail(), 220, 88, 28);
     makeButton(
       layer,
-      ownedTool && nextLevel ? `升级${tool.name}` : "查看升级",
+      save.tutorialComplete ? "出海捕鱼" : "开始教学",
+      -80,
+      -230,
+      () => this.sail(),
+      220,
+      88,
+      28,
+    );
+    makeButton(
+      layer,
+      !unlocks.upgrade
+        ? "教学后升级"
+        : ownedTool && nextLevel
+          ? `升级${tool.name}`
+          : "查看升级",
       -470,
       -230,
       () => void this.onUpgrade(),
@@ -204,8 +234,38 @@ export class RuntimeHome extends Component {
       72,
       20,
     );
-    makeButton(layer, "图鉴", 220, -230, () => this.showBook(), 180, 72, 22);
-    makeButton(layer, "榜", 470, -230, () => this.showBoard(), 160, 72, 22);
+    makeButton(
+      layer,
+      unlocks.book ? "图鉴" : "教学后图鉴",
+      220,
+      -230,
+      () => {
+        if (!unlocks.book) {
+          this.setStatus(harborFeatureLockedHint("book"));
+          return;
+        }
+        this.showBook();
+      },
+      180,
+      72,
+      22,
+    );
+    makeButton(
+      layer,
+      unlocks.board ? "榜" : "教学后榜",
+      470,
+      -230,
+      () => {
+        if (!unlocks.board) {
+          this.setStatus(harborFeatureLockedHint("board"));
+          return;
+        }
+        this.showBoard();
+      },
+      160,
+      72,
+      22,
+    );
   }
 
   private showSettle(summary: RunSummary): void {
@@ -337,8 +397,12 @@ export class RuntimeHome extends Component {
     const layer = replacePlayLayer(this.node);
     drawOcean(layer, { harbor: true });
     makeLabel(layer, privacyTitle(), 34, 0, 300);
+    makeLabel(layer, healthAdviceTitle(), 22, 0, 258);
+    healthAdviceLines().forEach((line, index) => {
+      makeLabel(layer, line, 16, 0, 228 - index * 28, 1100);
+    });
     privacyLines().forEach((line, index) => {
-      makeLabel(layer, line, 20, 0, 230 - index * 52, 1080);
+      makeLabel(layer, line, 18, 0, 160 - index * 40, 1080);
     });
     makeButton(
       layer,
@@ -456,7 +520,6 @@ export class RuntimeHome extends Component {
       await playerSave.save(next);
       this.cloudKind = playerSave.cloudKind();
       if (run.fish.length > 0) SfxPlayer.play("sell");
-      WechatAdapter.submitStyleScore(next.bestStyleScore);
       void LeaderboardService.submit(run).catch(() => undefined);
       this.lastSummary = run;
       this.pendingSummary = undefined;
@@ -501,6 +564,10 @@ export class RuntimeHome extends Component {
   }
 
   private async onUpgrade(): Promise<void> {
+    if (!harborUnlocksForSave(playerSave.get()).upgrade) {
+      this.setStatus(harborFeatureLockedHint("upgrade"));
+      return;
+    }
     const error = await HarborActions.upgrade(this.selectedToolId);
     this.setStatus(
       error ?? `${ConfigService.toolById(this.selectedToolId).name}升级成功`,
@@ -510,7 +577,14 @@ export class RuntimeHome extends Component {
 
   private async sail(): Promise<void> {
     const save = playerSave.get();
-    if (islandClosed(this.selectedIslandId, ConfigService.remoteConfig().disabledIslands ?? [])) {
+    const targetIslandId = save.tutorialComplete
+      ? this.selectedIslandId
+      : TUTORIAL_ISLAND_ID;
+    if (!save.tutorialComplete) {
+      this.selectedIslandId = TUTORIAL_ISLAND_ID;
+      this.selectedToolId = "tool_rod";
+    }
+    if (islandClosed(targetIslandId, ConfigService.remoteConfig().disabledIslands ?? [])) {
       this.setStatus(
         closedIslandCaption(ConfigService.islandById(this.selectedIslandId).name),
       );

@@ -2,6 +2,10 @@ import { Analytics } from "../analytics/Analytics";
 import { ConfigService } from "../data/ConfigService";
 import { harborFailCopy } from "../domain/HarborCopy";
 import { ProgressionSystem } from "../domain/ProgressionSystem";
+import {
+  harborFeatureLockedHint,
+  harborUnlocksForSave,
+} from "../domain/TutorialFlow";
 import { playerSave } from "../save/SaveService";
 
 function messageOf(error: unknown): string {
@@ -11,6 +15,9 @@ function messageOf(error: unknown): string {
 export class HarborActions {
   static async upgrade(toolId: string): Promise<string | null> {
     try {
+      if (!harborUnlocksForSave(playerSave.get()).upgrade) {
+        return harborFeatureLockedHint("upgrade");
+      }
       const next = ProgressionSystem.purchaseToolUpgrade(
         playerSave.get(),
         ConfigService.toolById(toolId),

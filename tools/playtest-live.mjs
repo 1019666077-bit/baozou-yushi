@@ -267,7 +267,7 @@ try {
     "settings has sfx/vibration/low-power",
   );
   note(texts.some((t) => t.includes("隐私说明")), "privacy entry");
-  note(texts.some((t) => t.includes("删除本机档")), "wipe entry");
+  note(texts.some((t) => t.includes("删除存档") || t.includes("删除本机档")), "wipe entry");
   note(await tap(page, "音效 开") || await tap(page, "音效 关"), "tap sfx toggle");
   await wait(350);
   texts = await labels(page);
@@ -397,12 +397,14 @@ try {
   await wait(400);
   texts = await labels(page);
   await shot(page, "10b-wiped");
-  note(texts.some((t) => t.includes("本机档已清空")), "wipe notice");
+  note(texts.some((t) => t.includes("存档已清空") || t.includes("本机档已清空")), "wipe notice");
   note(texts.some((t) => t.includes("金币 0")), "wiped coins");
   note(texts.some((t) => t.includes("图鉴 0/10")), "wiped book");
 
   const patched = await callHome(page, "applySavePatch", {
     coins: 800,
+    tutorialComplete: true,
+    completedRuns: 2,
     unlockedIslands: [
       "island_tutorial",
       "island_foam_bay",

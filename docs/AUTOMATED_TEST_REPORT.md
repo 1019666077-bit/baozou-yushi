@@ -3,17 +3,17 @@
 ## 结果
 
 - TypeScript领域层类型检查：通过。
-- Vitest：2个测试文件、18个断言通过。
+- Vitest：2个测试文件、63个测试通过（含教学开关、港口解锁、存档校验、成绩校验、隐私文案）。
 - 云函数与开放数据域JavaScript语法检查：通过。
-- 预检：4个配置JSON有效；主包候选源码约61KB，低于4MiB红线。
+- 预检：4个配置JSON有效；主包候选源码低于4MiB红线。
 - 50个确定性经济模拟角色：
   - P10解锁风眼环礁：16.4分钟
   - 中位数：24.5分钟
   - P90：30.5分钟
   - 设计目标：22–34分钟，中位和P90落在目标范围
 
-详细个体数据见`reports/automated-balance-report.json`。
+详细个体数据见`reports/automated-balance-report.json`（本地 `npm run simulate` 生成，不提交）。
 
 ## 限制
 
-这份报告验证数值边界、配置引用和经济节奏，不是人类可用性测试。首次捕获时长、教学完成率、第三局到达率和卖点理解率必须使用体验版招募20–50名真实玩家后填写`playtest/participants.csv`，再运行`npm run playtest:report`。
+这份报告验证数值边界、配置引用和经济节奏，不是人类可用性测试。首次捕获时长、教学完成率、第三局到达率和卖点理解率必须使用体验版招募20–50名真实玩家后填写`playtest/participants.csv`，再运行`npm run playtest:report`。真人有效行不足20条时该命令会主动失败，这是设计。

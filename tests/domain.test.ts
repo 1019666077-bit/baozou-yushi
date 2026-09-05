@@ -16,6 +16,7 @@ import {
 } from "../assets/scripts/domain/SaveMerge";
 import { StyleScoreSystem } from "../assets/scripts/domain/StyleScoreSystem";
 import { validateRun } from "../cloudfunctions/shared/ScoreValidator";
+import { validSave } from "../cloudfunctions/shared/SaveValidator";
 import { fishIdsForIsland } from "../assets/scripts/content/IslandFishPool";
 import {
   classifyHit,
@@ -102,11 +103,22 @@ import {
   toBoatWorld,
 } from "../assets/scripts/domain/DeckMap";
 import {
+  healthAdviceLines,
+  healthAdviceTitle,
   privacyLines,
   wipeBody,
   wipeCaption,
   wipeDoneNotice,
 } from "../assets/scripts/domain/PrivacyCopy";
+import {
+  TUTORIAL_ISLAND_ID,
+  advanceTutorial,
+  harborFeatureLockedHint,
+  harborUnlocks,
+  harborUnlocksForSave,
+  isTutorialRun,
+  nextSailIsland,
+} from "../assets/scripts/domain/TutorialFlow";
 import { sfxTone, shouldPlaySfx } from "../assets/scripts/domain/SfxFeel";
 import {
   closedIslandCaption,
@@ -520,6 +532,17 @@ describe("SettleCopy", () => {
     expect(applyRunRewards(save, summary).coins).toBe(0);
     expect(bookLines([{ id: "fish_test", name: "测试鱼" }], []).join()).toContain("未收");
   });
+
+  it("marks tutorial complete only after a tutorial island capture", () => {
+    const save = createDefaultSave(1);
+    const empty = new RunSession("run_t0", TUTORIAL_ISLAND_ID, "tool_rod", 1, 1).finish(2);
+    expect(applyRunRewards(save, empty).tutorialComplete).toBe(false);
+    const session = new RunSession("run_t1", TUTORIAL_ISLAND_ID, "tool_rod", 1, 1);
+    session.capture(fish, 1, 20);
+    const next = applyRunRewards(save, session.finish(30));
+    expect(next.tutorialComplete).toBe(true);
+    expect(next.completedRuns).toBe(1);
+  });
 });
 
 describe("IslandClock", () => {
@@ -702,14 +725,78 @@ describe("IslandPack", () => {
 });
 
 describe("PrivacyCopy", () => {
-  it("lists actual collection and a local wipe that starts at foam bay", () => {
-    expect(privacyLines().join(" ")).toContain("本机进度");
-    expect(privacyLines().join(" ")).toContain("不读通讯录");
-    expect(privacyLines().join(" ")).toContain("未成年人");
-    expect(privacyLines().join(" ")).not.toContain("广告画像");
-    expect(wipeCaption()).toBe("删除本机档");
-    expect(wipeBody()).toContain("泡沫湾");
-    expect(wipeDoneNotice()).toBe("本机档已清空");
+  it("lists local save, cloud save, analytics, friend board and deleteSave", () => {
+    const text = privacyLines().join(" ");
+    expect(text).toContain("本机存档");
+    expect(text).toContain("云存档");
+    expect(text).toContain("deleteSave");
+    expect(text).toContain("埋点");
+    expect(text).toContain("submitScore");
+    expect(text).toContain("不读通讯录");
+    expect(text).toContain("未成年人");
+    expect(text).toContain("未接入广告");
+    expect(text).not.toContain("广告画像");
+    expect(wipeCaption()).toBe("删除存档");
+    expect(wipeBody()).toContain("deleteSave");
+    expect(wipeDoneNotice()).toBe("存档已清空");
+    expect(healthAdviceTitle()).toBe("健康游戏忠告");
+    expect(healthAdviceLines().join(" ")).toContain("适度游戏益脑");
+  });
+});
+
+describe("TutorialFlow", () => {
+  it("sends new players to the tutorial island until the save is marked complete", () => {
+    expect(isTutorialRun(TUTORIAL_ISLAND_ID, false)).toBe(true);
+    expect(isTutorialRun(TUTORIAL_ISLAND_ID, true)).toBe(false);
+    expect(isTutorialRun("island_foam_bay", false)).toBe(false);
+    expect(nextSailIsland(false)).toBe(TUTORIAL_ISLAND_ID);
+    expect(nextSailIsland(true)).toBe("island_foam_bay");
+  });
+
+  it("advances cast → weak point → reel → settle", () => {
+    expect(advanceTutorial("cast", "hooked")).toBe("weakPoint");
+    expect(advanceTutorial("weakPoint", "weakHit")).toBe("reel");
+    expect(advanceTutorial("reel", "captured")).toBe("settle");
+    expect(advanceTutorial("settle", "captured")).toBe("complete");
+  });
+
+  it("locks harbor upgrade/book/board until the tutorial is finished", () => {
+    expect(harborUnlocks(0)).toEqual({
+      upgrade: false,
+      book: false,
+      board: false,
+    });
+    expect(harborUnlocksForSave({ tutorialComplete: false, completedRuns: 3 })).toEqual({
+      upgrade: false,
+      book: false,
+      board: false,
+    });
+    expect(harborUnlocksForSave({ tutorialComplete: true, completedRuns: 1 })).toEqual({
+      upgrade: true,
+      book: false,
+      board: false,
+    });
+    expect(harborUnlocksForSave({ tutorialComplete: true, completedRuns: 2 })).toEqual({
+      upgrade: true,
+      book: true,
+      board: true,
+    });
+    expect(harborFeatureLockedHint("upgrade")).toContain("教学");
+  });
+});
+
+describe("save validation", () => {
+  it("accepts the default save and rejects negative coins or unknown ids", () => {
+    const ok = createDefaultSave(1);
+    expect(validSave(ok)).toBe(true);
+    expect(validSave({ ...ok, coins: -1 })).toBe(false);
+    expect(validSave({ ...ok, revision: 0 })).toBe(false);
+    expect(validSave({ ...ok, unlockedIslands: ["island_unknown"] })).toBe(false);
+    expect(validSave({ ...ok, tools: [{ toolId: "tool_unknown", level: 1 }] })).toBe(
+      false,
+    );
+    expect(validSave({ ...ok, discoveredFish: ["fish_unknown"] })).toBe(false);
+    expect(validSave({ ...ok, tutorialComplete: "yes" })).toBe(false);
   });
 });
 
