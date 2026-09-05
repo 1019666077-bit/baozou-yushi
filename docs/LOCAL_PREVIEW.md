@@ -24,6 +24,16 @@ npx --yes serve build/web-desktop -l 8765
 PLAYTEST_URL=http://127.0.0.1:8765/ node tools/playtest-live.mjs
 ```
 
+## 没有 Creator 时的第一局体验代理
+
+本机没装 Cocos、也没有 `build/web-desktop` 时，不要假装已经实跑过官方运行时。可用临时灰盒点完新档第一局（文案从 `TutorialFlow` / 结算/手感函数抽取）：
+
+```bash
+node tools/first-run-preview/serve.mjs
+```
+
+打开 http://127.0.0.1:8766/ 。**这不是 Cocos 实机**，甲板扑腾和瞄准手感不在这里。说明见 `tools/first-run-preview/README.md`。
+
 ## 微信小游戏
 
 1. 构建面板选 **微信小游戏**（`build-config.wechat.json`）。把 AppID 换成自己的，**不要提交**。
