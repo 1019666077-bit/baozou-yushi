@@ -38,6 +38,7 @@ import {
   advanceTutorial,
   isTutorialRun,
   shouldAutoReel,
+  tutorialGuideTarget,
   tutorialPrompt,
   TUTORIAL_ISLAND_ID,
   type TutorialStep,
@@ -118,6 +119,7 @@ export class RuntimePrototype extends Component {
   private session!: RunSession;
   private hookedAt = 0;
   private lastFireAt = 0;
+  // TODO: reelActive / 绿条是旧收杆模型残留；现战斗走砸晕→捡起→鱼箱，教学圈也不再指向绿区。
   private reelActive = false;
   private reelMarker = 0.08;
   private reelDir = 1;
@@ -1175,10 +1177,11 @@ export class RuntimePrototype extends Component {
   private drawGuide(): void {
     this.guide.clear();
     if (!this.tutorial) return;
+    const focus = tutorialGuideTarget(this.tutorialStep);
     const target =
-      this.tutorialStep === "cast"
+      focus === "cast"
         ? this.castButton
-        : this.tutorialStep === "reel"
+        : focus === "pickUp"
           ? this.reelButton
           : undefined;
     if (!target) return;

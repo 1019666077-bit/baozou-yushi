@@ -111,13 +111,20 @@ import {
   wipeDoneNotice,
 } from "../assets/scripts/domain/PrivacyCopy";
 import {
+  DEFAULT_SAIL_ISLAND_ID,
   TUTORIAL_ISLAND_ID,
   advanceTutorial,
+  harborChipSelected,
+  harborFeatureButtonLabel,
   harborFeatureLockedHint,
+  harborSailCaption,
   harborUnlocks,
   harborUnlocksForSave,
   isTutorialRun,
   nextSailIsland,
+  resolveHarborIsland,
+  tutorialGuideTarget,
+  tutorialPrompt,
 } from "../assets/scripts/domain/TutorialFlow";
 import { sfxTone, shouldPlaySfx } from "../assets/scripts/domain/SfxFeel";
 import {
@@ -542,6 +549,9 @@ describe("SettleCopy", () => {
     const next = applyRunRewards(save, session.finish(30));
     expect(next.tutorialComplete).toBe(true);
     expect(next.completedRuns).toBe(1);
+    expect(resolveHarborIsland(next.tutorialComplete, TUTORIAL_ISLAND_ID)).toBe(
+      DEFAULT_SAIL_ISLAND_ID,
+    );
   });
 });
 
@@ -750,7 +760,32 @@ describe("TutorialFlow", () => {
     expect(isTutorialRun(TUTORIAL_ISLAND_ID, true)).toBe(false);
     expect(isTutorialRun("island_foam_bay", false)).toBe(false);
     expect(nextSailIsland(false)).toBe(TUTORIAL_ISLAND_ID);
-    expect(nextSailIsland(true)).toBe("island_foam_bay");
+    expect(nextSailIsland(true)).toBe(DEFAULT_SAIL_ISLAND_ID);
+  });
+
+  it("dials leftover tutorial selection back to foam bay after teaching", () => {
+    expect(resolveHarborIsland(false, DEFAULT_SAIL_ISLAND_ID)).toBe(
+      TUTORIAL_ISLAND_ID,
+    );
+    expect(resolveHarborIsland(false, TUTORIAL_ISLAND_ID)).toBe(TUTORIAL_ISLAND_ID);
+    expect(resolveHarborIsland(true, TUTORIAL_ISLAND_ID)).toBe(
+      DEFAULT_SAIL_ISLAND_ID,
+    );
+    expect(resolveHarborIsland(true, DEFAULT_SAIL_ISLAND_ID)).toBe(
+      DEFAULT_SAIL_ISLAND_ID,
+    );
+    expect(resolveHarborIsland(true, "island_storm_eye")).toBe("island_storm_eye");
+  });
+
+  it("does not pretend foam bay is selected before the tutorial is done", () => {
+    expect(
+      harborChipSelected("island_foam_bay", false, TUTORIAL_ISLAND_ID),
+    ).toBe(false);
+    expect(
+      harborChipSelected("island_foam_bay", true, DEFAULT_SAIL_ISLAND_ID),
+    ).toBe(true);
+    expect(harborSailCaption(false)).toBe("开始教学");
+    expect(harborSailCaption(true)).toBe("出海捕鱼");
   });
 
   it("advances cast → weak point → reel → settle", () => {
@@ -758,6 +793,16 @@ describe("TutorialFlow", () => {
     expect(advanceTutorial("weakPoint", "weakHit")).toBe("reel");
     expect(advanceTutorial("reel", "captured")).toBe("settle");
     expect(advanceTutorial("settle", "captured")).toBe("complete");
+  });
+
+  it("teaches pick-up into the crate instead of the old green reel zone", () => {
+    expect(tutorialPrompt("reel")).toContain("捡起");
+    expect(tutorialPrompt("reel")).toContain("鱼箱");
+    expect(tutorialPrompt("reel")).not.toMatch(/绿|收杆/);
+    expect(tutorialGuideTarget("cast")).toBe("cast");
+    expect(tutorialGuideTarget("reel")).toBe("pickUp");
+    expect(tutorialGuideTarget("weakPoint")).toBe("none");
+    expect(tutorialGuideTarget("settle")).toBe("none");
   });
 
   it("locks harbor upgrade/book/board until the tutorial is finished", () => {
@@ -782,6 +827,27 @@ describe("TutorialFlow", () => {
       board: true,
     });
     expect(harborFeatureLockedHint("upgrade")).toContain("教学");
+  });
+
+  it("does not blame an unfinished tutorial after the first completed run", () => {
+    const afterLesson = { tutorialComplete: true, completedRuns: 1 };
+    expect(harborFeatureLockedHint("book", afterLesson)).toBe(
+      "再出 1 局后解锁图鉴。",
+    );
+    expect(harborFeatureLockedHint("board", afterLesson)).toBe("再出 1 局后解锁榜。");
+    expect(harborFeatureLockedHint("book", afterLesson)).not.toContain("教学");
+    expect(harborFeatureButtonLabel("book", afterLesson)).toBe("再出1局后图鉴");
+    expect(harborFeatureButtonLabel("board", afterLesson)).toBe("再出1局后榜");
+    expect(harborFeatureButtonLabel("upgrade", afterLesson)).toBe("查看升级");
+    expect(
+      harborFeatureLockedHint("book", { tutorialComplete: false, completedRuns: 0 }),
+    ).toContain("教学");
+    expect(
+      harborFeatureButtonLabel("book", { tutorialComplete: false, completedRuns: 0 }),
+    ).toBe("教学后图鉴");
+    expect(
+      harborFeatureButtonLabel("book", { tutorialComplete: true, completedRuns: 2 }),
+    ).toBe("图鉴");
   });
 });
 

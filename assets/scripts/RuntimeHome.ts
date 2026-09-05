@@ -51,9 +51,13 @@ import {
   wipeTitle,
 } from "./domain/PrivacyCopy";
 import {
-  TUTORIAL_ISLAND_ID,
+  DEFAULT_SAIL_ISLAND_ID,
+  harborChipSelected,
+  harborFeatureButtonLabel,
   harborFeatureLockedHint,
+  harborSailCaption,
   harborUnlocksForSave,
+  resolveHarborIsland,
 } from "./domain/TutorialFlow";
 import { RuntimePrototype } from "./RuntimePrototype";
 
@@ -63,7 +67,7 @@ const { ccclass } = _decorator;
 export class RuntimeHome extends Component {
   private status!: Label;
   private coinsLabel!: Label;
-  private selectedIslandId = "island_foam_bay";
+  private selectedIslandId = DEFAULT_SAIL_ISLAND_ID;
   private selectedToolId = "tool_rod";
   private lastSummary?: RunSummary;
   private pendingSummary?: RunSummary;
@@ -86,7 +90,10 @@ export class RuntimeHome extends Component {
       WechatAdapter.initializeCloud();
       playerSave.loadLocal();
       const save = playerSave.get();
-      this.selectedIslandId = "island_foam_bay";
+      this.selectedIslandId = resolveHarborIsland(
+        save.tutorialComplete,
+        DEFAULT_SAIL_ISLAND_ID,
+      );
       this.selectedToolId = save.tools[0]?.toolId ?? "tool_rod";
       console.log("baozou-flop-v28");
       SfxPlayer.setEnabled(save.settings.sfx);
@@ -111,9 +118,10 @@ export class RuntimeHome extends Component {
     await playerSave.load();
     this.cloudKind = playerSave.cloudKind();
     const save = playerSave.get();
-    if (save.tutorialComplete && this.selectedIslandId === TUTORIAL_ISLAND_ID) {
-      this.selectedIslandId = "island_foam_bay";
-    }
+    this.selectedIslandId = resolveHarborIsland(
+      save.tutorialComplete,
+      this.selectedIslandId,
+    );
     if (this.surface === "harbor") this.showHarbor();
   }
 
@@ -125,6 +133,10 @@ export class RuntimeHome extends Component {
     drawOcean(layer, { harbor: true });
 
     const save = playerSave.get();
+    this.selectedIslandId = resolveHarborIsland(
+      save.tutorialComplete,
+      this.selectedIslandId,
+    );
     makeLabel(layer, "暴走鱼市 · 潮汐港口 v28", 34, 0, 310);
     this.coinsLabel = makeLabel(layer, `金币 ${save.coins}`, 24, 470, 310, 280);
     makeButton(layer, "设置", -530, 310, () => this.showSettings(), 140, 52, 22);
@@ -149,7 +161,11 @@ export class RuntimeHome extends Component {
     islands.forEach((islandId) => {
       const island = ConfigService.islandById(islandId);
       const unlocked = save.unlockedIslands.includes(island.id);
-      const selected = island.id === this.selectedIslandId;
+      const selected = harborChipSelected(
+        island.id,
+        save.tutorialComplete,
+        this.selectedIslandId,
+      );
       const closed = islandClosed(island.id, closedIds);
       const caption = closed
         ? closedIslandCaption(island.name)
@@ -212,7 +228,7 @@ export class RuntimeHome extends Component {
 
     makeButton(
       layer,
-      save.tutorialComplete ? "出海捕鱼" : "开始教学",
+      harborSailCaption(save.tutorialComplete),
       -80,
       -230,
       () => this.sail(),
@@ -223,7 +239,7 @@ export class RuntimeHome extends Component {
     makeButton(
       layer,
       !unlocks.upgrade
-        ? "教学后升级"
+        ? harborFeatureButtonLabel("upgrade", save)
         : ownedTool && nextLevel
           ? `升级${tool.name}`
           : "查看升级",
@@ -236,12 +252,12 @@ export class RuntimeHome extends Component {
     );
     makeButton(
       layer,
-      unlocks.book ? "图鉴" : "教学后图鉴",
+      harborFeatureButtonLabel("book", save),
       220,
       -230,
       () => {
         if (!unlocks.book) {
-          this.setStatus(harborFeatureLockedHint("book"));
+          this.setStatus(harborFeatureLockedHint("book", save));
           return;
         }
         this.showBook();
@@ -252,12 +268,12 @@ export class RuntimeHome extends Component {
     );
     makeButton(
       layer,
-      unlocks.board ? "榜" : "教学后榜",
+      harborFeatureButtonLabel("board", save),
       470,
       -230,
       () => {
         if (!unlocks.board) {
-          this.setStatus(harborFeatureLockedHint("board"));
+          this.setStatus(harborFeatureLockedHint("board", save));
           return;
         }
         this.showBoard();
@@ -447,7 +463,10 @@ export class RuntimeHome extends Component {
   private async confirmWipe(): Promise<void> {
     const error = await HarborActions.clearSave();
     this.cloudKind = playerSave.cloudKind();
-    this.selectedIslandId = "island_foam_bay";
+    this.selectedIslandId = resolveHarborIsland(
+      playerSave.get().tutorialComplete,
+      DEFAULT_SAIL_ISLAND_ID,
+    );
     this.selectedToolId = playerSave.get().tools[0]?.toolId ?? "tool_rod";
     this.lastSummary = undefined;
     this.pendingSummary = undefined;
@@ -524,6 +543,10 @@ export class RuntimeHome extends Component {
       this.lastSummary = run;
       this.pendingSummary = undefined;
       this.statusFlash = undefined;
+      this.selectedIslandId = resolveHarborIsland(
+        next.tutorialComplete,
+        this.selectedIslandId,
+      );
       this.showHarbor();
     } finally {
       this.settling = false;
@@ -536,6 +559,11 @@ export class RuntimeHome extends Component {
       return;
     }
     const save = playerSave.get();
+    if (!save.tutorialComplete) {
+      this.setStatus("先完成练潮码头教学，再自由选岛。");
+      this.showHarbor();
+      return;
+    }
     if (!save.unlockedIslands.includes(islandId)) {
       const error = await HarborActions.unlockIsland(islandId);
       this.setStatus(error ?? `已解锁${ConfigService.islandById(islandId).name}`);
@@ -564,8 +592,9 @@ export class RuntimeHome extends Component {
   }
 
   private async onUpgrade(): Promise<void> {
-    if (!harborUnlocksForSave(playerSave.get()).upgrade) {
-      this.setStatus(harborFeatureLockedHint("upgrade"));
+    const saveForUpgrade = playerSave.get();
+    if (!harborUnlocksForSave(saveForUpgrade).upgrade) {
+      this.setStatus(harborFeatureLockedHint("upgrade", saveForUpgrade));
       return;
     }
     const error = await HarborActions.upgrade(this.selectedToolId);
@@ -577,14 +606,14 @@ export class RuntimeHome extends Component {
 
   private async sail(): Promise<void> {
     const save = playerSave.get();
-    const targetIslandId = save.tutorialComplete
-      ? this.selectedIslandId
-      : TUTORIAL_ISLAND_ID;
+    this.selectedIslandId = resolveHarborIsland(
+      save.tutorialComplete,
+      this.selectedIslandId,
+    );
     if (!save.tutorialComplete) {
-      this.selectedIslandId = TUTORIAL_ISLAND_ID;
       this.selectedToolId = "tool_rod";
     }
-    if (islandClosed(targetIslandId, ConfigService.remoteConfig().disabledIslands ?? [])) {
+    if (islandClosed(this.selectedIslandId, ConfigService.remoteConfig().disabledIslands ?? [])) {
       this.setStatus(
         closedIslandCaption(ConfigService.islandById(this.selectedIslandId).name),
       );

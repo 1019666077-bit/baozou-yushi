@@ -15,8 +15,9 @@ function messageOf(error: unknown): string {
 export class HarborActions {
   static async upgrade(toolId: string): Promise<string | null> {
     try {
-      if (!harborUnlocksForSave(playerSave.get()).upgrade) {
-        return harborFeatureLockedHint("upgrade");
+      const save = playerSave.get();
+      if (!harborUnlocksForSave(save).upgrade) {
+        return harborFeatureLockedHint("upgrade", save);
       }
       const next = ProgressionSystem.purchaseToolUpgrade(
         playerSave.get(),

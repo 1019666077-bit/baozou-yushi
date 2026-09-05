@@ -3,6 +3,7 @@ import { Analytics } from "../analytics/Analytics";
 import { gameEvents } from "../core/EventBus";
 import {
   advanceTutorial,
+  tutorialGuideTarget,
   tutorialPrompt,
   type TutorialStep,
 } from "../domain/TutorialFlow";
@@ -57,10 +58,11 @@ export class TutorialController extends Component {
 
   private render(): void {
     if (this.prompt) this.prompt.string = tutorialPrompt(this.step);
-    if (this.castHighlight) this.castHighlight.active = this.step === "cast";
+    const focus = tutorialGuideTarget(this.step);
+    if (this.castHighlight) this.castHighlight.active = focus === "cast";
     if (this.weakPointHighlight) {
       this.weakPointHighlight.active = this.step === "weakPoint";
     }
-    if (this.reelHighlight) this.reelHighlight.active = this.step === "reel";
+    if (this.reelHighlight) this.reelHighlight.active = focus === "pickUp";
   }
 }

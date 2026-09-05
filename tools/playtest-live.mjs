@@ -247,6 +247,7 @@ try {
   let texts = await labels(page);
   note(logs.some((l) => l.includes("baozou-flop-v28")), "v28 console stamp");
   note(texts.some((t) => t.includes("潮汐港口 v28")), "harbor title v28");
+  // TODO: 新档教学未完成时港口不再假装选中泡沫湾（出航行/CTA 对齐练潮码头）。
   note(
     texts.includes("● 泡沫湾") &&
       texts.some((t) => t.includes("棱光礁")) &&
