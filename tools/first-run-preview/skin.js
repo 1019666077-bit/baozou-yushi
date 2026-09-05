@@ -67,15 +67,24 @@ function fillWaveBand(ctx, yTop, yBot, amp, phase, color) {
 function foamCrest(ctx, y, phase, alpha) {
   ctx.fillStyle = `rgba(255,248,230,${alpha})`;
   ctx.beginPath();
-  ctx.moveTo(0, y + 12);
-  for (let x = 0; x <= 1280; x += 16) {
-    const yy = y + Math.sin(x * 0.018 + phase) * 8 + Math.sin(x * 0.041 + phase * 1.7) * 3.4;
+  ctx.moveTo(0, y + 16);
+  for (let x = 0; x <= 1280; x += 14) {
+    const yy = y + Math.sin(x * 0.016 + phase) * 11 + Math.sin(x * 0.038 + phase * 1.7) * 5;
     ctx.lineTo(x, yy);
   }
-  ctx.lineTo(1280, y + 18);
-  ctx.lineTo(0, y + 18);
+  ctx.lineTo(1280, y + 22);
+  ctx.lineTo(0, y + 22);
   ctx.closePath();
   ctx.fill();
+}
+
+function foamTeeth(ctx, y, phase, count, alpha) {
+  for (let i = 0; i < count; i += 1) {
+    const x = ((i * 97 + phase * 36) % 1240) + 20;
+    const yy = waveY(x, y, 10, phase);
+    ellipse(ctx, x, yy, 9 + (i % 3) * 3, 3.6, `rgba(255,252,236,${alpha})`);
+    if (i % 2 === 0) ellipse(ctx, x + 8, yy + 3, 5, 2.2, `rgba(210,246,255,${alpha * 0.7})`);
+  }
 }
 
 function ridgePair(ctx, y, amp, phase, hi, lo, wHi, wLo) {
@@ -87,27 +96,29 @@ function ridgePair(ctx, y, amp, phase, hi, lo, wHi, wLo) {
 export function paintWaterLife(ctx, phase, hunt) {
   const lift = hunt ? 18 : 0;
   if (hunt) {
-    fillWaveBand(ctx, 292 + lift, 336 + lift, 8, phase, "rgba(186, 236, 248, 0.38)");
-    fillWaveBand(ctx, 328 + lift, 412 + lift, 12, phase + 0.4, "rgba(28, 148, 176, 0.42)");
-    fillWaveBand(ctx, 400 + lift, 508 + lift, 16, phase + 0.9, "rgba(12, 92, 128, 0.46)");
-    fillWaveBand(ctx, 492 + lift, 640 + lift, 13, phase + 1.4, "rgba(6, 42, 68, 0.5)");
-    fillWaveBand(ctx, 600 + lift, 740, 10, phase + 1.8, "rgba(4, 24, 42, 0.42)");
+    fillWaveBand(ctx, 286 + lift, 348 + lift, 18, phase, "rgba(168, 228, 246, 0.52)");
+    fillWaveBand(ctx, 332 + lift, 428 + lift, 22, phase + 0.4, "rgba(18, 132, 164, 0.56)");
+    fillWaveBand(ctx, 408 + lift, 528 + lift, 26, phase + 0.9, "rgba(8, 78, 118, 0.58)");
+    fillWaveBand(ctx, 508 + lift, 650 + lift, 20, phase + 1.4, "rgba(4, 36, 62, 0.6)");
+    fillWaveBand(ctx, 620 + lift, 760, 16, phase + 1.8, "rgba(3, 18, 36, 0.5)");
   } else {
-    fillWaveBand(ctx, 308, 358, 7, phase, "rgba(24, 158, 178, 0.3)");
-    fillWaveBand(ctx, 348, 438, 10, phase + 0.5, "rgba(10, 116, 148, 0.34)");
-    fillWaveBand(ctx, 428, 538, 12, phase + 1.0, "rgba(8, 78, 112, 0.38)");
-    fillWaveBand(ctx, 520, 680, 9, phase + 1.5, "rgba(4, 32, 52, 0.36)");
+    fillWaveBand(ctx, 300, 368, 14, phase, "rgba(24, 158, 178, 0.4)");
+    fillWaveBand(ctx, 348, 448, 18, phase + 0.5, "rgba(10, 116, 148, 0.44)");
+    fillWaveBand(ctx, 428, 548, 20, phase + 1.0, "rgba(8, 78, 112, 0.48)");
+    fillWaveBand(ctx, 520, 690, 16, phase + 1.5, "rgba(4, 32, 52, 0.44)");
   }
-  foamCrest(ctx, 300 + lift, phase, hunt ? 0.36 : 0.16);
-  foamCrest(ctx, 348 + lift, phase * 1.1 + 0.7, hunt ? 0.28 : 0.12);
-  foamCrest(ctx, 412 + lift, phase * 0.85 + 1.3, hunt ? 0.2 : 0.09);
-  foamCrest(ctx, 478 + lift, phase * 0.7 + 2.1, hunt ? 0.14 : 0.06);
-  ridgePair(ctx, 314 + lift, 7, phase, "rgba(255,248,230,0.78)", "rgba(8,40,64,0.42)", hunt ? 5.2 : 3.6, 3.2);
-  ridgePair(ctx, 368 + lift, 10, phase * 1.12 + 0.5, "rgba(210,246,255,0.62)", "rgba(6,32,52,0.38)", hunt ? 4.4 : 3, 2.8);
-  ridgePair(ctx, 428 + lift, 13, phase * 0.82 + 1.1, "rgba(255,244,210,0.48)", "rgba(8,48,72,0.34)", hunt ? 3.8 : 2.6, 2.6);
-  ridgePair(ctx, 498 + lift, 12, phase * 1.25 + 0.3, "rgba(170,236,255,0.4)", "rgba(4,24,40,0.4)", hunt ? 3.4 : 2.4, 3);
+  foamCrest(ctx, 298 + lift, phase, hunt ? 0.48 : 0.22);
+  foamCrest(ctx, 352 + lift, phase * 1.1 + 0.7, hunt ? 0.38 : 0.16);
+  foamCrest(ctx, 418 + lift, phase * 0.85 + 1.3, hunt ? 0.28 : 0.12);
+  foamCrest(ctx, 486 + lift, phase * 0.7 + 2.1, hunt ? 0.2 : 0.08);
+  if (hunt) foamTeeth(ctx, 300 + lift, phase, 18, 0.55);
+  if (hunt) foamTeeth(ctx, 418 + lift, phase + 1.1, 14, 0.4);
+  ridgePair(ctx, 310 + lift, 14, phase, "rgba(255,248,230,0.92)", "rgba(6,28,48,0.55)", hunt ? 6.4 : 4, 4);
+  ridgePair(ctx, 372 + lift, 18, phase * 1.12 + 0.5, "rgba(210,246,255,0.78)", "rgba(4,24,42,0.5)", hunt ? 5.6 : 3.4, 3.6);
+  ridgePair(ctx, 436 + lift, 22, phase * 0.82 + 1.1, "rgba(255,244,210,0.62)", "rgba(6,36,58,0.46)", hunt ? 5 : 3, 3.2);
+  ridgePair(ctx, 508 + lift, 18, phase * 1.25 + 0.3, "rgba(170,236,255,0.52)", "rgba(3,18,34,0.5)", hunt ? 4.4 : 2.8, 3.4);
   if (hunt) {
-    ridgePair(ctx, 560 + lift, 9, phase * 0.7 + 1.8, "rgba(255,248,230,0.28)", "rgba(4,20,36,0.36)", 3, 2.8);
+    ridgePair(ctx, 572 + lift, 14, phase * 0.7 + 1.8, "rgba(255,248,230,0.38)", "rgba(3,16,30,0.46)", 3.8, 3.2);
   }
   const drift = Math.sin(phase) * 22;
   const caustics = hunt
@@ -133,7 +144,7 @@ export function paintWaterLife(ctx, phase, hunt) {
         [1040 - drift * 0.2, 500, 96, 12],
       ];
   for (const [x, y, rx, ry] of caustics) {
-    ellipse(ctx, x, y + lift, rx, ry, hunt ? "rgba(170,240,255,0.34)" : "rgba(170,240,255,0.22)");
+    ellipse(ctx, x, y + lift, rx, ry, hunt ? "rgba(170,240,255,0.42)" : "rgba(170,240,255,0.26)");
   }
   if (hunt) {
     ctx.save();
