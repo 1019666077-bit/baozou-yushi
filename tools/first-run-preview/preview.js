@@ -469,7 +469,7 @@ function paintOps(ctx, ops, phase = 0, local = false, live = {}) {
     const lift =
       tag === "firework"
         ? ((Math.sin(phase * 1.15 + x * 0.045) + 1) * 0.5) * 42
-        : tag === "ripple"
+        : tag === "ripple" || tag === "ridge"
           ? Math.sin(phase * 1.4 + x * 0.02) * 6
           : 0;
     return local ? y + lift : 360 - y - lift;
@@ -730,7 +730,7 @@ function paintSea(ctx, _look, harbor = false) {
   paintWaterLife(ctx, phase, !harbor);
   paintBayTraffic(ctx, phase, harbor);
   paintNearPier(ctx, phase, harbor);
-  paintFinish(ctx, grain, W, H);
+  paintFinish(ctx, grain, W, H, !harbor);
 }
 
 function paintBoat(ctx, x, y) {

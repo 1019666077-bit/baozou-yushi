@@ -465,15 +465,171 @@ function foamLace(
   _look: IslandLook,
 ): DrawOp[] {
   const ops: DrawOp[] = [];
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 11; i++) {
     ops.push({
       t: "ellipse",
-      x: x + (i - 3) * (w / 7),
-      y: y + (i % 2 === 0 ? 2 : -1),
-      rx: 10 + (i % 3) * 3,
-      ry: 3.2,
-      fill: rgba([255, 248, 230], 46 + (i % 3) * 10),
+      x: x + (i - 5) * (w / 11),
+      y: y + (i % 2 === 0 ? 3 : -2),
+      rx: 12 + (i % 3) * 4,
+      ry: 3.8,
+      fill: rgba([255, 248, 230], 54 + (i % 3) * 14),
       tag: "foam",
+    });
+  }
+  return ops;
+}
+
+function waveCrestY(x: number, y: number, amp: number, phase: number, freq = 0.012): number {
+  return y + Math.sin(x * freq + phase) * amp + Math.sin(x * freq * 2.45 + phase * 1.35) * amp * 0.38;
+}
+
+function waveBandPoly(
+  yTop: number,
+  yBot: number,
+  amp: number,
+  phase: number,
+  fill: Rgba,
+  tag: string,
+  step = 40,
+): DrawOp {
+  const pts: number[] = [];
+  for (let x = -640; x <= 640; x += step) {
+    pts.push(x, waveCrestY(x, yTop, amp, phase));
+  }
+  for (let x = 640; x >= -640; x -= step) {
+    pts.push(x, waveCrestY(x, yBot, amp * 0.45, phase + 0.85, 0.01));
+  }
+  return { t: "poly", pts, fill, tag };
+}
+
+function waveRidgeOps(
+  y: number,
+  amp: number,
+  phase: number,
+  color: Rgba,
+  width: number,
+  tag = "ridge",
+): DrawOp[] {
+  const ops: DrawOp[] = [];
+  const segs = 5;
+  const span = 1280 / segs;
+  for (let i = 0; i < segs; i++) {
+    const x1 = -640 + i * span;
+    const x2 = x1 + span;
+    const t1 = x1 + span * 0.33;
+    const t2 = x1 + span * 0.66;
+    ops.push({
+      t: "bezier",
+      x1,
+      y1: waveCrestY(x1, y, amp, phase),
+      c1x: t1,
+      c1y: waveCrestY(t1, y, amp, phase),
+      c2x: t2,
+      c2y: waveCrestY(t2, y, amp, phase),
+      x2,
+      y2: waveCrestY(x2, y, amp, phase),
+      color,
+      width,
+      tag,
+    });
+  }
+  return ops;
+}
+
+/** 猎场水面：浪脊 + 焦散 + 深度色带 + 泡沫，告别平直水带。 */
+export function huntWaterOps(look: IslandLook, phase = 0): DrawOp[] {
+  const drift = Math.sin(phase) * 16;
+  const ops: DrawOp[] = [
+    waveBandPoly(34, 8, 8, phase, rgba([255, 244, 214], 78), "foam"),
+    waveBandPoly(10, -74, 11, phase + 0.28, rgba(mix(look.far, [210, 246, 255], 0.22), 96), "depth"),
+    waveBandPoly(-66, -166, 15, phase + 0.82, rgba(mix(look.mid, look.near, 0.38), 100), "depth"),
+    waveBandPoly(-156, -254, 17, phase + 1.18, rgba(mix(look.near, look.deep, 0.32), 108), "depth"),
+    waveBandPoly(-244, -360, 13, phase + 1.72, rgba(look.deep, 128), "depth"),
+    ...waveRidgeOps(24, 8, phase, rgba([255, 248, 230], 170), 4.6),
+    ...waveRidgeOps(16, 7, phase + 0.18, rgba([10, 48, 72], 100), 3.4),
+    ...waveRidgeOps(-22, 10, phase + 0.52, rgba([210, 246, 255], 130), 3.8),
+    ...waveRidgeOps(-32, 9, phase + 0.68, rgba([8, 36, 58], 88), 3),
+    ...waveRidgeOps(-94, 13, phase + 1.02, rgba([255, 248, 230], 112), 3.6),
+    ...waveRidgeOps(-170, 15, phase + 1.42, rgba([170, 236, 255], 96), 3.2),
+    ...waveRidgeOps(-246, 12, phase + 1.84, rgba([255, 244, 210], 78), 2.8),
+    ...foamLace(-90, 12, 300, look),
+    ...foamLace(210, -2, 240, look),
+    ...foamLace(-340, -86, 280, look),
+    ...foamLace(70, -166, 250, look),
+    ...foamLace(-40, -248, 220, look),
+    speckleField(-640, -70, 1280, 170, rgba([210, 246, 255], 62), 88, 2.3, 91, "speckle"),
+    speckleField(-640, -280, 1280, 170, rgba([8, 40, 64], 76), 76, 2.5, 93, "speckle"),
+    washField(-600, -36, 1200, 96, rgba([255, 248, 220], 40), 32, 95, "brush"),
+    washField(-600, -196, 1200, 130, rgba([90, 210, 230], 54), 36, 97, "brush"),
+    grainField(-640, -56, 1280, 86, rgba([255, 236, 180], 56), 68, 16, 99, "h", "grain"),
+    grainField(-640, -236, 1280, 110, rgba([16, 72, 96], 66), 56, 14, 101, "diag", "grain"),
+  ];
+  const caustics: Array<[number, number, number, number, number]> = [
+    [-210 + drift, -36, 190, 15, 78],
+    [50 - drift * 0.6, -88, 230, 17, 64],
+    [370 + drift * 0.4, -138, 170, 13, 56],
+    [-370 + drift * 0.3, -118, 150, 12, 50],
+    [170 - drift, -198, 200, 14, 48],
+    [-70 + drift * 0.8, -238, 130, 10, 42],
+    [490 - drift * 0.3, -76, 140, 11, 50],
+    [-490 + drift * 0.2, -176, 120, 9, 40],
+    [270 + drift * 0.5, -278, 110, 9, 36],
+    [-150 - drift * 0.4, -302, 96, 8, 34],
+    [90 + drift * 0.2, -56, 76, 7, 46],
+    [530 - drift * 0.5, -216, 92, 8, 38],
+    [-260 + drift * 0.15, -210, 84, 7, 36],
+    [320 - drift * 0.25, -40, 100, 8, 44],
+  ];
+  for (const [x, y, rx, ry, a] of caustics) {
+    ops.push({
+      t: "ellipse",
+      x,
+      y,
+      rx,
+      ry,
+      fill: rgba([170, 240, 255], a),
+      tag: "caustic",
+    });
+  }
+  const shadows: Array<[number, number, number, number]> = [
+    [220 + drift * 0.3, -90, 42, 12],
+    [380 - drift * 0.2, -150, 28, 8],
+    [-120 + drift * 0.15, -200, 24, 7],
+    [80, -260, 20, 6],
+    [500, -120, 32, 9],
+    [-300, -170, 18, 6],
+  ];
+  for (const [x, y, rx, ry] of shadows) {
+    ops.push({
+      t: "ellipse",
+      x,
+      y,
+      rx,
+      ry,
+      fill: rgba([6, 24, 36], 110),
+      tag: "shadow",
+    });
+  }
+  const sparks: Array<[number, number]> = [
+    [-240, -20],
+    [80, -70],
+    [320, -130],
+    [-80, -190],
+    [180, -40],
+    [-400, -110],
+    [460, -60],
+    [20, -230],
+    [-180, -270],
+    [280, -210],
+  ];
+  for (const [x, y] of sparks) {
+    ops.push({
+      t: "circle",
+      x: x + drift * 0.15,
+      y,
+      r: 2.4,
+      fill: rgba([255, 252, 236], 130),
+      tag: "spark",
     });
   }
   return ops;
@@ -525,10 +681,12 @@ export function skyWaterOps(look: IslandLook, phase = 0): DrawOp[] {
       axis: "y",
       tag: "grad",
     },
-    { t: "rect", x: -640, y: 18, w: 1280, h: 20, fill: rgba([255, 244, 210], 48) },
-    { t: "rect", x: -640, y: -8, w: 1280, h: 14, fill: rgba(mix(look.far, look.mid, 0.45), 90) },
-    { t: "rect", x: -640, y: -96, w: 1280, h: 10, fill: rgba(mix(look.mid, look.near, 0.5), 70) },
-    { t: "rect", x: -640, y: -248, w: 1280, h: 8, fill: rgba(mix(look.near, look.deep, 0.4), 80) },
+    waveBandPoly(30, 8, 6, phase, rgba([255, 244, 210], 62), "foam"),
+    waveBandPoly(12, -20, 7, phase + 0.4, rgba(mix(look.far, look.mid, 0.45), 86), "depth"),
+    waveBandPoly(-86, -112, 9, phase + 0.9, rgba(mix(look.mid, look.near, 0.5), 78), "depth"),
+    waveBandPoly(-236, -262, 8, phase + 1.3, rgba(mix(look.near, look.deep, 0.4), 84), "depth"),
+    ...waveRidgeOps(44, 6, phase, rgba([255, 236, 180], 120), 3.4),
+    ...waveRidgeOps(-38, 8, phase + 0.6, rgba(look.haze, 76), 2.6),
     speckleField(-640, -176, 1280, 148, rgba([210, 246, 255], 42), 64, 1.7, 3, "speckle"),
     speckleField(-640, -360, 1280, 196, rgba([8, 40, 64], 52), 56, 2, 7, "speckle"),
     speckleField(-640, 110, 1280, 220, rgba([255, 248, 220], 28), 32, 1.4, 11, "speckle"),
@@ -1111,6 +1269,9 @@ export function foamIsleOps(x: number, y: number, s: number, look: IslandLook): 
     { t: "ellipse", x: x + 34 * s, y: y + 9 * s, rx: 2.4 * s, ry: 1.2 * s, fill: rgba(WOOD.highlight, 140) },
     { t: "circle", x: x - 10 * s, y: y + 20 * s, r: 2.4 * s, fill: rgba([46, 96, 72], 190), tag: "paraMid" },
     ...foamLace(x, y - 2 * s, 150 * s, look),
+    ...foamLace(x + 8 * s, y - 8 * s, 110 * s, look),
+    { t: "ellipse", x: x - 52 * s, y: y - 6 * s, rx: 28 * s, ry: 6 * s, fill: rgba([255, 248, 230], 70), tag: "foam" },
+    { t: "ellipse", x: x + 48 * s, y: y - 5 * s, rx: 24 * s, ry: 5 * s, fill: rgba([210, 246, 255], 48), tag: "foam" },
     grainField(x - 70 * s, y + 2 * s, 140 * s, 34 * s, rgba(WOOD.grain, 90), 36, 9 * s, 41, "diag", "grain"),
     washField(x - 48 * s, y + 8 * s, 96 * s, 22 * s, rgba([255, 236, 170], 56), 14, 43, "brush"),
     ...bushOps(x - 28 * s, y + 16 * s, 0.55 * s, look),
@@ -2136,6 +2297,7 @@ export function islandSetOps(
   if (islandId === "island_prism_reef") {
     ops.push(
       ...sunOps(-480, 240, look),
+      ...huntWaterOps(look, phase),
       ...prismIsleOps(360, 86, 1.15, look),
       ...prismIsleOps(-390, 80, 0.7, look),
     );
@@ -2144,6 +2306,7 @@ export function islandSetOps(
   if (islandId === "island_storm_eye") {
     ops.push(
       { t: "circle", x: 500, y: 250, r: 28, fill: rgba(look.haze, 160) },
+      ...huntWaterOps(look, phase),
       ...stormIsleOps(340, 78, 1.2, look),
       ...foamIsleOps(-430, 70, 0.55, islandLook("island_foam_bay")),
     );
@@ -2151,6 +2314,7 @@ export function islandSetOps(
   }
   ops.push(
     ...sunOps(460, 248, look),
+    ...huntWaterOps(look, phase),
     ...foamIsleOps(380, 86, 1.68, look),
     ...foamIsleOps(-420, 78, 1.18, look),
     ...harborForegroundOps(),
@@ -2185,6 +2349,10 @@ export function speckleDots(op: {
 
 export function recipeHasTag(ops: DrawOp[], tag: string): boolean {
   return ops.some((op) => "tag" in op && op.tag === tag);
+}
+
+export function recipeTagCount(ops: DrawOp[], tag: string): number {
+  return ops.filter((op) => "tag" in op && op.tag === tag).length;
 }
 
 export function recipeKindCount(ops: DrawOp[], kind: DrawOp["t"]): number {

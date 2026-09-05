@@ -279,6 +279,7 @@ import {
   lanternFlickerAt,
   recipeHasTag,
   recipeKindCount,
+  recipeTagCount,
   slamMarkOps,
   speckleDots,
   swimSway,
@@ -1721,7 +1722,21 @@ describe("ArtRecipe", () => {
     expect(recipeHasTag(sea, "grain")).toBe(true);
     expect(recipeHasTag(sea, "brush")).toBe(true);
     expect(recipeHasTag(sea, "hang")).toBe(true);
+    expect(recipeHasTag(sea, "depth")).toBe(true);
+    expect(recipeHasTag(sea, "ridge")).toBe(true);
     expect(recipeHasTag(dockOps(), "nail")).toBe(true);
+    const hunt = islandSetOps("island_foam_bay", false, 0.4);
+    expect(recipeHasTag(hunt, "ridge")).toBe(true);
+    expect(recipeHasTag(hunt, "depth")).toBe(true);
+    expect(recipeHasTag(hunt, "caustic")).toBe(true);
+    expect(recipeHasTag(hunt, "foam")).toBe(true);
+    expect(recipeTagCount(hunt, "caustic")).toBeGreaterThan(12);
+    expect(recipeTagCount(hunt, "ridge")).toBeGreaterThan(16);
+    expect(recipeTagCount(hunt, "depth")).toBeGreaterThan(5);
+    expect(recipeTagCount(hunt, "foam")).toBeGreaterThan(20);
+    expect(islandSetOps("island_tutorial", false, 0).some((op) => "tag" in op && op.tag === "ridge")).toBe(
+      true,
+    );
     expect(speckleDots({ x: 0, y: 0, w: 10, h: 10, count: 4, size: 1 }).length).toBe(4);
     expect(grainStrokes({ x: 0, y: 0, w: 10, h: 10, count: 5, size: 4 }).length).toBe(5);
     expect(washBlobs({ x: 0, y: 0, w: 10, h: 10, count: 3 }).length).toBe(3);
