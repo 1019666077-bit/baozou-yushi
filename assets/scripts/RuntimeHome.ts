@@ -36,7 +36,12 @@ import {
 import { harborIslandIds, harborIslandX } from "./domain/GrayLook";
 import { FriendBoardView } from "./ui/FriendBoardView";
 import { ensureIslandPack } from "./content/IslandPackLoader";
-import { harborSailWait } from "./domain/IslandPack";
+import {
+  decideSailAfterPack,
+  harborPackFailCopy,
+  harborSailWait,
+} from "./domain/IslandPack";
+import { shouldCallCloud } from "./domain/WechatSession";
 import {
   healthAdviceLines,
   healthAdviceTitle,
@@ -87,7 +92,6 @@ export class RuntimeHome extends Component {
   protected onLoad(): void {
     try {
       ConfigService.ensureBundled();
-      WechatAdapter.initializeCloud();
       playerSave.loadLocal();
       const save = playerSave.get();
       this.selectedIslandId = resolveHarborIsland(
@@ -107,13 +111,17 @@ export class RuntimeHome extends Component {
   private async bootstrapCloud(): Promise<void> {
     this.cloudKind = "syncing";
     await WechatAdapter.ensurePrivacyAuthorized();
-    try {
-      const response = await WechatAdapter.callCloud<{ config: RemoteConfig }>(
-        "getRemoteConfig",
-      );
-      ConfigService.applyRemoteConfig(response.config);
-    } catch {
-      // Bundled remote-default keeps the harbor playable.
+    await WechatAdapter.login();
+    WechatAdapter.initializeCloud();
+    if (shouldCallCloud(WechatAdapter.sessionKind())) {
+      try {
+        const response = await WechatAdapter.callCloud<{ config: RemoteConfig }>(
+          "getRemoteConfig",
+        );
+        ConfigService.applyRemoteConfig(response.config);
+      } catch {
+        // Bundled remote-default keeps the harbor playable.
+      }
     }
     await playerSave.load();
     this.cloudKind = playerSave.cloudKind();
@@ -502,7 +510,13 @@ export class RuntimeHome extends Component {
       220,
       save.bestStyleScore,
     );
-    makeLabel(layer, friendBoardHint(openData), 18, 0, openData ? -160 : -80);
+    makeLabel(
+      layer,
+      friendBoardHint(openData, WechatAdapter.signedIn),
+      18,
+      0,
+      openData ? -160 : -80,
+    );
     makeButton(layer, "返回港口", 0, -250, () => this.showHarbor(), 240, 72, 24);
   }
 
@@ -634,7 +648,11 @@ export class RuntimeHome extends Component {
       return;
     }
     this.setStatus(harborSailWait(island.name));
-    await ensureIslandPack(this.selectedIslandId);
+    const packReady = await ensureIslandPack(this.selectedIslandId);
+    if (decideSailAfterPack(packReady) === "stay_harbor") {
+      this.setStatus(harborPackFailCopy(island.name));
+      return;
+    }
     this.statusFlash = undefined;
     this.surface = "sea";
     RuntimePrototype.pending = {

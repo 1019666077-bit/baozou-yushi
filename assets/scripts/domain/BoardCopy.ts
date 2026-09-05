@@ -15,7 +15,10 @@ export function boardLines(
   );
 }
 
-export function friendBoardHint(openData = false): string {
+export function friendBoardHint(openData = false, signedIn = true): string {
+  if (!signedIn) {
+    return "未登录微信，这里只记你自己的成绩。登录后才会出现好友榜。";
+  }
   return openData
     ? "下面是微信好友榜。没好友时只显示你自己。"
     : "这里先记你自己的成绩。微信真机登录后才会出现好友榜。";

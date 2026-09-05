@@ -86,7 +86,19 @@ import {
   friendBoardHint,
 } from "../assets/scripts/domain/BoardCopy";
 import { depthScale } from "../assets/scripts/domain/DepthScale";
-import { islandPackName, harborSailWait } from "../assets/scripts/domain/IslandPack";
+import {
+  decideSailAfterPack,
+  harborPackFailCopy,
+  islandPackName,
+  harborSailWait,
+} from "../assets/scripts/domain/IslandPack";
+import {
+  canShowFriendBoardForSession,
+  persistCloudKind,
+  resolveLoginCode,
+  shouldCallCloud,
+  wechatSessionKind,
+} from "../assets/scripts/domain/WechatSession";
 import {
   beginFlop,
   crateDrop,
@@ -688,6 +700,7 @@ describe("GrayLook", () => {
 describe("CloudCopy", () => {
   it("prints local-first cloud status, notice, and closed islands", () => {
     expect(cloudStatusLine("offline")).toContain("本机");
+    expect(cloudStatusLine("unsigned")).toContain("未登录");
     expect(cloudStatusLine("cloud")).toContain("已同步");
     expect(harborNotice("  打得越漂亮，鱼越值钱。  ")).toBe(
       "打得越漂亮，鱼越值钱。",
@@ -729,6 +742,8 @@ describe("BoardCopy", () => {
     ).toContain("泡沫湾");
     expect(friendBoardHint(false)).toContain("真机");
     expect(friendBoardHint(true)).toContain("好友榜");
+    expect(friendBoardHint(false, false)).toContain("未登录");
+    expect(friendBoardHint(true, false)).not.toContain("下面是微信好友榜");
   });
 });
 
@@ -737,6 +752,45 @@ describe("IslandPack", () => {
     expect(islandPackName("island_foam_bay")).toBe("island_foam_bay");
     expect(islandPackName("island_tutorial")).toBeUndefined();
     expect(harborSailWait("泡沫湾")).toBe("正在驶向泡沫湾…");
+  });
+
+  it("stays in harbor when a real pack fails, and sails only when ready", () => {
+    expect(decideSailAfterPack(true)).toBe("enter_sea");
+    expect(decideSailAfterPack(false)).toBe("stay_harbor");
+    expect(harborPackFailCopy("泡沫湾")).toContain("港口");
+    expect(harborPackFailCopy("泡沫湾")).toContain("重试");
+  });
+});
+
+describe("WechatSession", () => {
+  it("treats editor and failed login as unsigned, never as signed", () => {
+    expect(resolveLoginCode({ wechatAvailable: false, code: "x" })).toBeNull();
+    expect(
+      resolveLoginCode({ wechatAvailable: true, failed: true, code: "x" }),
+    ).toBeNull();
+    expect(resolveLoginCode({ wechatAvailable: true, code: "  " })).toBeNull();
+    expect(resolveLoginCode({ wechatAvailable: true, code: "wxcode" })).toBe(
+      "wxcode",
+    );
+    expect(
+      wechatSessionKind({ wechatAvailable: false, loginCode: null }),
+    ).toBe("editor");
+    expect(
+      wechatSessionKind({ wechatAvailable: true, loginCode: null }),
+    ).toBe("guest");
+    expect(
+      wechatSessionKind({ wechatAvailable: true, loginCode: "wxcode" }),
+    ).toBe("signed");
+    expect(shouldCallCloud("editor")).toBe(false);
+    expect(shouldCallCloud("guest")).toBe(false);
+    expect(shouldCallCloud("signed")).toBe(true);
+    expect(canShowFriendBoardForSession("guest", true)).toBe(false);
+    expect(canShowFriendBoardForSession("signed", true)).toBe(true);
+    expect(canShowFriendBoardForSession("signed", false)).toBe(false);
+    expect(persistCloudKind("editor", false)).toBe("local");
+    expect(persistCloudKind("guest", false)).toBe("unsigned");
+    expect(persistCloudKind("signed", true)).toBe("cloud");
+    expect(persistCloudKind("signed", false)).toBe("offline");
   });
 });
 

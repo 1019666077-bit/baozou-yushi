@@ -11,7 +11,7 @@
 - `getRemoteConfig`
 - `reportEvents`
 
-不要把云环境ID或真实 AppID 写进仓库；在本机构建配置中填写。`GameBootstrap.wechatCloudEnv` 属于未接线的编辑器实验栈；官方路径由 `RuntimeHome` 调用 `WechatAdapter.initializeCloud()`。
+不要把云环境ID或真实 AppID 写进仓库；在本机构建配置中填写。`GameBootstrap.wechatCloudEnv` 属于未接线的编辑器实验栈。官方路径由 `RuntimeHome` 在隐私授权之后调用 `WechatAdapter.login()` 与 `initializeCloud()`（不传环境 ID，沿用开发者工具当前环境）。登录失败或非微信/编辑器环境不抛错，灰盒继续用本机档；未登录时不打云函数、不挂好友榜。预览与出包见 `docs/LOCAL_PREVIEW.md`。
 
 ## 数据集合
 

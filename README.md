@@ -22,11 +22,13 @@
 
 ## 开发环境
 
-1. 安装 Cocos Creator 3.8.x，用编辑器打开本目录。
+最短预览 / 出包步骤见 `docs/LOCAL_PREVIEW.md`（Creator 预览、web-desktop + playtest-live、微信构建 + postbuild）。
+
+1. 安装 Cocos Creator 3.8.8，用编辑器打开本目录。
 2. 首次打开后由编辑器生成 `library/`、`temp/` 和资源 `.meta` 文件。
 3. 初始场景用 `Boot.scene`（Canvas 即可）。`RuntimeAutoStart` 会挂上 `RuntimeHome`。装配说明见 `docs/SCENE_SETUP.md`。
 4. 构建平台选择“微信小游戏”。`build-config.wechat.json` 里的 AppID 是 Cocos 默认占位，本地构建请换成自己的小游戏 AppID，**不要把真实 AppID 提交进仓库**。
-5. 将 `cloudfunctions/` 目录配置为微信云开发云函数根目录并逐个部署（含 `deleteSave`）。
+5. 将 `cloudfunctions/` 目录配置为微信云开发云函数根目录并逐个部署（含 `deleteSave`）。云环境 ID 同样只写本机，见 `docs/CLOUD_SETUP.md`。
 
 ## 本地验证
 

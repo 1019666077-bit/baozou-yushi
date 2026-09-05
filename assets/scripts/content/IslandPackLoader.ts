@@ -5,6 +5,7 @@ const ready = new Set<string>();
 
 export function ensureIslandPack(islandId: string): Promise<boolean> {
   const name = islandPackName(islandId);
+  // 教学关 island_tutorial 没有真实 bundle：islandPackName 为 undefined，直接成功。
   if (!name) return Promise.resolve(true);
   if (ready.has(name) || assetManager.getBundle(name)) {
     ready.add(name);

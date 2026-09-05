@@ -1,6 +1,10 @@
 import type { PlayerSave } from "../data/types";
 import type { CloudKind } from "../domain/CloudCopy";
 import {
+  persistCloudKind,
+  shouldCallCloud,
+} from "../domain/WechatSession";
+import {
   createDefaultSave,
   mergeSaves,
 } from "../domain/SaveMerge";
@@ -21,15 +25,20 @@ export class SaveService {
 
   async load(): Promise<PlayerSave> {
     this.loadLocal();
+    const session = WechatAdapter.sessionKind();
+    if (!shouldCallCloud(session)) {
+      this.sync = persistCloudKind(session, false);
+      return this.get();
+    }
     try {
       const response = await WechatAdapter.callCloud<{ save: PlayerSave | null }>(
         "loadSave",
       );
       this.current = mergeSaves(this.get(), response.save);
       this.persistLocal();
-      this.sync = "cloud";
+      this.sync = persistCloudKind(session, true);
     } catch {
-      this.sync = WechatAdapter.available ? "offline" : "local";
+      this.sync = persistCloudKind(session, false);
     }
     return this.get();
   }
@@ -41,11 +50,16 @@ export class SaveService {
       updatedAt: Date.now(),
     };
     this.persistLocal();
+    const session = WechatAdapter.sessionKind();
+    if (!shouldCallCloud(session)) {
+      this.sync = persistCloudKind(session, false);
+      return;
+    }
     try {
       await WechatAdapter.callCloud("saveGame", { save: this.current });
-      this.sync = "cloud";
+      this.sync = persistCloudKind(session, true);
     } catch {
-      this.sync = WechatAdapter.available ? "offline" : "local";
+      this.sync = persistCloudKind(session, false);
     }
   }
 
@@ -61,11 +75,16 @@ export class SaveService {
     WechatAdapter.removeLocal(SAVE_KEY);
     this.current = createDefaultSave();
     this.persistLocal();
+    const session = WechatAdapter.sessionKind();
+    if (!shouldCallCloud(session)) {
+      this.sync = persistCloudKind(session, false);
+      return this.get();
+    }
     try {
       await WechatAdapter.callCloud("deleteSave");
-      this.sync = "cloud";
+      this.sync = persistCloudKind(session, true);
     } catch {
-      this.sync = WechatAdapter.available ? "offline" : "local";
+      this.sync = persistCloudKind(session, false);
     }
     return this.get();
   }

@@ -7,6 +7,7 @@ export class LeaderboardService {
     score?: number;
     reasons?: string[];
   }> {
+    if (!WechatAdapter.signedIn) return { ok: false, reasons: ["unsigned"] };
     return WechatAdapter.callCloud("submitScore", { run });
   }
 

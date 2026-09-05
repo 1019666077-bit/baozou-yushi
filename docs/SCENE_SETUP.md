@@ -1,6 +1,6 @@
 # Cocos场景装配
 
-当前环境未安装Cocos Creator，`.scene`序列化文件必须由Creator 3.8编辑器生成，不能用普通JSON稳定伪造。首次打开项目后按下列步骤装配，脚本和配置已经就位。
+当前环境未安装Cocos Creator，`.scene`序列化文件必须由Creator 3.8编辑器生成，不能用普通JSON稳定伪造。首次打开项目后按下列步骤装配，脚本和配置已经就位。最短预览 / 出包见 `docs/LOCAL_PREVIEW.md`。
 
 ## 当前唯一官方运行时
 

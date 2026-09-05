@@ -13,13 +13,14 @@
 - 教学完成前用 `TutorialFlow.harborUnlocks` 锁升级/图鉴/榜。
 - 本地/云存档、删档云函数、远程配置、埋点；成绩只走 `submitScore` + 共用校验。
 - 低配保护、对象池、包体预检、自动数值模拟。
-- 隐私文案与真实采集项对齐；启动路径调用隐私授权 API（非微信环境降级）。
+- 隐私文案与真实采集项对齐；启动路径先隐私授权，再 `wx.login` + 云初始化（非微信/登录失败降级为本机档，不阻断灰盒）。
+- 岛分包加载失败时留在港口并可重试；教学关无真实 bundle，直接成功。
 - 开放数据域以 `wechat-open-data/` 为准。
 - CI：`npm run validate` 与 `npm run simulate`。
 
 ## 需要发行主体或真人完成
 
-- 在Cocos Dashboard登录并安装Creator 3.8.8，然后按场景装配文档确认 `Boot.scene` 的 Canvas。
+- 在Cocos Dashboard登录并安装Creator 3.8.8，然后按 `docs/LOCAL_PREVIEW.md` 预览 `Boot.scene`。
 - 在微信公众平台注册小游戏AppID、云环境和数据库集合，部署全部云函数（含 `deleteSave`）。
 - 用至少4台真机生成体验版测试结果。
 - 招募20–50名真人填写体验表；未达到20条时 `npm run playtest:report` 会主动失败。
