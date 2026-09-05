@@ -27,7 +27,7 @@ node tools/first-run-preview/serve.mjs
 node tools/first-run-preview/playtest.mjs
 ```
 
-截图写到 `reports/first-run-proxy/`（`reports/` 本身不提交）。有界面慢点一遍（给录像用）：
+截图写到 `reports/first-run-proxy/`（`reports/` 本身不提交）。仓库里留了 6 张关键步：`shots/`（**非 Cocos 实机**，仅代理预览）。有界面慢点一遍（给录像用）：
 
 ```bash
 node tools/first-run-preview/playtest-visible.mjs
