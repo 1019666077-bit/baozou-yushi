@@ -155,7 +155,7 @@ function burst(kind, x, y) {
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed + (coin ? 140 : kind === "cast" ? 18 : 8),
       life: 1,
-      maxLife: coin || kind === "catch" ? 0.55 : 0.4,
+      maxLife: coin || kind === "catch" ? 0.4 : 0.3,
       kind: coin ? "coin" : star && i % 2 === 0 ? "star" : "bubble",
       size: coin ? 6 : kind === "catch" ? 8 : kind === "weak" ? 7 : kind === "cast" ? 4 : 5,
     });
@@ -165,9 +165,11 @@ function burst(kind, x, y) {
     y,
     life: 1,
     kind,
-    maxLife: kind === "catch" || kind === "sell" ? 0.22 : kind === "weak" ? 0.2 : 0.12,
+    maxLife: kind === "catch" || kind === "sell" ? 0.16 : kind === "weak" ? 0.14 : 0.1,
   };
-  if (kind === "weak" || kind === "catch" || kind === "sell") shakeLeft = 0.12;
+  if (kind === "weak" || kind === "catch" || kind === "sell") {
+    shakeLeft = COPY.juiceShakeSeconds ?? 0.08;
+  }
 }
 
 function tickParticles(dt) {
@@ -204,7 +206,7 @@ function tickParticles(dt) {
 
 function showCallout(text) {
   callout = text;
-  calloutUntil = performance.now() + 1400;
+  calloutUntil = performance.now() + (COPY.calloutHoldMs ?? 800);
   calloutBorn = performance.now();
 }
 
@@ -547,6 +549,7 @@ function paintGuide(ctx, focus) {
     weakPoint: hooked
       ? { x: 210, y: 20, radius: 96 }
       : COPY.guideAnchors.weakPoint,
+    return: COPY.guideAnchors.return ?? { x: 530, y: 268, r: 78 },
     sell: { x: 0, y: -230, r: 92 },
   }[focus];
   if (!live) return;
@@ -576,7 +579,8 @@ function paintGuide(ctx, focus) {
 function paintJuice(ctx) {
   ctx.clearRect(0, 0, W, H);
   if (shakeLeft > 0) {
-    const mag = 5 * (shakeLeft / 0.12);
+    const dur = COPY.juiceShakeSeconds ?? 0.08;
+    const mag = (COPY.juiceShakePx ?? 3) * (shakeLeft / dur);
     ctx.save();
     ctx.translate((Math.random() - 0.5) * 2 * mag, (Math.random() - 0.5) * 2 * mag);
   }
@@ -612,7 +616,7 @@ function paintJuice(ctx) {
         : "#fff6c8";
     ctx.lineWidth = flash.kind === "weak" ? 9 : 6;
     ctx.beginPath();
-    const grow = flash.kind === "catch" || flash.kind === "sell" ? 64 : flash.kind === "weak" ? 52 : 42;
+    const grow = flash.kind === "catch" || flash.kind === "sell" ? 42 : flash.kind === "weak" ? 28 : 30;
     ctx.arc(sx(flash.x), sy(flash.y), 18 + grow * (1 - flash.life), 0, Math.PI * 2);
     ctx.stroke();
   }
@@ -650,19 +654,24 @@ function renderHarbor() {
     next !== "sail"
       ? COPY.harborPrompts[next === "upgrade" ? "upgrade" : "sell"]
       : complete
-        ? `${COPY.firstRun.headline}。${COPY.firstRun.slogan}`
+        ? COPY.harborGoalAfter ?? COPY.harborPrompts.freeSail
         : COPY.harborPrompts.newSail;
+  const discovery =
+    complete && COPY.firstRun.discovery && statusFlash === COPY.firstRun.discovery
+      ? COPY.firstRun.discovery
+      : "";
   plate(0, 248, 820, 48, !complete);
-  label(statusFlash || line, 20, 0, 248, 1100, rgb(COPY.colors.cream));
-  if (complete && COPY.firstRun.discovery && statusFlash !== COPY.firstRun.discovery) {
-    label(COPY.firstRun.discovery, 24, 0, 206, 720, rgb(COPY.colors.gold));
+  label(discovery ? line : statusFlash || line, 20, 0, 248, 1100, rgb(COPY.colors.cream));
+  if (discovery) {
+    label(discovery, 24, 0, 206, 720, rgb(COPY.colors.gold));
   }
   for (const island of COPY.islands) {
     const selected = complete && island.id === displayIsland;
     const unlocked = island.unlockCost === 0;
-    const caption = unlocked
-      ? `${selected ? "● " : ""}${island.name}`
-      : `${island.name} ${island.unlockCost}`;
+    const caption = complete
+      ? island.chipAfter ??
+        (unlocked ? `${selected ? "● " : ""}${island.name}` : `${island.name} ${island.unlockCost}`)
+      : island.chipNew ?? `${island.name} · 教学后`;
     cta(caption, island.x, 188, COPY.button.chip.width, COPY.button.chip.height, COPY.button.chip.fontSize, "secondary", () => onIsland(island));
   }
   COPY.tools.forEach((tool, index) => {
@@ -899,8 +908,8 @@ function onCrate() {
   burst("catch", COPY.crate.x, COPY.crate.y);
   cratePunchLeft = 0.16;
   playSfx("catch");
-  status = COPY.firstRun.inboxStatus;
-  autoSettleAt = performance.now() + 1800;
+  status = COPY.tutorialPrompts.settle;
+  autoSettleAt = performance.now() + (COPY.settleLeaveAutoMs ?? 4500);
   render();
 }
 
@@ -937,9 +946,9 @@ function confirmSettle() {
   render();
 }
 
-juiceCanvas.addEventListener("click", (event) => {
+stage.addEventListener("click", (event) => {
   if (surface !== "sea" || tutorialStep !== "weakPoint") return;
-  const rect = juiceCanvas.getBoundingClientRect();
+  const rect = stage.getBoundingClientRect();
   const x = ((event.clientX - rect.left) / rect.width) * W;
   if (x > 640) onWeak();
 });

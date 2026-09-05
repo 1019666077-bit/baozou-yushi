@@ -44,9 +44,10 @@ import {
   tutorialGuideRing,
   tutorialGuideTarget,
   tutorialPrompt,
-  tutorialBarButtonTone,
+  battleBarButtonTone,
   battleWaveNarration,
   waveStartNarration,
+  settleLeaveDecision,
   TUTORIAL_ISLAND_ID,
   type TutorialStep,
 } from "./domain/TutorialFlow";
@@ -72,6 +73,7 @@ import { canPickUp, crateDrop } from "./domain/FlopPhysics";
 import { discoveryToast, isFirstCatch } from "./domain/SettleCopy";
 import { depthScale } from "./domain/DepthScale";
 import {
+  calloutHoldMs,
   hitStopSeconds,
   spawnCap,
   shouldVibrate,
@@ -97,6 +99,7 @@ import {
   juicePunchScaleAt,
   juicePunchSeconds,
   juiceShakePx,
+  juiceShakeSeconds,
   popupLiftPx,
   spawnJuice,
   spawnJuiceFlash,
@@ -173,8 +176,11 @@ export class RuntimePrototype extends Component {
   private carriedSince = 0;
   private pickupHintShown = false;
   private carriedHintShown = false;
+  private settleHintShown = false;
+  private lastInputAt = 0;
   private castButton?: Node;
   private reelButton?: Node;
+  private leaveButton?: Node;
   private lastCastTone?: ButtonTone;
   private lastPickTone?: ButtonTone;
   private guide!: Graphics;
@@ -401,12 +407,8 @@ export class RuntimePrototype extends Component {
     juiceNode.parent = this.layer;
     this.juiceGfx = juiceNode.addComponent(Graphics);
 
-    const castTone = this.tutorial
-      ? tutorialBarButtonTone(this.tutorialStep, "cast")
-      : "primary";
-    const pickTone = this.tutorial
-      ? tutorialBarButtonTone(this.tutorialStep, "pickUp")
-      : "primary";
+    const castTone = this.barTone("cast");
+    const pickTone = this.barTone("pickUp");
     this.castButton = makeButton(
       this.layer,
       "抛竿",
@@ -432,7 +434,16 @@ export class RuntimePrototype extends Component {
     this.lastCastTone = castTone;
     this.lastPickTone = pickTone;
     makeButton(this.layer, "暂停", -530, 268, () => this.togglePause(), 150, 56, 22);
-    makeButton(this.layer, "回港", 530, 268, () => this.returnHarbor(), 150, 56, 22);
+    this.leaveButton = makeButton(
+      this.layer,
+      "回港",
+      530,
+      268,
+      () => this.returnHarbor(),
+      150,
+      56,
+      22,
+    );
   }
 
   private spawnFish(config: FishConfig, x: number, y: number, decoy = false): void {
@@ -497,6 +508,7 @@ export class RuntimePrototype extends Component {
   }
 
   private onMoveStart(event: EventTouch): void {
+    this.noteInput();
     if (this.held()) return;
     this.moving = true;
     this.onMove(event);
@@ -504,6 +516,7 @@ export class RuntimePrototype extends Component {
 
   private onMove(event: EventTouch): void {
     if (!this.moving) return;
+    this.noteInput();
     const pos = this.toLayer(event);
     this.moveTarget.set(
       Math.min(-180, Math.max(-540, pos.x)),
@@ -513,6 +526,7 @@ export class RuntimePrototype extends Component {
   }
 
   private onAimStart(event: EventTouch): void {
+    this.noteInput();
     if (this.held()) return;
     this.aiming = true;
     this.aimStartedAt = Date.now();
@@ -616,7 +630,29 @@ export class RuntimePrototype extends Component {
     return tool.levels.find((item) => item.level === level) ?? tool.levels[0];
   }
 
+  private noteInput(): void {
+    this.lastInputAt = Date.now();
+  }
+
+  private recentInputMs(): number {
+    return this.lastInputAt ? Date.now() - this.lastInputAt : Number.POSITIVE_INFINITY;
+  }
+
+  private barTone(button: "cast" | "pickUp") {
+    return battleBarButtonTone(
+      {
+        tutorial: this.tutorial,
+        step: this.tutorialStep,
+        carrying: !!this.carried?.node.active,
+        pickable: !!this.nearestPickable(),
+        hooked: !!this.hooked?.node.active,
+      },
+      button,
+    );
+  }
+
   private cast(): void {
+    this.noteInput();
     if (this.held()) return;
     if (this.hooked) {
       this.setStatus(
@@ -678,6 +714,7 @@ export class RuntimePrototype extends Component {
   }
 
   private fire(): void {
+    this.noteInput();
     if (this.held()) return;
     if (!this.hooked?.node.active) {
       this.setStatus(
@@ -922,6 +959,7 @@ export class RuntimePrototype extends Component {
   }
 
   private pickUp(): void {
+    this.noteInput();
     if (this.held()) return;
     if (this.carried) {
       this.setStatus("已经扛着一条。走到左边鱼箱丢掉。");
@@ -983,16 +1021,14 @@ export class RuntimePrototype extends Component {
     this.cratePunchLeft = juicePunchSeconds("catch", this.lowPower);
     SfxPlayer.play(airborneBag ? "perfect" : "catch");
     const first = isFirstCatch(captured.id, playerSave.get().discoveredFish);
-    this.setStatus(
-      first
-        ? `${discoveryToast(captured.name)} 入箱 ${sold.price}金。`
-        : `${captured.name} ×${sold.styleMultiplier.toFixed(2)} → ${sold.price}金，丢进鱼箱。回港才卖。`,
-    );
     if (this.tutorial) {
       this.enterTutorial("captured");
-      if (first) {
-        this.setStatus(`${discoveryToast(captured.name)} 回港点卖。`);
-      }
+    } else {
+      this.setStatus(
+        first
+          ? `${discoveryToast(captured.name)} 入箱 ${sold.price}金。`
+          : `${captured.name} ×${sold.styleMultiplier.toFixed(2)} → ${sold.price}金，丢进鱼箱。回港才卖。`,
+      );
     }
     if (captured.tier === "boss") {
       this.setStatus("巨鲲入箱。收网回港。");
@@ -1020,6 +1056,7 @@ export class RuntimePrototype extends Component {
   }
 
   private togglePause(): void {
+    this.noteInput();
     if (this.closing || this.resumeLeft > 0) return;
     if (!this.paused) {
       this.paused = true;
@@ -1195,6 +1232,7 @@ export class RuntimePrototype extends Component {
       const action = pickupAssistDecision(
         "carried",
         Date.now() - this.carriedSince,
+        this.recentInputMs(),
       );
       if (action === "hint" && !this.carriedHintShown) {
         this.carriedHintShown = true;
@@ -1215,6 +1253,7 @@ export class RuntimePrototype extends Component {
     const action = pickupAssistDecision(
       "pickable",
       Date.now() - this.pickableSince,
+      this.recentInputMs(),
     );
     if (action === "hint" && !this.pickupHintShown) {
       this.pickupHintShown = true;
@@ -1254,7 +1293,15 @@ export class RuntimePrototype extends Component {
   private tickTutorial(): void {
     if (!this.tutorial || this.tutorialStep === "complete") return;
     if (this.tutorialStep === "settle" && this.settleAt > 0) {
-      if (Date.now() - this.settleAt >= 1_800) {
+      const action = settleLeaveDecision(
+        Date.now() - this.settleAt,
+        this.recentInputMs(),
+      );
+      if (action === "hint" && !this.settleHintShown) {
+        this.settleHintShown = true;
+        this.setStatus(tutorialPrompt("settle"));
+      }
+      if (action === "auto") {
         this.tutorialStep = "complete";
         this.returnHarbor();
       }
@@ -1267,7 +1314,6 @@ export class RuntimePrototype extends Component {
     }
     const near = this.nearestPickable();
     if (near) this.autoPickUp(near);
-    if (this.carried) this.stashCarried();
   }
 
   private enterTutorial(event: "hooked" | "weakHit" | "reelReady" | "captured"): void {
@@ -1275,6 +1321,7 @@ export class RuntimePrototype extends Component {
     this.setStatus(tutorialPrompt(this.tutorialStep));
     if (this.tutorialStep === "settle") {
       this.settleAt = Date.now();
+      this.settleHintShown = false;
       Analytics.track("tutorial_finish", { islandId: TUTORIAL_ISLAND_ID });
     }
   }
@@ -1392,11 +1439,9 @@ export class RuntimePrototype extends Component {
     }
   }
 
-  private syncTutorialButtons(): void {
-    if (!this.tutorial) return;
-    const extras = { carrying: !!this.carried?.node.active };
-    const castTone = tutorialBarButtonTone(this.tutorialStep, "cast", extras);
-    const pickTone = tutorialBarButtonTone(this.tutorialStep, "pickUp", extras);
+  private syncBarButtons(): void {
+    const castTone = this.barTone("cast");
+    const pickTone = this.barTone("pickUp");
     if (this.castButton && castTone !== this.lastCastTone) {
       this.lastCastTone = castTone;
       paintButtonTone(this.castButton, castTone);
@@ -1408,7 +1453,7 @@ export class RuntimePrototype extends Component {
   }
 
   private drawGuide(): void {
-    this.syncTutorialButtons();
+    this.syncBarButtons();
     this.guide.clear();
     if (!this.tutorial) return;
     const focus = tutorialGuideTarget(this.tutorialStep, {
@@ -1419,7 +1464,9 @@ export class RuntimePrototype extends Component {
         ? this.castButton
         : focus === "pickUp"
           ? this.reelButton
-          : undefined;
+          : focus === "return"
+            ? this.leaveButton
+            : undefined;
     const fallback = tutorialGuideAnchor(focus);
     const hooked = this.hooked?.node?.position;
     const x = live
@@ -1439,6 +1486,7 @@ export class RuntimePrototype extends Component {
   }
 
   private returnHarbor(): void {
+    this.noteInput();
     if (this.closing) return;
     if (this.tutorial && !tutorialCanLeave(this.tutorialStep)) {
       this.setStatus("先抛竿、打中、入箱，再回港卖。");
@@ -1527,7 +1575,7 @@ export class RuntimePrototype extends Component {
     const shake = juiceShakePx(kind, this.lowPower);
     if (shake > 0) {
       this.shakePx = shake;
-      this.shakeLeft = 0.12;
+      this.shakeLeft = juiceShakeSeconds(this.lowPower);
     }
     this.drawJuiceFx();
   }
@@ -1618,7 +1666,8 @@ export class RuntimePrototype extends Component {
       return;
     }
     this.shakeLeft = Math.max(0, this.shakeLeft - dt);
-    const mag = this.shakePx * (this.shakeLeft / 0.12);
+    const shakeDur = juiceShakeSeconds(this.lowPower) || 0.08;
+    const mag = this.shakePx * (this.shakeLeft / shakeDur);
     this.layer.setPosition((Math.random() - 0.5) * 2 * mag, (Math.random() - 0.5) * 2 * mag, 0);
   }
 
@@ -1631,7 +1680,7 @@ export class RuntimePrototype extends Component {
   private showCallout(value: string): void {
     if (!this.callout) return;
     this.callout.string = value;
-    this.calloutUntil = Date.now() + 1_400;
+    this.calloutUntil = Date.now() + calloutHoldMs();
     this.callout.node.setPosition(0, this.calloutBaseY);
   }
 

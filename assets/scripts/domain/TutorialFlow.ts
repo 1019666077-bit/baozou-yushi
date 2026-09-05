@@ -14,7 +14,13 @@ export type TutorialEvent =
   | "reelReady"
   | "captured";
 
-export type TutorialGuideTarget = "cast" | "weakPoint" | "pickUp" | "crate" | "none";
+export type TutorialGuideTarget =
+  | "cast"
+  | "weakPoint"
+  | "pickUp"
+  | "crate"
+  | "return"
+  | "none";
 
 export type HarborFeature = "upgrade" | "book" | "board";
 
@@ -40,7 +46,7 @@ export function tutorialPrompt(
     if (extras.carrying) return "走到左边鱼箱，丢掉入箱。";
     return "点「捡起」，搬进左边鱼箱。";
   }
-  return "入箱了！回港点卖，换成金币。";
+  return "入箱了！点右上「回港」，去卖换成金币。";
 }
 
 export function tutorialGuideTarget(
@@ -50,7 +56,7 @@ export function tutorialGuideTarget(
   if (step === "cast") return "cast";
   if (step === "weakPoint") return "weakPoint";
   if (step === "reel") return extras.carrying ? "crate" : "pickUp";
-  if (step === "settle") return "crate";
+  if (step === "settle") return "return";
   return "none";
 }
 
@@ -60,6 +66,9 @@ export const TUTORIAL_CRATE_Y = CRATE_Y;
 /** 弱点步没有按钮时，圈右半屏瞄准区。 */
 export const TUTORIAL_WEAK_HINT_X = 260;
 export const TUTORIAL_WEAK_HINT_Y = 36;
+/** 入箱后圈右上「回港」，与 RuntimePrototype 回港钮一致。 */
+export const TUTORIAL_RETURN_X = 530;
+export const TUTORIAL_RETURN_Y = 268;
 
 export function tutorialGuideAnchor(target: TutorialGuideTarget): {
   x: number;
@@ -71,6 +80,9 @@ export function tutorialGuideAnchor(target: TutorialGuideTarget): {
   }
   if (target === "weakPoint") {
     return { x: TUTORIAL_WEAK_HINT_X, y: TUTORIAL_WEAK_HINT_Y, radius: 96 };
+  }
+  if (target === "return") {
+    return { x: TUTORIAL_RETURN_X, y: TUTORIAL_RETURN_Y, radius: 78 };
   }
   return undefined;
 }
@@ -120,7 +132,7 @@ export function battleWaveNarration(
   return waveLine;
 }
 
-/** 当前教学步对应的底栏钮才用 primary；弱点/鱼箱步两个都 secondary。 */
+/** 当前教学步对应的底栏钮才用 primary；弱点/鱼箱/回港步两个都 secondary。 */
 export function tutorialBarButtonTone(
   step: TutorialStep,
   button: "cast" | "pickUp",
@@ -129,6 +141,28 @@ export function tutorialBarButtonTone(
   const focus = tutorialGuideTarget(step, extras);
   if (button === "cast") return focus === "cast" ? "primary" : "secondary";
   return focus === "pickUp" ? "primary" : "secondary";
+}
+
+/** 自由局也只亮一个主橙：空闲抛竿、可捡则捡起、扛鱼/锁鱼都降权。 */
+export function battleBarButtonTone(
+  input: {
+    tutorial: boolean;
+    step: TutorialStep;
+    carrying?: boolean;
+    pickable?: boolean;
+    hooked?: boolean;
+  },
+  button: "cast" | "pickUp",
+): ButtonTone {
+  if (input.tutorial) {
+    return tutorialBarButtonTone(input.step, button, {
+      carrying: input.carrying,
+    });
+  }
+  if (input.carrying) return "secondary";
+  if (input.pickable) return button === "pickUp" ? "primary" : "secondary";
+  if (input.hooked) return "secondary";
+  return button === "cast" ? "primary" : "secondary";
 }
 
 export function canAffordNextUpgrade(
@@ -171,6 +205,46 @@ export function harborNextPrompt(
   return "点「出海捕鱼」，再甩一竿。";
 }
 
+/** 卖完回港：买得起升级就指升级，否则指再出海攒差价。不灌金币。 */
+export function harborGoalPrompt(input: {
+  tutorialComplete: boolean;
+  completedRuns: number;
+  coins: number;
+  nextUpgradeCost?: number;
+  upgradeUnlocked?: boolean;
+  pendingSell?: boolean;
+}): string {
+  const cta = harborNextCta({
+    tutorialComplete: input.tutorialComplete,
+    completedRuns: input.completedRuns,
+    pendingSell: input.pendingSell === true,
+    upgradeUnlocked: input.upgradeUnlocked === true,
+    coins: input.coins,
+    nextUpgradeCost: input.nextUpgradeCost,
+  });
+  if (cta !== "sail") return harborNextPrompt(cta, input.tutorialComplete);
+  if (
+    input.tutorialComplete &&
+    input.nextUpgradeCost != null &&
+    input.coins < input.nextUpgradeCost
+  ) {
+    return `再出海攒金。升级还差 ${input.nextUpgradeCost - input.coins}。`;
+  }
+  return harborNextPrompt("sail", input.tutorialComplete);
+}
+
+export function harborIslandChipCaption(input: {
+  name: string;
+  unlockCost: number;
+  unlocked: boolean;
+  selected: boolean;
+  tutorialComplete: boolean;
+}): string {
+  if (!input.tutorialComplete) return `${input.name} · 教学后`;
+  if (input.unlocked) return `${input.selected ? "● " : ""}${input.name}`;
+  return `${input.name} ${input.unlockCost}`;
+}
+
 export function advanceTutorial(
   step: TutorialStep,
   event: TutorialEvent,
@@ -194,12 +268,17 @@ export function shouldAutoReel(
   return reelReadyForMs >= 8_000 || battleMs >= 55_000;
 }
 
-/** 砸晕可捡后，先提示再自动捡起，避免卡在甲板上。 */
-export const PICKABLE_HINT_MS = 8_000;
+/** 砸晕可捡后：先短提示，再兜底；玩家刚点过则不抢。 */
+export const PICKABLE_HINT_MS = 4_000;
 export const PICKABLE_AUTO_MS = 10_000;
-/** 已扛起但未走到鱼箱时，先提示再自动入箱。 */
-export const CARRIED_HINT_MS = 8_000;
+/** 已扛起但未走到鱼箱时：先提示再自动入箱。 */
+export const CARRIED_HINT_MS = 4_000;
 export const CARRIED_AUTO_MS = 10_000;
+/** 入箱后提醒回港，再兜底进结算。 */
+export const SETTLE_LEAVE_HINT_MS = 800;
+export const SETTLE_LEAVE_AUTO_MS = 4_500;
+/** 刚点过按钮 / 正在拖船时，自动捡起/入箱让路。 */
+export const INPUT_GRACE_MS = 500;
 
 export type PickupAssistKind = "pickable" | "carried";
 export type PickupAssistAction = "none" | "hint" | "auto";
@@ -207,11 +286,25 @@ export type PickupAssistAction = "none" | "hint" | "auto";
 export function pickupAssistDecision(
   kind: PickupAssistKind,
   elapsedMs: number,
+  recentInputMs = Number.POSITIVE_INFINITY,
 ): PickupAssistAction {
   const hintMs = kind === "carried" ? CARRIED_HINT_MS : PICKABLE_HINT_MS;
   const autoMs = kind === "carried" ? CARRIED_AUTO_MS : PICKABLE_AUTO_MS;
-  if (elapsedMs >= autoMs) return "auto";
+  if (elapsedMs >= autoMs) {
+    return recentInputMs < INPUT_GRACE_MS ? "hint" : "auto";
+  }
   if (elapsedMs >= hintMs) return "hint";
+  return "none";
+}
+
+export function settleLeaveDecision(
+  elapsedMs: number,
+  recentInputMs = Number.POSITIVE_INFINITY,
+): PickupAssistAction {
+  if (elapsedMs >= SETTLE_LEAVE_AUTO_MS) {
+    return recentInputMs < INPUT_GRACE_MS ? "hint" : "auto";
+  }
+  if (elapsedMs >= SETTLE_LEAVE_HINT_MS) return "hint";
   return "none";
 }
 

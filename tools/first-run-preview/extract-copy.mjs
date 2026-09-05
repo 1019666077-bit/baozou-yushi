@@ -117,6 +117,10 @@ function snapshot() {
     stunnedPick: "砸晕了！点捡起，搬去左边鱼箱。",
     leaveBlocked: "先抛竿、打中、入箱，再回港卖。",
     islandLock: "先完成练潮码头教学，再自由选岛。",
+    settleLeaveAutoMs: TutorialFlow.SETTLE_LEAVE_AUTO_MS,
+    calloutHoldMs: GameFeel.calloutHoldMs(),
+    juiceShakePx: HitJuice.juiceShakePx("weak", false),
+    juiceShakeSeconds: HitJuice.juiceShakeSeconds(false),
     bookLockNew: TutorialFlow.harborFeatureLockedHint("book", newSave),
     boardLockNew: TutorialFlow.harborFeatureLockedHint("board", newSave),
     upgradeLockNew: TutorialFlow.harborFeatureLockedHint("upgrade", newSave),
@@ -209,6 +213,13 @@ function snapshot() {
       coins: after.coins,
       nextUpgradeCost: nextRod?.upgradeCost,
     }),
+    harborGoalAfter: TutorialFlow.harborGoalPrompt({
+      tutorialComplete: after.tutorialComplete,
+      completedRuns: after.completedRuns,
+      coins: after.coins,
+      nextUpgradeCost: nextRod?.upgradeCost,
+      upgradeUnlocked: true,
+    }),
     looks: {
       harbor: GrayLook.islandLook("island_foam_bay", true),
       tutorial: GrayLook.islandLook(TutorialFlow.TUTORIAL_ISLAND_ID),
@@ -224,6 +235,20 @@ function snapshot() {
         name: island.name,
         unlockCost: island.unlockCost,
         x: GrayLook.harborIslandX(id),
+        chipNew: TutorialFlow.harborIslandChipCaption({
+          name: island.name,
+          unlockCost: island.unlockCost,
+          unlocked: defaultSave.unlockedIslands.includes(id),
+          selected: false,
+          tutorialComplete: false,
+        }),
+        chipAfter: TutorialFlow.harborIslandChipCaption({
+          name: island.name,
+          unlockCost: island.unlockCost,
+          unlocked: after.unlockedIslands.includes(id),
+          selected: id === foam.id,
+          tutorialComplete: after.tutorialComplete,
+        }),
       };
     }),
     tools: tools.map((tool) => ({
@@ -293,6 +318,7 @@ function snapshot() {
     guideAnchors: {
       crate: TutorialFlow.tutorialGuideAnchor("crate"),
       weakPoint: TutorialFlow.tutorialGuideAnchor("weakPoint"),
+      return: TutorialFlow.tutorialGuideAnchor("return"),
     },
     guideRing: TutorialFlow.tutorialGuideRing(0),
     juiceCount: {

@@ -8,7 +8,8 @@
 - 主 CTA 暖橙、次要深青，色板/圆角/描边取自 `GameFeel`（与 RuntimeHome/Prototype 共用）。
 - 命中/入箱/卖出跳字取自 `StyleCallout`；粒子、线闪、金币雨取自 `HitJuice`。
 - 教学旁白用 `battleWaveNarration`，不被潮汐句盖住；底栏主橙只给当前步。
-- 买不起升级不抢港口主 CTA（与 `harborNextCta` 一致）。
+- 买不起升级不抢港口主 CTA（与 `harborNextCta` 一致）；卖完旁白指再出海攒差价。
+- 入箱后圈「回港」，教学选岛写「教学后」；超时先提示再兜底。
 - 不是微信真机，也不是 Cocos 预览。甲板扑腾、瞄准手感、音效震动都不在这里。
 
 ## 怎么开

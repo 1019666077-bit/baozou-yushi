@@ -17,6 +17,7 @@
 - 岛分包加载失败时留在港口并可重试；教学关无真实 bundle，直接成功。
 - 开放数据域以 `wechat-open-data/` 为准。
 - CI：`npm run validate` 与 `npm run simulate`。
+- 第一局体验代理与 `tools/first-run-preview/shots/` **不是** Cocos 实机证据。
 
 ## 需要发行主体或真人完成
 

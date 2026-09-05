@@ -547,26 +547,27 @@ export function drawJuice(
     const alpha = Math.max(0, Math.round(210 * flash.life));
     const grow =
       flash.kind === "catch" || flash.kind === "perfect" || flash.kind === "sell"
-        ? 64
+        ? 42
         : flash.kind === "weak"
-          ? 52
-          : 42;
+          ? 28
+          : 30;
     const r = 18 + grow * (1 - flash.life);
     g.strokeColor = new Color(255, 236, 120, alpha);
     g.lineWidth =
       flash.kind === "weak" || flash.kind === "perfect"
-        ? 9
+        ? 6
         : flash.kind === "catch" || flash.kind === "sell"
-          ? 8
-          : 6;
+          ? 6
+          : 5;
     g.circle(flash.x, flash.y, r);
     g.stroke();
+    const cover = flash.kind === "weak" ? 0.18 : 0.32;
     fillCircle(
       g,
       flash.x,
       flash.y,
-      r * 0.42,
-      new Color(255, 250, 200, Math.round(80 * flash.life)),
+      r * cover,
+      new Color(255, 250, 200, Math.round((flash.kind === "weak" ? 36 : 64) * flash.life)),
     );
   }
   for (const particle of particles) {

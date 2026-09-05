@@ -89,6 +89,7 @@ try {
   note(harborText.includes("练潮码头"), "出航行是练潮码头");
   note(!harborText.includes("● 泡沫湾"), "教学前不假装选中泡沫湾");
   note(harborText.includes("教学后图鉴"), "图鉴锁定");
+  note(harborText.includes("教学后"), "选岛/图鉴在教学前标明教学后");
 
   note(await tap(page, "教学后图鉴"), "点锁定图鉴");
   await wait(200);
@@ -143,8 +144,10 @@ try {
   await shot(page, "06-tutorial-inbox");
   const inboxText = await page.evaluate(() => document.body.innerText);
   note(inboxText.includes("入箱"), "入箱跳字或旁白");
+  note(inboxText.includes("回港"), "入箱后指向回港");
 
-  await wait(1900);
+  note(await tap(page, "回港"), "入箱后点回港");
+  await wait(280);
   await shot(page, "07-settle-sell");
   const settleText = await page.evaluate(() => document.body.innerText);
   note(settleText.includes("潮汐鱼市结算"), "结算页");
@@ -162,6 +165,8 @@ try {
   note(after.includes("再出1局后图鉴"), "图鉴仍锁到第二局");
   note(after.includes("+") && after.includes("金"), "金币跳字");
   note(after.includes("图鉴新纪录") || after.includes("卖出"), "卖出/图鉴新纪录反馈");
+  note(after.includes("再出海") || after.includes("还差"), "卖完指向再出海攒升级");
+  note(!after.includes("泡沫湾 · 教学后"), "教学后选岛不再写教学后");
 
   note(await tap(page, "升级弹力鱼竿"), "点升级（首局金币不够）");
   await wait(200);

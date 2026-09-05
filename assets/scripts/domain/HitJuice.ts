@@ -22,13 +22,13 @@ export interface JuiceParticle {
 
 export function juiceCount(kind: JuiceKind, lowPower: boolean): number {
   if (kind === "cast") return lowPower ? 2 : 4;
-  if (kind === "gold" || kind === "sell") return lowPower ? 6 : 12;
+  if (kind === "gold" || kind === "sell") return lowPower ? 6 : 10;
   if (lowPower) return kind === "miss" ? 2 : 3;
   if (kind === "miss") return 4;
-  if (kind === "splash") return 16;
+  if (kind === "splash") return 8;
   if (kind === "hit") return 7;
-  if (kind === "catch") return 8;
-  return 11;
+  if (kind === "catch") return 6;
+  return 7;
 }
 
 export function spawnJuice(
@@ -75,7 +75,7 @@ export function spawnJuice(
       vy: Math.sin(angle) * speed + up,
       life: 1,
       maxLife:
-        kind === "perfect" || kind === "splash" || coin ? 0.55 : 0.4,
+        kind === "perfect" || coin ? 0.4 : kind === "splash" ? 0.28 : 0.32,
       kind: coin ? "coin" : star && i % 2 === 0 ? "star" : "bubble",
       size:
         kind === "splash"
@@ -103,9 +103,13 @@ export interface JuiceFlash {
 
 export function juiceShakePx(kind: JuiceKind, lowPower: boolean): number {
   if (lowPower) return 0;
-  if (kind === "weak" || kind === "perfect") return 6;
-  if (kind === "hit" || kind === "catch") return 4;
+  if (kind === "weak" || kind === "perfect") return 3;
+  if (kind === "hit" || kind === "catch") return 2;
   return 0;
+}
+
+export function juiceShakeSeconds(lowPower: boolean): number {
+  return lowPower ? 0 : 0.08;
 }
 
 export function juiceWantsPunch(kind: JuiceKind, lowPower: boolean): boolean {
@@ -162,10 +166,10 @@ export function spawnJuiceFlash(
   }
   const maxLife =
     kind === "catch" || kind === "perfect" || kind === "sell"
-      ? 0.22
+      ? 0.16
       : kind === "weak"
-        ? 0.2
-        : 0.12;
+        ? 0.14
+        : 0.1;
   return {
     x,
     y,
@@ -188,10 +192,10 @@ export function tickJuiceFlash(
 export function juiceFlashRadius(flash: JuiceFlash): number {
   const grow =
     flash.kind === "catch" || flash.kind === "perfect" || flash.kind === "sell"
-      ? 64
+      ? 42
       : flash.kind === "weak"
-        ? 52
-        : 42;
+        ? 28
+        : 30;
   return 18 + grow * (1 - flash.life);
 }
 

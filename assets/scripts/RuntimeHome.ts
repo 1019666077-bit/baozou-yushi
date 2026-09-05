@@ -82,6 +82,8 @@ import {
   harborChipSelected,
   harborFeatureButtonLabel,
   harborFeatureLockedHint,
+  harborGoalPrompt,
+  harborIslandChipCaption,
   harborNextCta,
   harborNextPrompt,
   harborSailCaption,
@@ -223,25 +225,38 @@ export class RuntimeHome extends Component {
       coins: save.coins,
       nextUpgradeCost: nextLevel?.upgradeCost,
     });
+    const goal = harborGoalPrompt({
+      tutorialComplete: save.tutorialComplete,
+      completedRuns: save.completedRuns,
+      coins: save.coins,
+      nextUpgradeCost: nextLevel?.upgradeCost,
+      upgradeUnlocked: unlocks.upgrade,
+    });
+    const discoveryFlash =
+      this.statusFlash && this.justDiscovered.length > 0
+        ? this.statusFlash
+        : undefined;
     makePlate(layer, 0, 248, !save.tutorialComplete, 820, 48);
     this.status = makeLabel(
       layer,
-      this.statusFlash ??
-        (nextCta !== "sail"
-          ? harborNextPrompt(nextCta, save.tutorialComplete)
-          : this.lastSummary
-            ? `${settleHeadline(this.lastSummary)}。${settleSlogan(this.lastSummary)}`
-            : save.tutorialComplete
-              ? harborNotice(ConfigService.remoteConfig().notice)
-              : harborNextPrompt("sail", false)),
+      discoveryFlash
+        ? goal
+        : (this.statusFlash ??
+          (nextCta !== "sail"
+            ? harborNextPrompt(nextCta, save.tutorialComplete)
+            : this.lastSummary
+              ? goal
+              : save.tutorialComplete
+                ? harborNotice(ConfigService.remoteConfig().notice)
+                : harborNextPrompt("sail", false))),
       20,
       0,
       248,
     );
     this.status.color = new Color(255, 252, 236, 255);
-    if (this.statusFlash && this.justDiscovered.length > 0) {
+    if (discoveryFlash) {
       this.discoveryLabel = tintGold(
-        makeLabel(layer, this.statusFlash, 24, 0, 206, 720),
+        makeLabel(layer, discoveryFlash, 24, 0, 206, 720),
       );
     } else {
       this.discoveryLabel = undefined;
@@ -260,9 +275,13 @@ export class RuntimeHome extends Component {
       const closed = islandClosed(island.id, closedIds);
       const caption = closed
         ? closedIslandCaption(island.name)
-        : unlocked
-          ? `${selected ? "● " : ""}${island.name}`
-          : `${island.name} ${island.unlockCost}`;
+        : harborIslandChipCaption({
+            name: island.name,
+            unlockCost: island.unlockCost,
+            unlocked,
+            selected,
+            tutorialComplete: save.tutorialComplete,
+          });
       makeButton(
         layer,
         caption,

@@ -70,6 +70,7 @@ import {
   juicePunchScaleAt,
   juicePunchSeconds,
   juiceShakePx,
+  juiceShakeSeconds,
   juiceWantsPunch,
   spawnJuiceFlash,
   tickJuiceFlash,
@@ -109,6 +110,7 @@ import {
   buttonStrokeWidth,
   coinJumpAlpha,
   coinJumpLiftPx,
+  calloutHoldMs,
   coinJumpSeconds,
   creamInkRgb,
   feelPalette,
@@ -180,6 +182,10 @@ import {
   PICKABLE_HINT_MS,
   CARRIED_AUTO_MS,
   CARRIED_HINT_MS,
+  SETTLE_LEAVE_AUTO_MS,
+  SETTLE_LEAVE_HINT_MS,
+  INPUT_GRACE_MS,
+  settleLeaveDecision,
   resolveHarborIsland,
   shouldAutoReel,
   tutorialCanLeave,
@@ -188,12 +194,15 @@ import {
   tutorialGuideTarget,
   tutorialPrompt,
   tutorialBarButtonTone,
+  battleBarButtonTone,
   tutorialLessonActive,
   battleWaveNarration,
   waveStartNarration,
   canAffordNextUpgrade,
   harborNextCta,
   harborNextPrompt,
+  harborGoalPrompt,
+  harborIslandChipCaption,
 } from "../assets/scripts/domain/TutorialFlow";
 import { sfxTone, shouldPlaySfx } from "../assets/scripts/domain/SfxFeel";
 import { existsSync } from "node:fs";
@@ -741,7 +750,7 @@ describe("GameFeel", () => {
 describe("HitJuice", () => {
   it("spawns fewer bubbles on low power and fades them out", () => {
     expect(juiceCount("weak", true)).toBe(3);
-    expect(juiceCount("weak", false)).toBe(11);
+    expect(juiceCount("weak", false)).toBe(7);
     const burst = spawnJuice("weak", 10, 20);
     expect(burst.some((p) => p.kind === "star")).toBe(true);
     expect(burst[0].x).toBe(10);
@@ -750,7 +759,7 @@ describe("HitJuice", () => {
     const mid = tickJuice(spawnJuice("hit", 0, 0), 0.1);
     expect(mid.length).toBe(juiceCount("hit", false));
     expect(mid[0].life).toBeLessThan(1);
-    expect(juiceCount("splash", false)).toBe(16);
+    expect(juiceCount("splash", false)).toBe(8);
     expect(spawnJuice("splash", 0, 0).every((p) => p.kind === "bubble")).toBe(true);
     expect(juiceWantsPunch("weak", false)).toBe(true);
     expect(juiceWantsPunch("hit", true)).toBe(false);
@@ -760,6 +769,8 @@ describe("HitJuice", () => {
     expect(juicePunchScaleAt("weak", 0.05, false)).toBeGreaterThan(1);
     expect(juicePunchScaleAt("hit", 0, true)).toBe(1);
     expect(juiceShakePx("weak", false)).toBeGreaterThan(0);
+    expect(juiceShakePx("weak", false)).toBeLessThanOrEqual(3);
+    expect(juiceShakeSeconds(false)).toBeLessThanOrEqual(0.08);
     expect(juiceShakePx("hit", true)).toBe(0);
     const flash = spawnJuiceFlash("catch", 8, 12, false);
     expect(flash?.kind).toBe("catch");
@@ -789,7 +800,7 @@ describe("HitJuice", () => {
   });
 
   it("rains gold on sell and bounces the crate on catch", () => {
-    expect(juiceCount("gold", false)).toBe(12);
+    expect(juiceCount("gold", false)).toBe(10);
     expect(juiceCount("gold", true)).toBe(6);
     expect(spawnGoldRain(10, 20).every((p) => p.kind === "coin")).toBe(true);
     expect(spawnJuiceFlash("sell", 0, 0, false)?.kind).toBe("sell");
@@ -1028,7 +1039,9 @@ describe("TutorialFlow", () => {
     expect(tutorialGuideTarget("reel")).toBe("pickUp");
     expect(tutorialGuideTarget("reel", { carrying: true })).toBe("crate");
     expect(tutorialGuideTarget("weakPoint")).toBe("weakPoint");
-    expect(tutorialGuideTarget("settle")).toBe("crate");
+    expect(tutorialGuideTarget("settle")).toBe("return");
+    expect(tutorialPrompt("settle")).toContain("回港");
+    expect(tutorialGuideAnchor("return")?.x).toBe(530);
     expect(tutorialCanLeave("cast")).toBe(false);
     expect(tutorialCanLeave("reel")).toBe(false);
     expect(tutorialCanLeave("settle")).toBe(true);
@@ -1077,6 +1090,36 @@ describe("TutorialFlow", () => {
     );
     expect(tutorialBarButtonTone("settle", "cast")).toBe("secondary");
     expect(tutorialBarButtonTone("settle", "pickUp")).toBe("secondary");
+    expect(
+      battleBarButtonTone(
+        { tutorial: false, step: "complete", pickable: false, hooked: false },
+        "cast",
+      ),
+    ).toBe("primary");
+    expect(
+      battleBarButtonTone(
+        { tutorial: false, step: "complete", pickable: false, hooked: false },
+        "pickUp",
+      ),
+    ).toBe("secondary");
+    expect(
+      battleBarButtonTone(
+        { tutorial: false, step: "complete", pickable: true },
+        "pickUp",
+      ),
+    ).toBe("primary");
+    expect(
+      battleBarButtonTone(
+        { tutorial: false, step: "complete", carrying: true, pickable: true },
+        "pickUp",
+      ),
+    ).toBe("secondary");
+    expect(
+      battleBarButtonTone(
+        { tutorial: false, step: "complete", hooked: true },
+        "cast",
+      ),
+    ).toBe("secondary");
   });
 
   it("points the harbor to sail, sell, then upgrade after the first sale", () => {
@@ -1130,7 +1173,9 @@ describe("TutorialFlow", () => {
     expect(plateSize().width).toBeGreaterThan(700);
     expect(plateFillRgba(true)[3]).toBeGreaterThan(plateFillRgba(false)[3]);
     expect(creamInkRgb()[0]).toBe(255);
-    expect(coinJumpSeconds()).toBeGreaterThan(1);
+    expect(coinJumpSeconds()).toBeGreaterThan(0.6);
+    expect(coinJumpSeconds()).toBeLessThan(1);
+    expect(calloutHoldMs()).toBeLessThan(1000);
     expect(coinJumpLiftPx(0.4)).toBeGreaterThan(10);
     expect(coinJumpAlpha(0.1)).toBeGreaterThan(coinJumpAlpha(1));
     expect(sellPunchSeconds(false)).toBeGreaterThan(sellPunchSeconds(true));
@@ -1159,6 +1204,81 @@ describe("TutorialFlow", () => {
       }),
     ).toBe("sail");
     expect(harborSailCaption(true)).toBe("出海捕鱼");
+    expect(
+      harborGoalPrompt({
+        tutorialComplete: true,
+        completedRuns: 1,
+        coins: 11,
+        nextUpgradeCost: 90,
+        upgradeUnlocked: true,
+      }),
+    ).toBe("再出海攒金。升级还差 79。");
+    expect(
+      harborGoalPrompt({
+        tutorialComplete: true,
+        completedRuns: 1,
+        coins: 90,
+        nextUpgradeCost: 90,
+        upgradeUnlocked: true,
+      }),
+    ).toContain("升级");
+    expect(
+      harborIslandChipCaption({
+        name: "泡沫湾",
+        unlockCost: 0,
+        unlocked: true,
+        selected: false,
+        tutorialComplete: false,
+      }),
+    ).toBe("泡沫湾 · 教学后");
+    expect(
+      harborIslandChipCaption({
+        name: "泡沫湾",
+        unlockCost: 0,
+        unlocked: true,
+        selected: true,
+        tutorialComplete: true,
+      }),
+    ).toBe("● 泡沫湾");
+    expect(
+      harborIslandChipCaption({
+        name: "棱光礁",
+        unlockCost: 240,
+        unlocked: false,
+        selected: false,
+        tutorialComplete: true,
+      }),
+    ).toBe("棱光礁 240");
+  });
+
+  it("keeps the first tutorial sale below the first rod upgrade so sail stays the goal", () => {
+    const firstSale = PriceCalculator.calculate(
+      { basePrice: 8, rarityMultiplier: 1 },
+      1,
+      1.34,
+    ).total;
+    const firstUpgrade = 90;
+    expect(firstSale).toBeGreaterThan(0);
+    expect(firstSale).toBeLessThan(firstUpgrade);
+    expect(
+      harborNextCta({
+        tutorialComplete: true,
+        completedRuns: 1,
+        pendingSell: false,
+        upgradeUnlocked: true,
+        coins: firstSale,
+        nextUpgradeCost: firstUpgrade,
+      }),
+    ).toBe("sail");
+    expect(
+      harborGoalPrompt({
+        tutorialComplete: true,
+        completedRuns: 1,
+        coins: firstSale,
+        nextUpgradeCost: firstUpgrade,
+        upgradeUnlocked: true,
+      }),
+    ).toMatch(/再出海|还差/);
   });
 
   it("locks harbor upgrade/book/board until the tutorial is finished", () => {
@@ -1206,22 +1326,36 @@ describe("TutorialFlow", () => {
     ).toBe("图鉴");
   });
 
-  it("hints then auto-picks a stunned fish after 8–10 seconds", () => {
+  it("hints then auto-picks a stunned fish after 4–10 seconds", () => {
     expect(pickupAssistDecision("pickable", PICKABLE_HINT_MS - 1)).toBe("none");
     expect(pickupAssistDecision("pickable", PICKABLE_HINT_MS)).toBe("hint");
     expect(pickupAssistDecision("pickable", PICKABLE_AUTO_MS - 1)).toBe("hint");
     expect(pickupAssistDecision("pickable", PICKABLE_AUTO_MS)).toBe("auto");
-    expect(PICKABLE_AUTO_MS).toBeGreaterThanOrEqual(8_000);
+    expect(pickupAssistDecision("pickable", PICKABLE_AUTO_MS, 100)).toBe("hint");
+    expect(PICKABLE_HINT_MS).toBeLessThan(PICKABLE_AUTO_MS);
+    expect(PICKABLE_AUTO_MS - PICKABLE_HINT_MS).toBeGreaterThanOrEqual(4_000);
     expect(PICKABLE_AUTO_MS).toBeLessThanOrEqual(12_000);
+    expect(INPUT_GRACE_MS).toBeLessThan(1_000);
   });
 
-  it("hints then auto-stashes a carried fish after 8–10 seconds", () => {
+  it("hints then auto-stashes a carried fish after 4–10 seconds", () => {
     expect(pickupAssistDecision("carried", CARRIED_HINT_MS - 1)).toBe("none");
     expect(pickupAssistDecision("carried", CARRIED_HINT_MS)).toBe("hint");
     expect(pickupAssistDecision("carried", CARRIED_AUTO_MS - 1)).toBe("hint");
     expect(pickupAssistDecision("carried", CARRIED_AUTO_MS)).toBe("auto");
+    expect(pickupAssistDecision("carried", CARRIED_AUTO_MS, 80)).toBe("hint");
     expect(CARRIED_AUTO_MS).toBeGreaterThanOrEqual(8_000);
     expect(CARRIED_AUTO_MS).toBeLessThanOrEqual(12_000);
+  });
+
+  it("hints then auto-leaves after inbox without stealing a fresh tap", () => {
+    expect(settleLeaveDecision(SETTLE_LEAVE_HINT_MS - 1)).toBe("none");
+    expect(settleLeaveDecision(SETTLE_LEAVE_HINT_MS)).toBe("hint");
+    expect(settleLeaveDecision(SETTLE_LEAVE_AUTO_MS - 1)).toBe("hint");
+    expect(settleLeaveDecision(SETTLE_LEAVE_AUTO_MS)).toBe("auto");
+    expect(settleLeaveDecision(SETTLE_LEAVE_AUTO_MS, 120)).toBe("hint");
+    expect(SETTLE_LEAVE_AUTO_MS).toBeGreaterThan(3_000);
+    expect(SETTLE_LEAVE_AUTO_MS).toBeLessThan(6_000);
   });
 
   it("keeps the 55s tutorial battle fallback without treating a fresh stun as ready", () => {

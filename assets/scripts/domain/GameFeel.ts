@@ -90,7 +90,12 @@ export function plateSize(): { width: number; height: number; radius: number } {
 }
 
 export function coinJumpSeconds(): number {
-  return 1.15;
+  return 0.85;
+}
+
+/** 命中/入箱跳字停留，短到不挡下一步点击。 */
+export function calloutHoldMs(): number {
+  return 800;
 }
 
 export function coinJumpLiftPx(elapsed: number, duration = coinJumpSeconds()): number {
