@@ -1115,20 +1115,29 @@ function paintJuice(ctx) {
   if (slamMark > 0) {
     const deckY = flopFeel().deckY ?? -118;
     const x = flopBody ? flopBody.x : fishX;
+    const cx = sx(x);
+    const cy = sy(deckY + 8);
     ctx.save();
     ctx.globalAlpha = Math.min(1, slamMark);
-    ctx.translate(sx(x), sy(deckY + 6));
-    ctx.scale(1, -1);
+    ctx.fillStyle = "rgba(72, 40, 16, 0.45)";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 10, 150, 46, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.translate(cx, cy);
+    ctx.scale(1.15, -1.15);
     paintOps(ctx, COPY.art?.slam ?? [], 0, true);
     ctx.restore();
+    ctx.save();
     ctx.globalAlpha = Math.min(1, slamMark);
-    ctx.fillStyle = "#fff3c0";
-    ctx.font = "900 42px PingFang SC, Noto Sans SC, sans-serif";
+    ctx.font = "900 64px PingFang SC, Noto Sans SC, sans-serif";
     ctx.textAlign = "center";
-    ctx.strokeStyle = "rgba(90,36,0,0.85)";
-    ctx.lineWidth = 6;
-    ctx.strokeText(COPY.firstRun.beatSlam ?? "砸！", sx(x), sy(deckY + 78));
-    ctx.fillText(COPY.firstRun.beatSlam ?? "砸！", sx(x), sy(deckY + 78));
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(72, 28, 0, 0.92)";
+    ctx.lineWidth = 10;
+    ctx.strokeText(COPY.firstRun.beatSlam ?? "砸！", cx, cy - 78);
+    ctx.fillStyle = "#fff4b0";
+    ctx.fillText(COPY.firstRun.beatSlam ?? "砸！", cx, cy - 78);
+    ctx.restore();
     ctx.globalAlpha = 1;
   }
   if (shakeLeft > 0) ctx.restore();
@@ -1293,6 +1302,9 @@ function renderSea() {
   if (callout && performance.now() < calloutUntil) {
     const lift = Math.min(36, ((performance.now() - calloutBorn) / 450) * 36);
     label(callout, 28, 0, 188 + lift, 900, "#ffec78");
+  }
+  if (slamMark > 0.25) {
+    label(COPY.firstRun.beatSlam ?? "砸！", 42, flopBody ? flopBody.x : fishX, (flopFeel().deckY ?? -118) + 86, 240, "#fff3c0");
   }
   label(COPY.tutorialIsland.clock, 20, -470, 268, 280);
   label(COPY.crateLabel, 20, COPY.crate.x, -96, 120, "#ffecb4");
@@ -1760,16 +1772,22 @@ Object.assign(window, {
   },
   proxyReleaseCast: () => commitCast(),
   proxyForceSlam: () => {
-    const x = flopBody ? flopBody.x : -320;
+    const x = -320;
     const y = flopFeel().deckY ?? -118;
     fishX = x;
     fishY = y;
+    flopBody = { x, y, vx: 40, vy: 0, angle: 1.15, spin: 0 };
+    stunned = true;
+    fishFace = "stunned";
+    pickable = true;
+    tutorialStep = "reel";
     burst("smash", x, y);
     burst("dust", x, y);
     smashLeft = COPY.smashSquashSeconds ?? 0.34;
     slamMark = 1;
-    hitStopLeft = flopFeel().bounceFreeze ?? 0.22;
+    hitStopLeft = flopFeel().bounceFreeze ?? 0.36;
     showCallout(COPY.firstRun.beatSlam ?? "砸！");
     playSfx("smash");
+    render();
   },
 });
