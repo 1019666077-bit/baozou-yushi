@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "rootDir": "../../assets/scripts",
+    "outDir": "./generated",
+    "module": "commonjs",
+    "target": "ES2022",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "declaration": false,
+    "noEmitOnError": true
+  },
+  "files": [
+    "../../assets/scripts/data/types.ts",
+    "../../assets/scripts/domain/GameFeel.ts",
+    "../../assets/scripts/domain/CloudCopy.ts",
+    "../../assets/scripts/domain/PrivacyCopy.ts",
+    "../../assets/scripts/domain/HarborCopy.ts",
+    "../../assets/scripts/domain/FlopPhysics.ts",
+    "../../assets/scripts/domain/GrayLook.ts",
+    "../../assets/scripts/domain/HitJuice.ts",
+    "../../assets/scripts/domain/IslandClock.ts",
+    "../../assets/scripts/domain/PriceCalculator.ts",
+    "../../assets/scripts/domain/StyleScoreSystem.ts",
+    "../../assets/scripts/domain/TutorialFlow.ts",
+    "../../assets/scripts/domain/StyleCallout.ts",
+    "../../assets/scripts/domain/SettleCopy.ts",
+    "../../assets/scripts/domain/RunSession.ts",
+    "../../assets/scripts/domain/SaveMerge.ts"
+  ]
+}
