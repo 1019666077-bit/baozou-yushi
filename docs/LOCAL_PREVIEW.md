@@ -14,10 +14,10 @@ Cocos Creator **3.8.8**。仓库不提交真实 AppID / 云环境 ID；本地替
 | 本机 Creator 预览 | 打开仓库 → `Boot.scene` → 预览 | 编辑器预览，仍非微信真机；**可以**截 4 张当 3D 证据 |
 | 本机 web-desktop | 见下节，产物 `build/web-desktop/` | 接近 Runtime，仍非微信真机 |
 | 命令行出包 | `node tools/try-web-desktop-build.mjs` | 找不到 Creator 会 **清晰失败（exit 2，文案含「缺 Creator」）**，不假装已出包 |
-| 4 张截图清单（给人看） | `node tools/stage3d-shot-checklist.mjs` | 只打印步骤；云端 0/4 是预期 |
+| 4 张截图清单（给人看） | `npm run shots:list`（`node tools/stage3d-shot-checklist.mjs`） | 只打印步骤；云端 **0/4** 是预期 |
 
-代理截图在 `tools/first-run-preview/shots/`，目录说明写了「非 Cocos 实机」。
-Creator 4 张应丢 `docs/stage3d/creator-shots/`（现在是空目录 + README，**未伪造 png**）。
+代理截图在 `tools/first-run-preview/shots/`，目录说明写了「非 Cocos 实机」。**一律不算** Creator 4 张证据。
+Creator 4 张应丢 `docs/stage3d/creator-shots/`（现在是空目录 + README，**未伪造 png**）。`expect_*.jpg` 示意图同样不算。
 
 ## Creator 预览应感到的身体感（Boot.scene，本刀 A+B）
 
@@ -40,22 +40,22 @@ Creator 4 张应丢 `docs/stage3d/creator-shots/`（现在是空目录 + README�
 1. **打开工程**：Creator 3.8.8 → 打开本仓库**根目录**（不要打开 `assets/` 子文件夹）。
 2. **开场景**：资源管理器打开 `assets/scenes/Boot.scene`。
 3. **预览**：点工具栏播放，或 Windows `Ctrl+P` / macOS `Cmd+P`。应进入港口（RuntimeHome）。装配见 `docs/SCENE_SETUP.md`。
-4. **截 4 张**，原样 png 丢进 `docs/stage3d/creator-shots/`（文件名对齐，不要改成 `expect_*.jpg`）：
+4. **截 4 张**，原样 png 丢进 `docs/stage3d/creator-shots/`（文件名对齐，不要改成 `expect_*.jpg`）。**必须本机 Creator 3.8.8 打开 Boot.scene 实拍**；代理 / `first-run-preview` / expect 示意图**一律不算**证据：
 
-| # | 文件 | 何时截 | 应看到什么 |
+| # | 文件 | 何时截 | 应看到什么（含能看见的 A+B） |
 | --- | --- | --- | --- |
-| 1 | `01_harbor_wide.png` | 刚进港口，不要点出海 | 透视近/中/远海 + 矮波；左侧码头市集；远处三岛分层；日落侧光；下方 2D 主橙「开始教学」 |
-| 2 | `02_dock_near.png` | 仍在港口，拉近左侧码头 | 栏杆、台阶、青箱；棚架立柱和金幌；停泊小船；能看清木头厚度 |
-| 3 | `03_bayfin_weak.png` | 点「开始教学」出海，抛竿打中后停在侧脸 | 鱼 5 件：身 / 浅色脸 / 鳞片色块 / 尾 / **背上大金弱点** |
-| 4 | `04_flop_smash.png` | 翻扑最高点或砸到甲板的瞬间 | 抛物线飞向码头；镜头略抬；砸甲板短压扁 |
+| 1 | `01_harbor_wide.png` 港湾远景 | 刚进港口，不要点出海 | 透视近/中/远海 + 矮波；左侧码头市集；远处三岛分层；日落侧光；下方 2D 主橙「开始教学」。**下半屏**主 CTA，上半是海。短滑/完美窗口这张还看不到。 |
+| 2 | `02_dock_near.png` 码头近景 | 仍在港口，拉近左侧码头（能感到甲板分量更好） | 栏杆、台阶、青箱；棚架立柱和金幌；停泊小船；能看清木头厚度。甲板有分量（刚体**短滑**落点）；青箱是**下半屏**拖运目标。 |
+| 3 | `03_bayfin_weak.png` 湾鳍弱点 | 点「开始教学」出海，抛竿打中后停在侧脸 | 鱼 5 件：身 / 浅色脸 / 鳞片色块 / 尾 / **背上大金弱点**。**下半屏**瞄准带仍在；打中会弹出（击退）。 |
+| 4 | `04_flop_smash.png` 扑腾/空中砸或砸甲板 | 翻扑最高点（能体现砸窗口更好）或砸到甲板的瞬间 | 抛物线飞向码头；镜头略抬；空中可砸圈 /「**完美窗口**」金圈；砸甲板短压扁后再**短滑**，不是瞬贴。**下半屏**操作带仍在。 |
 
-打印同一份清单：
+打印同一份清单（当前云端 **0/4**）：
 
 ```bash
-node tools/stage3d-shot-checklist.mjs
+npm run shots:list
 ```
 
-对照用的示意图（**期望构图 ≠ Creator/真机**）在 `docs/stage3d/`，可用浏览器打开 `docs/stage3d/gallery.html`。云端没有 Creator，**不能**用代理截图或示意图冒充这 4 张。没有这 4 张就不能把 3D 估分坐实。
+对照用的示意图（**期望构图 ≠ Creator/真机**）在 `docs/stage3d/`，可用浏览器打开 `docs/stage3d/gallery.html`。云端没有 Creator，**不能**用代理截图或示意图冒充这 4 张。没有这 4 张就不能把 3D 估分坐实，也不要约验。
 
 ## web-desktop 最短出包（必须本机 Creator）
 

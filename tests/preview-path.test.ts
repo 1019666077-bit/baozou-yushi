@@ -38,6 +38,14 @@ describe("Creator preview / shot path", () => {
     const readme = read("docs/stage3d/creator-shots/README.md");
     expect(readme).toMatch(/不要.*伪造 png|未伪造 png|不要伪造/);
     expect(readme).toMatch(/期望构图 ≠ Creator/);
+    expect(readme).toMatch(/必须本机 Cocos Creator 3\.8\.8/);
+    expect(readme).toContain("Boot.scene");
+    expect(readme).toMatch(/一律不算证据/);
+    expect(readme).toContain("first-run-preview");
+    expect(readme).toMatch(/何时截/);
+    expect(readme).toMatch(/短滑/);
+    expect(readme).toMatch(/完美窗口/);
+    expect(readme).toMatch(/下半屏/);
     for (const file of shots) expect(readme).toContain(file);
     const images = fs
       .readdirSync(dir)
@@ -83,7 +91,14 @@ describe("Creator preview / shot path", () => {
     }
     expect(local).toContain("build/web-desktop");
     expect(local).toContain("try-web-desktop-build.mjs");
-    expect(local).toContain("stage3d-shot-checklist.mjs");
+    expect(local).toContain("shots:list");
+    expect(local).toMatch(/何时截/);
+    expect(stage).toMatch(/何时截/);
+    expect(local).toMatch(/一律不算/);
+    expect(stage).toMatch(/一律不算/);
+    expect(local).toMatch(/短滑/);
+    expect(local).toMatch(/完美窗口/);
+    expect(local).toMatch(/下半屏/);
   });
 
   it("prints a human checklist and reports zero creator shots on this machine", () => {
@@ -92,7 +107,15 @@ describe("Creator preview / shot path", () => {
     expect(result.stdout).toMatch(/期望构图 ≠ Creator/);
     expect(result.stdout).toMatch(/0\/4/);
     expect(result.stdout).toContain("01_harbor_wide.png");
+    expect(result.stdout).toContain("02_dock_near.png");
+    expect(result.stdout).toContain("03_bayfin_weak.png");
     expect(result.stdout).toContain("04_flop_smash.png");
+    expect(result.stdout).toMatch(/一律不算证据/);
+    expect(result.stdout).toContain("first-run-preview");
+    expect(result.stdout).toMatch(/短滑/);
+    expect(result.stdout).toMatch(/完美窗口/);
+    expect(result.stdout).toMatch(/下半屏/);
+    expect(result.stdout).toMatch(/何时截/);
     expect(result.stdout).toMatch(/没有 build\/web-desktop/);
   });
 

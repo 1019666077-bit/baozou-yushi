@@ -42,7 +42,7 @@ npm run simulate
 
 - `npm run validate`：自绘矢量 + 类型检查 + vitest + 预检 + 第一局体验代理抽取。
 - 无 Creator 时代验：`node tools/first-run-preview/serve.mjs` → http://127.0.0.1:8766/ 。**2D/辅助 ≠ Creator 3D，不能当真机手感证据。**
-- 本机有 Creator：打开 `Boot.scene` → 预览（Ctrl/Cmd+P）→ 截 4 张进 `docs/stage3d/creator-shots/`。清单：`npm run shots:list`。`docs/stage3d/expect_*.jpg` 是示意图（期望构图 ≠ Creator/真机）。
+- 本机有 Creator：打开 `Boot.scene` → 预览（Ctrl/Cmd+P）→ 截 4 张进 `docs/stage3d/creator-shots/`（`01_harbor_wide.png` / `02_dock_near.png` / `03_bayfin_weak.png` / `04_flop_smash.png`）。清单：`npm run shots:list`（现 0/4）。代理 / `first-run-preview` / `docs/stage3d/expect_*.jpg` 示意图一律不算证据（期望构图 ≠ Creator/真机）。
 - 本机有 Creator 才能打 `build/web-desktop`；`npm run try:web-desktop` 找不到编辑器会 **缺 Creator** 并 exit 2。细节见 `docs/LOCAL_PREVIEW.md`。
 - `npm run simulate`：50 个确定性经济角色，检查解锁节奏。
 - `npm run playtest:report`：读取 `playtest/participants.csv`。**真人有效行不足 20 条时主动失败**，这是设计，防止把自动模拟冒充人类体验测试。不要把该命令放进必过 CI。

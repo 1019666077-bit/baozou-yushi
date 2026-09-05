@@ -19,9 +19,10 @@
 
 ## 真机 4 张放哪里
 
-`creator-shots/` 是空占位目录（只有 README，**没有伪造 png**）。
-本机有 Creator 时按 `docs/LOCAL_PREVIEW.md` / `docs/STAGE_3D.md` 截 4 张丢进去。
+`creator-shots/` 是空占位目录（只有 README，**没有伪造 png**，进度 **0/4**）。
+**必须本机 Cocos Creator 3.8.8 打开 Boot.scene 实拍。** 代理 / `first-run-preview` / 本目录示意图**一律不算**证据。
+本机有 Creator 时按 `docs/LOCAL_PREVIEW.md` / `docs/STAGE_3D.md` / `creator-shots/README.md` 截这 4 张丢进去：`01_harbor_wide.png`、`02_dock_near.png`、`03_bayfin_weak.png`、`04_flop_smash.png`。
 
 ```bash
-node tools/stage3d-shot-checklist.mjs
+npm run shots:list
 ```

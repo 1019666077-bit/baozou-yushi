@@ -25,7 +25,7 @@
 
 - 真机上看合批与 45FPS；必要时把 sphere 段数再降。
 - 本机 Creator 打 `web-desktop` 才能当 3D 手感证据。云端**没有** Creator 预览包。
-- `docs/stage3d/creator-shots/` 仍是空占位，**未伪造** 4 张 png。有 Creator 的人截完才能把估分坐实。
+- `docs/stage3d/creator-shots/` 仍是空占位（**E 准备**：清单 0/4），**未伪造** 4 张 png。必须本机 Creator 3.8.8 打开 Boot.scene 实拍；代理 / `first-run-preview` / expect 示意图一律不算。有 Creator 的人截完才能把估分坐实，现在不要约验。
 - 256 滚动法线仍是备选，本 tip 用顶点波保持 0 贴图。
 
 ## 包体 / 性能
@@ -43,21 +43,22 @@
 
 ## 最短：Creator 预览 → 4 张（3D 证据）
 
-**期望构图 ≠ Creator / 真机。** 示意图在 `docs/stage3d/expect_*.jpg`（标题/水印/README/`gallery.html` 都写了「非实机」）。真机图只认 `docs/stage3d/creator-shots/`。
+**必须本机 Cocos Creator 3.8.8 打开 `Boot.scene` 实拍。**
+**期望构图 ≠ Creator / 真机。** 示意图在 `docs/stage3d/expect_*.jpg`（标题/水印/README/`gallery.html` 都写了「非实机」）。代理 / `first-run-preview` / expect 示意图**一律不算**证据。真机图只认 `docs/stage3d/creator-shots/`（现 **0/4**，未伪造 png）。
 
 1. Creator 3.8.8 打开仓库根目录。
 2. 打开 `assets/scenes/Boot.scene`。
 3. 预览：工具栏播放，或 `Ctrl+P` / `Cmd+P`。
 4. 截 4 张，文件名对齐后丢进 `docs/stage3d/creator-shots/`：
 
-| 文件 | 应看到什么 |
-| --- | --- |
-| `01_harbor_wide.png` | 透视近/中/远海 + 矮波；左侧码头市集；三岛分层；日落侧光；2D 主橙 CTA |
-| `02_dock_near.png` | 栏杆 / 台阶 / 青箱 / 棚架立柱金幌 / 停泊小船 |
-| `03_bayfin_weak.png` | 鱼 5 件：身 / 脸 / 鳞片色块 / 尾 / **大金弱点**（可轻脉冲） |
-| `04_flop_smash.png` | 翻扑抛物、镜头略抬、砸甲板短压扁。低配开关后跟镜/水波/微震应停 |
+| 文件 | 何时截 | 应看到什么（含能看见的 A+B） |
+| --- | --- | --- |
+| `01_harbor_wide.png` 港湾远景 | 刚进港口，不要点出海 | 透视近/中/远海 + 矮波；左侧码头市集；三岛分层；日落侧光；2D 主橙 CTA。**下半屏**主操作，上半是海。 |
+| `02_dock_near.png` 码头近景 | 仍在港口，拉近左侧码头（能感到甲板分量更好） | 栏杆 / 台阶 / 青箱 / 棚架立柱金幌 / 停泊小船。甲板有分量（**短滑**落点）；青箱是**下半屏**拖运目标。 |
+| `03_bayfin_weak.png` 湾鳍弱点 | 点「开始教学」出海，打中后停在侧脸 | 鱼 5 件：身 / 脸 / 鳞片色块 / 尾 / **大金弱点**（可轻脉冲）。**下半屏**瞄准带；打中会弹出。 |
+| `04_flop_smash.png` 扑腾/空中砸或砸甲板 | 翻扑最高点（能体现砸窗口更好）或砸甲板瞬间 | 翻扑抛物、镜头略抬、可砸圈 /「**完美窗口**」、砸甲板短压扁后再**短滑**。低配开关后跟镜/水波/微震应停 |
 
-打印清单：`node tools/stage3d-shot-checklist.mjs`。命令行出包见 `docs/LOCAL_PREVIEW.md`。
+打印清单：`npm run shots:list`。命令行出包见 `docs/LOCAL_PREVIEW.md`。
 
 **港口预览还应核对：**
 
