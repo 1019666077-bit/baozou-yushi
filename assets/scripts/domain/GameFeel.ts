@@ -93,6 +93,20 @@ export function plateInnerHighlightRgba(): [number, number, number, number] {
   return [255, 226, 150, 70];
 }
 
+/** 金币角标：圆底 + 暖金，给港口 HUD 成品感。 */
+export function coinChipFillRgb(): [number, number, number] {
+  return [36, 22, 8];
+}
+
+export function coinChipStrokeRgb(): [number, number, number] {
+  return [255, 210, 72];
+}
+
+/** 旁白底板略带木纹暖边，贴近休闲钓鱼皮。 */
+export function woodPlateFillRgba(tutorial = false): [number, number, number, number] {
+  return tutorial ? [18, 28, 36, 240] : [16, 26, 34, 220];
+}
+
 export function primarySheenRgba(): [number, number, number, number] {
   return [255, 220, 150, 90];
 }

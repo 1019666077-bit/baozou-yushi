@@ -112,6 +112,34 @@ function opsToSvg(ops, { width, height, viewBox, local = false }) {
       parts.push(
         `<rect x="${x}" y="${y}" width="${op.w}" height="${op.h}" rx="${op.r ?? 0}" fill="none" stroke="${hex(op.color, op.color[3] ?? 255)}" stroke-width="${op.width}"/>`,
       );
+      continue;
+    }
+    if (op.t === "grad") {
+      const id = `g${parts.length}`;
+      const x1 = op.axis === "x" ? "0%" : "0%";
+      const y1 = op.axis === "x" ? "0%" : "100%";
+      const x2 = op.axis === "x" ? "100%" : "0%";
+      const y2 = op.axis === "x" ? "0%" : "0%";
+      const x = local ? op.x : op.x + 640;
+      const y = local ? -op.y - op.h : 360 - op.y - op.h;
+      parts.push(
+        `<defs><linearGradient id="${id}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"><stop offset="0%" stop-color="${hex(op.from, op.from[3] ?? 255)}"/><stop offset="100%" stop-color="${hex(op.to, op.to[3] ?? 255)}"/></linearGradient></defs><rect x="${x}" y="${y}" width="${op.w}" height="${op.h}" rx="${op.r ?? 0}" fill="url(#${id})"/>`,
+      );
+      continue;
+    }
+    if (op.t === "speckle") {
+      const dots = Art.speckleDots(op);
+      for (const dot of dots) {
+        parts.push(
+          `<circle cx="${svgX(dot.x, local)}" cy="${svgY(dot.y, height, local)}" r="${dot.r}" fill="${hex(op.color, op.color[3] ?? 255)}"/>`,
+        );
+      }
+      continue;
+    }
+    if (op.t === "shadow") {
+      parts.push(
+        `<ellipse cx="${svgX(op.x, local)}" cy="${svgY(op.y, height, local)}" rx="${op.rx}" ry="${op.ry}" fill="${hex(op.fill, op.fill[3] ?? 255)}"/>`,
+      );
     }
   }
   return `<?xml version="1.0" encoding="UTF-8"?>

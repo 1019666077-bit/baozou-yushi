@@ -53,6 +53,11 @@ export function castSnapCaption(): string {
   return "钩出去了。";
 }
 
+export function castChargeCaption(quality: "early" | "sweet" | "late"): string {
+  if (quality === "sweet") return "时机刚好";
+  return castSnapCaption();
+}
+
 export function castLockCaption(name: string): string {
   return `拽住${name}。`;
 }

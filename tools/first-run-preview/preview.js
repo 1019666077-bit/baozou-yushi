@@ -76,6 +76,9 @@ let splashRings = [];
 let hitStopLeft = 0;
 let sellBridge = "";
 let ambientSparks = [];
+let charging = false;
+let chargeBorn = 0;
+let bounceCount = 0;
 
 function rgb(arr, a = 1) {
   return `rgba(${arr[0]},${arr[1]},${arr[2]},${a})`;
@@ -200,12 +203,18 @@ function burst(kind, x, y) {
         (coin ? 140 : kind === "smash" || kind === "splash" ? 90 : kind === "cast" || kind === "yank" ? 18 : 8),
       life: 1,
       maxLife: coin || kind === "catch" ? 0.4 : kind === "smash" ? 0.26 : 0.3,
-      kind: coin ? "coin" : star && i % 2 === 0 ? "star" : "bubble",
+      kind: coin
+        ? "coin"
+        : kind === "dust" || (kind === "smash" && i % 3 === 0)
+          ? "dust"
+          : star && i % 2 === 0
+            ? "star"
+            : "bubble",
       size:
-        coin ? 6 : kind === "catch" ? 8 : kind === "smash" || kind === "splash" ? 9 : kind === "weak" ? 7 : kind === "cast" || kind === "yank" ? 4 : 5,
+        coin ? 6 : kind === "catch" ? 8 : kind === "smash" || kind === "splash" ? 9 : kind === "dust" ? 7 : kind === "weak" ? 7 : kind === "cast" || kind === "yank" ? 4 : 5,
     });
   }
-  if (kind !== "yank" && kind !== "splash") {
+  if (kind !== "yank" && kind !== "splash" && kind !== "dust") {
     flash = {
       x,
       y,
@@ -244,7 +253,13 @@ function tickParticles(dt) {
       y: particle.y + particle.vy * dt,
       vy:
         particle.vy +
-        (particle.kind === "coin" ? -220 : particle.kind === "bubble" ? 40 : 12) * dt,
+        (particle.kind === "coin"
+          ? -220
+          : particle.kind === "dust"
+            ? -160
+            : particle.kind === "bubble"
+              ? 40
+              : 12) * dt,
       vx: particle.vx * Math.max(0, 1 - 0.8 * dt),
       life,
     });
@@ -283,50 +298,52 @@ function harborPhase() {
   return "idle";
 }
 
+function playVoice(ctx, voice) {
+  const now = ctx.currentTime + (voice.delay ?? 0);
+  const dur = voice.ms / 1000;
+  const attack = voice.attack ?? 0.006;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  if (gain.gain.linearRampToValueAtTime) gain.gain.linearRampToValueAtTime(voice.gain, now + attack);
+  else gain.gain.setValueAtTime(voice.gain, now + attack);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+  gain.connect(ctx.destination);
+  if (voice.type === "noise" && ctx.createBufferSource) {
+    const frames = Math.max(1, Math.floor(ctx.sampleRate * dur));
+    const buffer = ctx.createBuffer(1, frames, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < frames; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(gain);
+    src.start(now);
+    return;
+  }
+  const osc = ctx.createOscillator();
+  osc.type = voice.type === "noise" ? "sawtooth" : voice.type;
+  osc.frequency.value = voice.freq;
+  osc.connect(gain);
+  osc.start(now);
+  osc.stop(now + dur + 0.02);
+}
+
 function playSfx(id) {
-  const tone = COPY.sfx?.[id];
-  if (!tone) return;
+  const voices = COPY.sfxVoices?.[id] ?? (COPY.sfx?.[id] ? [COPY.sfx[id]] : []);
+  if (!voices.length) return;
   try {
     const Ctor = window.AudioContext || window.webkitAudioContext;
     if (!Ctor) return;
     if (!sfxCtx) sfxCtx = new Ctor();
     if (sfxCtx.state === "suspended") void sfxCtx.resume();
-    const now = sfxCtx.currentTime;
-    const gain = sfxCtx.createGain();
-    gain.gain.setValueAtTime(tone.gain, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + tone.ms / 1000);
-    gain.connect(sfxCtx.destination);
-    const osc = sfxCtx.createOscillator();
-    osc.type = id === "smash" ? "sawtooth" : id === "weak" || id === "hit" ? "triangle" : "sine";
-    osc.frequency.value = tone.freq;
-    osc.connect(gain);
-    osc.start();
-    osc.stop(now + tone.ms / 1000 + 0.02);
-    if (id === "sell") {
-      const osc2 = sfxCtx.createOscillator();
-      const gain2 = sfxCtx.createGain();
-      osc2.type = "triangle";
-      osc2.frequency.value = tone.freq * 1.25;
-      gain2.gain.setValueAtTime(tone.gain * 0.7, now + 0.07);
-      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-      osc2.connect(gain2);
-      gain2.connect(sfxCtx.destination);
-      osc2.start(now + 0.07);
-      osc2.stop(now + 0.24);
-    }
-    if (tone.noise && sfxCtx.createBufferSource) {
-      const frames = Math.max(1, Math.floor(sfxCtx.sampleRate * (tone.ms / 1000)));
-      const buffer = sfxCtx.createBuffer(1, frames, sfxCtx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < frames; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
-      const src = sfxCtx.createBufferSource();
-      const ng = sfxCtx.createGain();
-      src.buffer = buffer;
-      ng.gain.setValueAtTime(tone.gain * 0.55, now);
-      ng.gain.exponentialRampToValueAtTime(0.001, now + tone.ms / 1000);
-      src.connect(ng);
-      ng.connect(sfxCtx.destination);
-      src.start();
+    for (const voice of voices) {
+      playVoice(sfxCtx, {
+        type: voice.type ?? (id === "smash" ? "sawtooth" : "sine"),
+        freq: voice.freq,
+        ms: voice.ms,
+        gain: voice.gain,
+        delay: voice.delay,
+        attack: voice.attack,
+      });
     }
   } catch {
     // mute stub：无 AudioContext 时静音，不挡流程。WebAudio 占位 ≠ 真机。
@@ -347,10 +364,30 @@ function lampK(phase, x) {
   return 0.42 + 0.58 * (0.5 + 0.5 * Math.sin(phase * 5.4 + x * 0.09));
 }
 
+function speckleDots(op) {
+  const seed = op.seed ?? 1;
+  const dots = [];
+  for (let i = 0; i < op.count; i += 1) {
+    const n = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453;
+    const u = n - Math.floor(n);
+    const m = Math.sin((i + 3) * 4.1414 + seed * 19.19) * 23421.196;
+    const v = m - Math.floor(m);
+    dots.push({
+      x: op.x + u * op.w,
+      y: op.y + v * op.h,
+      r: op.size * (0.65 + 0.7 * u),
+    });
+  }
+  return dots;
+}
+
 function paintOps(ctx, ops, phase = 0, local = false, live = {}) {
   const px = (x, tag) => {
-    const drift =
-      tag === "caustic" || tag === "shaft" || tag === "spark" || tag === "gull" || tag === "cloud" || tag === "sheen"
+    const para =
+      tag === "paraFar" ? 0.35 : tag === "paraMid" ? 0.7 : tag === "paraNear" ? 1.15 : 0;
+    const drift = para
+      ? Math.sin(phase * 0.55) * 16 * para
+      : tag === "caustic" || tag === "shaft" || tag === "spark" || tag === "gull" || tag === "cloud" || tag === "sheen"
         ? Math.sin(phase + x * 0.01) * (tag === "gull" || tag === "cloud" ? 18 : tag === "sheen" ? 28 : 10)
         : tag === "foam"
           ? Math.sin(phase * 0.8 + x * 0.02) * 8
@@ -396,11 +433,45 @@ function paintOps(ctx, ops, phase = 0, local = false, live = {}) {
     }
     if (op.t === "rect") {
       ctx.fillStyle = fillOf(op.fill);
-      const x = local ? op.x : 640 + op.x;
+      const x = local ? op.x : px(op.x, op.tag);
       const y = local ? op.y : 360 - op.y - op.h;
       ctx.beginPath();
       if (ctx.roundRect) ctx.roundRect(x, y, op.w, op.h, op.r ?? 0);
       else ctx.rect(x, y, op.w, op.h);
+      ctx.fill();
+      continue;
+    }
+    if (op.t === "grad") {
+      const x = local ? op.x : px(op.x, op.tag);
+      const y = local ? op.y : 360 - op.y - op.h;
+      const g = ctx.createLinearGradient(
+        op.axis === "x" ? x : x,
+        op.axis === "x" ? y : y + op.h,
+        op.axis === "x" ? x + op.w : x,
+        op.axis === "x" ? y : y,
+      );
+      g.addColorStop(0, fillOf(op.from));
+      g.addColorStop(1, fillOf(op.to));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, y, op.w, op.h, op.r ?? 0);
+      else ctx.rect(x, y, op.w, op.h);
+      ctx.fill();
+      continue;
+    }
+    if (op.t === "speckle") {
+      ctx.fillStyle = fillOf(op.color);
+      for (const dot of speckleDots(op)) {
+        ctx.beginPath();
+        ctx.arc(px(dot.x, op.tag), py(dot.y, op.tag, dot.x), dot.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      continue;
+    }
+    if (op.t === "shadow") {
+      ctx.fillStyle = fillOf(op.fill);
+      ctx.beginPath();
+      ctx.ellipse(px(op.x, op.tag), py(op.y, op.tag, op.x), op.rx, op.ry, 0, 0, Math.PI * 2);
       ctx.fill();
       continue;
     }
@@ -598,10 +669,17 @@ function weakKNow() {
 
 function paintFish(ctx, x, y) {
   const squash = smashScale();
+  const wet = x > -150 && y < 80 && !carrying;
   ctx.save();
   ctx.translate(sx(x), sy(y));
   ctx.scale(squash.sx, -squash.sy);
   ctx.rotate(fishAngle);
+  if (wet) {
+    ctx.fillStyle = "rgba(70, 210, 220, 0.16)";
+    ctx.beginPath();
+    ctx.ellipse(8, 0, 46, 22, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
   paintOps(ctx, bayfinOps(), motionNow() / 700, true, {
     tailWag: tailWagNow(),
     blink: blinkNow(),
@@ -613,10 +691,99 @@ function paintFish(ctx, x, y) {
     ctx.ellipse(30, 1, 7.2, 1.5, 0, 0, Math.PI * 2);
     ctx.fill();
   }
+  if (wet) {
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = "rgba(140, 255, 236, 0.14)";
+    ctx.beginPath();
+    ctx.ellipse(16, 4, 18, 8, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+  }
   ctx.restore();
 }
 
+function castFeel() {
+  return COPY.castFeel ?? { tutorialAutoMs: 420, chargeMs: 720, sweetLo: 0.52, sweetHi: 0.86, previewPts: 8, previewLift: 78, bar: { width: 228, height: 16, sweetLo: 0.52, sweetHi: 0.86 } };
+}
+
+function chargeNow() {
+  if (!charging) return 0;
+  return Math.min(1, Math.max(0, (performance.now() - chargeBorn) / (castFeel().chargeMs ?? 720)));
+}
+
+function castPreview(ox, oy, tx, ty, charge) {
+  const feel = castFeel();
+  const lift = (feel.previewLift ?? 78) * (0.55 + 0.45 * charge);
+  const n = feel.previewPts ?? 8;
+  const pts = [];
+  for (let i = 1; i <= n; i += 1) {
+    const t = i / n;
+    pts.push({
+      x: ox + (tx - ox) * t,
+      y: oy + (ty - oy) * t + Math.sin(t * Math.PI) * lift,
+    });
+  }
+  return pts;
+}
+
+function paintCharge(ctx) {
+  if (!charging) return;
+  const charge = chargeNow();
+  const ox = boatX + 28;
+  const oy = boatY + 18;
+  const tx = fishX;
+  const ty = fishY;
+  const pts = castPreview(ox, oy, tx, ty, charge);
+  ctx.save();
+  ctx.strokeStyle = `rgba(255,226,96,${0.45 + 0.5 * charge})`;
+  ctx.lineWidth = 3 + charge * 5;
+  ctx.setLineDash([8, 7]);
+  ctx.beginPath();
+  ctx.moveTo(sx(ox), sy(oy));
+  for (const pt of pts) ctx.lineTo(sx(pt.x), sy(pt.y));
+  ctx.stroke();
+  ctx.setLineDash([]);
+  for (const pt of pts) {
+    ctx.fillStyle = "rgba(255,236,150,0.9)";
+    ctx.beginPath();
+    ctx.arc(sx(pt.x), sy(pt.y), 3.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const spec = feelBar();
+  const bx = sx(0);
+  const by = sy(-248);
+  ctx.fillStyle = "rgba(12,22,30,0.84)";
+  if (ctx.roundRect) {
+    ctx.beginPath();
+    ctx.roundRect(bx - spec.width / 2, by, spec.width, spec.height, 8);
+    ctx.fill();
+  } else ctx.fillRect(bx - spec.width / 2, by, spec.width, spec.height);
+  ctx.fillStyle = "rgba(86,210,132,0.38)";
+  ctx.fillRect(
+    bx - spec.width / 2 + spec.width * spec.sweetLo,
+    by + 3,
+    spec.width * (spec.sweetHi - spec.sweetLo),
+    spec.height - 6,
+  );
+  ctx.fillStyle = charge >= spec.sweetLo && charge <= spec.sweetHi ? "#ffb432" : "#ffe27a";
+  if (ctx.roundRect) {
+    ctx.beginPath();
+    ctx.roundRect(bx - spec.width / 2, by + 3, Math.max(10, spec.width * charge), spec.height - 6, 6);
+    ctx.fill();
+  } else ctx.fillRect(bx - spec.width / 2, by + 3, Math.max(10, spec.width * charge), spec.height - 6);
+  ctx.fillStyle = "#ffe9a8";
+  ctx.font = "800 16px PingFang SC, Noto Sans SC, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(charge >= spec.sweetLo && charge <= spec.sweetHi ? "甜区" : "蓄力", bx, by - 8);
+  ctx.restore();
+}
+
+function feelBar() {
+  return castFeel().bar ?? { width: 228, height: 16, sweetLo: 0.52, sweetHi: 0.86 };
+}
+
 function paintLine(ctx) {
+  if (charging) paintCharge(ctx);
   if (!hooked && !yanking && !flopBody && castFlashLeft <= 0) return;
   const duration = COPY.castFlashSeconds ?? 0.26;
   const wide = COPY.castLineWide ?? 16;
@@ -711,6 +878,11 @@ function paintJuice(ctx) {
       ctx.fillStyle = "rgba(255,248,200,0.7)";
       ctx.beginPath();
       ctx.ellipse(px - p.size * 0.2, py - p.size * 0.15, p.size * 0.35, p.size * 0.22, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.kind === "dust") {
+      ctx.fillStyle = "rgba(186,142,78,0.85)";
+      ctx.beginPath();
+      ctx.ellipse(px, py, p.size * 1.4, p.size * 0.55, 0, 0, Math.PI * 2);
       ctx.fill();
     } else if (p.kind === "star") {
       ctx.fillStyle = "#ffe24a";
@@ -807,7 +979,7 @@ function renderHarbor() {
   hud.innerHTML = "";
   buttons.innerHTML = "";
   label(COPY.harborTitle, 36, 0, 310, 900, rgb(COPY.colors.palette.hud), "title");
-  label(`金币 ${save.coins}`, 26, 470, 310, 280, rgb(COPY.colors.gold), "goldchip");
+  label(`● 金币 ${save.coins}`, 26, 470, 310, 280, rgb(COPY.colors.gold), "goldchip");
   if (coinJump && coinJumpLeft > 0) {
     const t = 1 - coinJumpLeft / COPY.coinJumpSeconds;
     label(coinJump, 28, 470, 274 + t * 46, 280, `rgba(255,220,72,${1 - t * 0.15})`, "goldchip");
@@ -1092,14 +1264,21 @@ function sail() {
   smashLeft = 0;
   smashElapsed = 0;
   castFlashLeft = 0;
+  charging = false;
+  chargeBorn = 0;
+  bounceCount = 0;
   splashRings = [];
   ambientSparks = [];
   hitStopLeft = 0;
   render();
 }
 
-function onCast() {
-  if (surface !== "sea" || tutorialStep !== "cast") return;
+function commitCast() {
+  if (surface !== "sea" || tutorialStep !== "cast" || yanking) return;
+  const charge = chargeNow();
+  const feel = castFeel();
+  const sweet = charge >= feel.sweetLo && charge <= feel.sweetHi;
+  charging = false;
   hooked = true;
   yanking = true;
   flopBody = null;
@@ -1108,13 +1287,21 @@ function onCast() {
   tutorialStep = "weakPoint";
   status = COPY.tutorialPrompts.weakPoint;
   fishName = `${COPY.firstRun.liveQuoteHooked} · 韧性 24 · 弱点亮`;
-  showCallout(COPY.firstRun.castSnap);
+  showCallout(sweet ? COPY.firstRun.castSweet ?? "时机刚好" : COPY.firstRun.castSnap);
   burst("cast", boatX + 28, boatY + 18);
   burst("yank", fishX, fishY);
   castFlashLeft = COPY.castFlashSeconds ?? 0.26;
   castFlashElapsed = 0;
   playSfx("cast");
   playSfx("yank");
+  render();
+}
+
+function onCast() {
+  if (surface !== "sea" || tutorialStep !== "cast" || charging || yanking) return;
+  charging = true;
+  chargeBorn = performance.now();
+  playSfx("ui");
   render();
 }
 
@@ -1240,10 +1427,15 @@ function tick(now) {
   splashRings = splashRings
     .map((ring) => ({ ...ring, life: ring.life - dt / ring.maxLife }))
     .filter((ring) => ring.life > 0);
+  if (charging && surface === "sea") {
+    const auto = castFeel().tutorialAutoMs ?? 420;
+    if (now - chargeBorn >= auto) commitCast();
+  }
   if (surface === "sea" && tutorialStep === "cast" && !yanking && !flopBody && !carrying) {
-    fishX = 210 + Math.sin(now / 380) * 16;
-    fishY = 20 + Math.sin(now / 260) * 10;
-    fishAngle = Math.sin(now / 320) * 0.22 + tailWagNow() * 0.15;
+    const swimMs = COPY.motion?.swimMs ?? 380;
+    fishX = 210 + Math.sin(now / swimMs) * 22;
+    fishY = 20 + Math.sin(now / 260) * 12;
+    fishAngle = Math.sin(now / 320) * 0.28 + tailWagNow() * 0.18;
   }
   if ((surface === "harbor" || surface === "settle") && ambientSparks.length < 10 && Math.random() < dt * 3) {
     ambientSparks.push({
@@ -1284,6 +1476,14 @@ function tick(now) {
     flopBody = stepFlopPreview(flopBody, dt, stunned);
     if (prevVy < -90 && flopBody.y <= (flopFeel().deckY ?? -118) + 2 && prevY > flopBody.y - 2) {
       burst("smash", flopBody.x, flopBody.y);
+      burst("dust", flopBody.x, flopBody.y);
+      const freeze = bounceCount === 0
+        ? (flopFeel().bounceFreeze ?? 0.09)
+        : bounceCount === 1
+          ? 0.05
+          : 0;
+      hitStopLeft = Math.max(hitStopLeft, freeze);
+      bounceCount += 1;
       playSfx("smash");
     }
     fishX = flopBody.x;

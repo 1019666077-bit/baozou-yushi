@@ -9,7 +9,8 @@ export type JuiceKind =
   | "gold"
   | "sell"
   | "smash"
-  | "yank";
+  | "yank"
+  | "dust";
 
 export interface JuiceParticle {
   x: number;
@@ -18,13 +19,14 @@ export interface JuiceParticle {
   vy: number;
   life: number;
   maxLife: number;
-  kind: "bubble" | "star" | "coin";
+  kind: "bubble" | "star" | "coin" | "dust";
   size: number;
 }
 
 export function juiceCount(kind: JuiceKind, lowPower: boolean): number {
   if (kind === "cast" || kind === "yank") return lowPower ? 2 : 4;
   if (kind === "gold" || kind === "sell") return lowPower ? 6 : 10;
+  if (kind === "dust") return lowPower ? 4 : 8;
   if (lowPower) return kind === "miss" ? 2 : 3;
   if (kind === "miss") return 4;
   if (kind === "splash") return 10;
@@ -64,43 +66,50 @@ export function spawnJuice(
       kind === "sell" ||
       kind === "smash";
     const coin = kind === "gold" || kind === "sell";
+    const dust = kind === "dust" || (kind === "smash" && i % 3 === 0);
     const up =
       kind === "splash" || kind === "smash"
         ? 90
-        : kind === "miss"
-          ? 30
-          : kind === "cast" || kind === "yank"
-            ? 18
-            : coin
-              ? 140
-              : 8;
+        : kind === "dust"
+          ? 46
+          : kind === "miss"
+            ? 30
+            : kind === "cast" || kind === "yank"
+              ? 18
+              : coin
+                ? 140
+                : 8;
     return {
       x,
       y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed + up,
+      vx: Math.cos(angle) * speed * (dust ? 0.55 : 1),
+      vy: Math.sin(angle) * speed * (dust ? 0.35 : 1) + up,
       life: 1,
       maxLife:
         kind === "perfect" || coin
           ? 0.4
           : kind === "smash"
             ? 0.26
-            : kind === "splash"
-              ? 0.28
-              : 0.32,
-      kind: coin ? "coin" : star && i % 2 === 0 ? "star" : "bubble",
+            : kind === "dust"
+              ? 0.3
+              : kind === "splash"
+                ? 0.28
+                : 0.32,
+      kind: coin ? "coin" : dust ? "dust" : star && i % 2 === 0 ? "star" : "bubble",
       size:
         kind === "splash" || kind === "smash"
           ? 9
-          : kind === "perfect"
-            ? 8
-            : kind === "weak"
-              ? 7
-              : kind === "cast" || kind === "yank"
-                ? 4
-                : coin
-                  ? 6
-                  : 5,
+          : kind === "dust"
+            ? 7
+            : kind === "perfect"
+              ? 8
+              : kind === "weak"
+                ? 7
+                : kind === "cast" || kind === "yank"
+                  ? 4
+                  : coin
+                    ? 6
+                    : 5,
     };
   });
 }
@@ -169,7 +178,8 @@ export function spawnJuiceFlash(
   y: number,
   lowPower: boolean,
 ): JuiceFlash | undefined {
-  if (kind === "miss" || kind === "splash" || kind === "yank") return undefined;
+  if (kind === "miss" || kind === "splash" || kind === "yank" || kind === "dust")
+    return undefined;
   if (
     lowPower &&
     kind !== "weak" &&
@@ -235,7 +245,13 @@ export function tickJuice(
       y: particle.y + particle.vy * dt,
       vy:
         particle.vy +
-        (particle.kind === "coin" ? -220 : particle.kind === "bubble" ? 40 : 12) *
+        (particle.kind === "coin"
+          ? -220
+          : particle.kind === "dust"
+            ? -160
+            : particle.kind === "bubble"
+              ? 40
+              : 12) *
           dt,
       vx: particle.vx * Math.max(0, 1 - 0.8 * dt),
       life,
@@ -257,6 +273,20 @@ export function castLineWidth(
   if (duration <= 0) return 6;
   const t = 1 - Math.min(1, Math.max(0, elapsed / duration));
   return lowPower ? 6 + 3 * t : 6 + 10 * t;
+}
+
+/** 砸甲板落地扬尘：横向铺开，短、不挡捡起。 */
+export function spawnLandingDust(
+  x: number,
+  y: number,
+  lowPower = false,
+): JuiceParticle[] {
+  return spawnJuice("dust", x, y, lowPower).map((p, i) => ({
+    ...p,
+    vx: (i % 2 === 0 ? -1 : 1) * (48 + (i % 4) * 22),
+    vy: 36 + (i % 3) * 12,
+    kind: "dust" as const,
+  }));
 }
 
 export function spawnGoldRain(

@@ -59,8 +59,8 @@ import {
   decoyOffsets,
 } from "./domain/FishBehavior";
 import {
+  castChargeCaption,
   castLockCaption,
-  castSnapCaption,
   comboHud,
   inboxPopup,
   liveQuote,
@@ -72,7 +72,20 @@ import {
   shouldSpawn,
   waveCaption,
 } from "./domain/IslandClock";
-import { canPickUp, carryBobOffset, crateDrop } from "./domain/FlopPhysics";
+import {
+  bounceFreezeSeconds,
+  canPickUp,
+  carryBobOffset,
+  crateDrop,
+} from "./domain/FlopPhysics";
+import {
+  castAutoReleaseMs,
+  castBarSpec,
+  castChargeAt,
+  castPreviewPts,
+  castQuality,
+  tutorialCastAssists,
+} from "./domain/CastFeel";
 import { discoveryToast, isFirstCatch } from "./domain/SettleCopy";
 import { depthScale } from "./domain/DepthScale";
 import {
@@ -106,6 +119,7 @@ import {
   popupLiftPx,
   spawnJuice,
   spawnJuiceFlash,
+  spawnLandingDust,
   tickJuice,
   tickJuiceFlash,
   type JuiceFlash,
@@ -225,6 +239,9 @@ export class RuntimePrototype extends Component {
   private closing = false;
   private shots: Shot[] = [];
   private hitStopLeft = 0;
+  private charging = false;
+  private chargeBorn = 0;
+  private chargeTarget?: FishController;
   private callout!: Label;
   private calloutUntil = 0;
   private lowPower = false;
@@ -289,6 +306,7 @@ export class RuntimePrototype extends Component {
     this.tickCarry();
     this.tickPickupAssist();
     this.tickLandFx();
+    this.tickCastCharge();
     this.tickCannon();
     this.tickShots(dt);
     if (this.hitStopLeft > 0) {
@@ -611,8 +629,52 @@ export class RuntimePrototype extends Component {
     this.aimLine.stroke();
   }
 
+  private drawCastCharge(): void {
+    if (!this.charging || !this.chargeTarget?.node.active) return;
+    const charge = castChargeAt(Date.now() - this.chargeBorn);
+    const ox = this.player.position.x + 28;
+    const oy = this.player.position.y + 18;
+    const tx = this.chargeTarget.node.position.x;
+    const ty = this.chargeTarget.node.position.y;
+    const pts = castPreviewPts(ox, oy, tx, ty, charge);
+    this.aimLine.strokeColor = new Color(255, 226, 96, 200);
+    this.aimLine.lineWidth = 3 + charge * 4;
+    this.aimLine.moveTo(ox, oy);
+    for (const pt of pts) this.aimLine.lineTo(pt.x, pt.y);
+    this.aimLine.stroke();
+    for (const pt of pts) {
+      this.aimLine.fillColor = new Color(255, 236, 140, 220);
+      this.aimLine.circle(pt.x, pt.y, 3.2);
+      this.aimLine.fill();
+    }
+    const spec = castBarSpec();
+    const bx = 0;
+    const by = -248;
+    this.aimLine.fillColor = new Color(12, 22, 30, 210);
+    this.aimLine.roundRect(bx - spec.width / 2, by, spec.width, spec.height, 7);
+    this.aimLine.fill();
+    this.aimLine.fillColor = new Color(86, 210, 132, 90);
+    this.aimLine.rect(
+      bx - spec.width / 2 + spec.width * spec.sweetLo,
+      by + 2,
+      spec.width * (spec.sweetHi - spec.sweetLo),
+      spec.height - 4,
+    );
+    this.aimLine.fill();
+    this.aimLine.fillColor = new Color(255, 168, 42, 255);
+    this.aimLine.roundRect(
+      bx - spec.width / 2,
+      by + 2,
+      Math.max(8, spec.width * charge),
+      spec.height - 4,
+      5,
+    );
+    this.aimLine.fill();
+  }
+
   private drawAim(): void {
     this.aimLine.clear();
+    this.drawCastCharge();
     const flashing = this.castFlashLeft > 0 && !!this.hooked?.node.active;
     if (flashing) this.drawHookLine(true);
     if (deckFlag.live) {
@@ -676,17 +738,7 @@ export class RuntimePrototype extends Component {
     this.stashCarried();
   }
 
-  private cast(): void {
-    this.noteInput();
-    if (this.held()) return;
-    if (this.hooked) {
-      this.setStatus(
-        this.tutorial
-          ? tutorialPrompt(this.tutorialStep)
-          : "已经锁鱼，用右半屏瞄准开火。",
-      );
-      return;
-    }
+  private nearestCastTarget(): FishController | undefined {
     const origin = this.player.position;
     const candidates = this.fishRoot.getComponentsInChildren(FishController)
       .filter((fish) => fish.node.active && !fish.decoy)
@@ -695,15 +747,52 @@ export class RuntimePrototype extends Component {
           Vec3.distance(a.node.position, origin) -
           Vec3.distance(b.node.position, origin),
       );
-    const target = this.tutorial
+    return this.tutorial
       ? candidates.find((fish) => fish.id === TUTORIAL_FISH_ID) ?? candidates[0]
       : candidates.find(
           (fish) =>
             Vec3.distance(fish.node.position, origin) <=
             (this.shownBoss ? 780 : 560),
         );
+  }
+
+  private cast(): void {
+    this.noteInput();
+    if (this.held()) return;
+    if (this.charging) return;
+    if (this.hooked) {
+      this.setStatus(
+        this.tutorial
+          ? tutorialPrompt(this.tutorialStep)
+          : "已经锁鱼，用右半屏瞄准开火。",
+      );
+      return;
+    }
+    const target = this.nearestCastTarget();
     if (!target) {
       this.setStatus("附近没有鱼，把船再靠近一点。");
+      return;
+    }
+    this.charging = true;
+    this.chargeBorn = Date.now();
+    this.chargeTarget = target;
+    SfxPlayer.play("ui");
+  }
+
+  private tickCastCharge(): void {
+    if (!this.charging) return;
+    const hold = Date.now() - this.chargeBorn;
+    if (hold >= castAutoReleaseMs(this.tutorial)) this.commitCast();
+  }
+
+  private commitCast(): void {
+    if (!this.charging) return;
+    this.charging = false;
+    const charge = castChargeAt(Date.now() - this.chargeBorn);
+    const target = this.chargeTarget;
+    this.chargeTarget = undefined;
+    if (!target?.node.active) return;
+    if (this.tutorial && !tutorialCastAssists(charge) && !target.node.active) {
       return;
     }
     this.hooked = target;
@@ -713,7 +802,7 @@ export class RuntimePrototype extends Component {
     this.session.resetStyle();
     this.lastHudMultiplier = 1;
     this.lastHudCombo = 0;
-    this.playCastFeel();
+    this.playCastFeel(castQuality(charge));
     if (this.tutorial) {
       this.hooked.setAssist({
         freezeSeconds: TUTORIAL_WEAK_PAUSE_SECONDS,
@@ -727,14 +816,14 @@ export class RuntimePrototype extends Component {
     this.setStatus(`${castLockCaption(name)}钓线绷着，等它摔上甲板再砸。`);
   }
 
-  private playCastFeel(): void {
+  private playCastFeel(quality: ReturnType<typeof castQuality> = "early"): void {
     const tipX = this.player.position.x + 28;
     const tipY = this.player.position.y + 18;
     this.castFlashDuration = castFlashSeconds(this.lowPower);
     this.castFlashElapsed = 0;
     this.castFlashLeft = this.castFlashDuration;
     this.burst("cast", tipX, tipY);
-    this.showCallout(castSnapCaption());
+    this.showCallout(castChargeCaption(quality));
     SfxPlayer.play("cast");
   }
 
@@ -959,6 +1048,12 @@ export class RuntimePrototype extends Component {
       }
       if (fx.bounce) {
         this.burst("smash", fish.node.position.x, fish.node.position.y);
+        this.juice = this.juice.concat(
+          spawnLandingDust(fish.node.position.x, fish.node.position.y, this.lowPower),
+        );
+        this.beginHitStop(
+          bounceFreezeSeconds(fx.bounceIndex ?? 0, this.lowPower),
+        );
         SfxPlayer.play("smash");
       }
     }
@@ -1532,6 +1627,8 @@ export class RuntimePrototype extends Component {
     this.deck = undefined;
     this.shots = [];
     this.hitStopLeft = 0;
+    this.charging = false;
+    this.chargeTarget = undefined;
     this.unbindPads();
     FishController.setPaused(false);
     const summary = this.session.finish();

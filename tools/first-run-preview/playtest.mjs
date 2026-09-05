@@ -120,7 +120,7 @@ try {
   );
 
   note(await tap(page, "抛竿"), "抛竿");
-  await wait(280);
+  await wait(620);
   await shot(page, "03-tutorial-weak");
   const weakText = await page.evaluate(() => document.body.innerText);
   note(weakText.includes("发光鳍") || weakText.includes("弱点"), "弱点旁白");
@@ -169,7 +169,7 @@ try {
   await wait(350);
   await shot(page, "08-harbor-after");
   const after = await page.evaluate(() => document.body.innerText);
-  note(after.includes("潮汐港口 v32"), "回到港口");
+  note(after.includes("潮汐港口 v33"), "回到港口");
   note(after.includes("11/90") || after.includes("卖出已入账"), "卖出接到攒够进度");
   note(after.includes("出海捕鱼"), "第二局 CTA 文案");
   note(after.includes("● 泡沫湾"), "教学后默认泡沫湾");

@@ -84,6 +84,7 @@ import {
   castTipNudgePx,
   smashSquashAt,
   smashSquashSeconds,
+  spawnLandingDust,
   weakReticleRadius,
   weakReticleTickPx,
 } from "../assets/scripts/domain/HitJuice";
@@ -95,6 +96,7 @@ import {
   waveCaption,
 } from "../assets/scripts/domain/IslandClock";
 import {
+  castChargeCaption,
   castLockCaption,
   castSnapCaption,
   comboHud,
@@ -155,13 +157,25 @@ import {
   stepFlop,
   yankStep,
   bouncedOnDeck,
+  bounceFreezeSeconds,
   canPickUp,
   CARRY_FEEL,
   YANK_FEEL,
   carryBobOffset,
+  flopPickupReady,
   yankArcLift,
   flopApexAboveDeck,
 } from "../assets/scripts/domain/FlopPhysics";
+import {
+  CAST_FEEL,
+  castAutoReleaseMs,
+  castChargeAt,
+  castPreviewPts,
+  castQuality,
+  castSweet,
+  tutorialCastAssists,
+  weakWindowOpen,
+} from "../assets/scripts/domain/CastFeel";
 import {
   deckKindForFish,
   toActorWorld,
@@ -226,7 +240,12 @@ import {
   upgradeProgressRatio,
   weakHintCaption,
 } from "../assets/scripts/domain/TutorialFlow";
-import { sfxPlaceholderNote, sfxTone, shouldPlaySfx } from "../assets/scripts/domain/SfxFeel";
+import {
+  sfxPlaceholderNote,
+  sfxTone,
+  sfxVoices,
+  shouldPlaySfx,
+} from "../assets/scripts/domain/SfxFeel";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -250,6 +269,8 @@ import {
   lanternFlickerAt,
   recipeHasTag,
   recipeKindCount,
+  speckleDots,
+  swimSway,
   tailWagRad,
 } from "../assets/scripts/domain/ArtRecipe";
 import {
@@ -872,6 +893,9 @@ describe("HitJuice", () => {
     expect(squash.sy).toBeLessThan(1);
     expect(smashSquashAt(smashSquashSeconds(false), false)).toEqual({ sx: 1, sy: 1 });
     expect(smashSquashAt(0, true)).toEqual({ sx: 1, sy: 1 });
+    expect(juiceCount("dust", false)).toBe(8);
+    expect(spawnLandingDust(0, 0).every((p) => p.kind === "dust")).toBe(true);
+    expect(spawnJuiceFlash("dust", 0, 0, false)).toBeUndefined();
   });
 });
 
@@ -951,6 +975,31 @@ describe("SfxFeel", () => {
     expect(sfxTone("splash").noise).toBe(true);
     expect(sfxPlaceholderNote()).toContain("占位");
     expect(sfxPlaceholderNote()).toContain("≠ 真机");
+    expect(sfxVoices("cast").length).toBeGreaterThan(1);
+    expect(sfxVoices("smash").some((v) => v.type === "noise")).toBe(true);
+    expect(sfxVoices("sell").length).toBeGreaterThan(sfxVoices("ui").length);
+  });
+});
+
+describe("CastFeel", () => {
+  it("gives a readable charge window and still assists the tutorial", () => {
+    expect(castChargeAt(0)).toBe(0);
+    expect(castChargeAt(CAST_FEEL.chargeMs)).toBe(1);
+    expect(castSweet(0.7)).toBe(true);
+    expect(castSweet(0.2)).toBe(false);
+    expect(castQuality(0.7)).toBe("sweet");
+    expect(castQuality(0.2)).toBe("early");
+    expect(castQuality(0.95)).toBe("late");
+    expect(tutorialCastAssists(0.2)).toBe(true);
+    expect(tutorialCastAssists(0)).toBe(false);
+    expect(castAutoReleaseMs(true)).toBe(CAST_FEEL.tutorialAutoMs);
+    expect(castPreviewPts(-400, -90, 210, 20, 0.7).length).toBe(CAST_FEEL.previewPts);
+    expect(castPreviewPts(-400, -90, 210, 20, 1)[3].y).toBeGreaterThan(
+      castPreviewPts(-400, -90, 210, 20, 0)[3].y,
+    );
+    expect(weakWindowOpen(0, true)).toBe(true);
+    expect(castChargeCaption("sweet")).toBe("时机刚好");
+    expect(castChargeCaption("early")).toBe(castSnapCaption());
   });
 });
 
@@ -1522,6 +1571,12 @@ describe("FlopPhysics", () => {
     expect(carryBobOffset(0.2).y).toBeGreaterThanOrEqual(0);
     expect(CARRY_FEEL.ampY).toBeLessThan(12);
     expect(flopApexAboveDeck()).toBeGreaterThan(90);
+    expect(bounceFreezeSeconds(0, false)).toBeGreaterThan(0.05);
+    expect(bounceFreezeSeconds(0, true)).toBe(0);
+    expect(bounceFreezeSeconds(1, false)).toBeGreaterThan(0);
+    expect(bounceFreezeSeconds(4, false)).toBe(0);
+    expect(flopPickupReady(1, 20)).toBe(true);
+    expect(flopPickupReady(0, 20)).toBe(false);
   });
 });
 
@@ -1612,6 +1667,14 @@ describe("ArtRecipe", () => {
     expect(recipeHasTag(sea, "lamp")).toBe(true);
     expect(recipeHasTag(sea, "firework")).toBe(true);
     expect(recipeHasTag(sea, "sheen")).toBe(true);
+    expect(recipeHasTag(sea, "grad")).toBe(true);
+    expect(recipeHasTag(sea, "speckle")).toBe(true);
+    expect(recipeHasTag(sea, "shadow")).toBe(true);
+    expect(recipeHasTag(sea, "paraFar")).toBe(true);
+    expect(recipeHasTag(sea, "paraMid")).toBe(true);
+    expect(recipeHasTag(sea, "terrace")).toBe(true);
+    expect(speckleDots({ x: 0, y: 0, w: 10, h: 10, count: 4, size: 1 }).length).toBe(4);
+    expect(swimSway(380).x).not.toBe(swimSway(0).x);
     expect(lanternFlickerAt(0.2, -456)).not.toBe(lanternFlickerAt(1.1, -320));
     expect(tailWagRad(150)).not.toBe(tailWagRad(0));
     expect(recipeKindCount(sea, "rect")).toBeGreaterThan(8);
@@ -1629,6 +1692,7 @@ describe("ArtRecipe", () => {
     expect(recipeHasTag(fish, "scale")).toBe(true);
     expect(recipeHasTag(fish, "tail")).toBe(true);
     expect(recipeHasTag(fish, "weak")).toBe(true);
+    expect(recipeHasTag(fish, "refract")).toBe(true);
     expect(weakReticleRadius(0)).toBeGreaterThan(16);
     expect(weakReticleTickPx()).toBeGreaterThan(6);
   });

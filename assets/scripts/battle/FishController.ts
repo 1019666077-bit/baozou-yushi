@@ -55,6 +55,8 @@ export class FishController extends Component {
   private waterTime = 0;
   private pendingBounce = false;
   private pendingSplash = false;
+  private bounceCount = 0;
+  private pendingBounceIndex = 0;
   decoy = false;
 
   initialize(config: FishConfig, decoy = false): void {
@@ -69,6 +71,8 @@ export class FishController extends Component {
     this.waterTime = 0;
     this.pendingBounce = false;
     this.pendingSplash = false;
+    this.bounceCount = 0;
+    this.pendingBounceIndex = 0;
     this.node.angle = 0;
     this.origin.set(this.node.position);
     this.body = createFlopBody(this.node.position.x, this.node.position.y);
@@ -123,8 +127,12 @@ export class FishController extends Component {
     return this.mode === "flop" || this.mode === "stunned";
   }
 
-  takeLandFx(): { bounce: boolean; splash: boolean } {
-    const fx = { bounce: this.pendingBounce, splash: this.pendingSplash };
+  takeLandFx(): { bounce: boolean; splash: boolean; bounceIndex: number } {
+    const fx = {
+      bounce: this.pendingBounce,
+      splash: this.pendingSplash,
+      bounceIndex: this.pendingBounceIndex,
+    };
     this.pendingBounce = false;
     this.pendingSplash = false;
     return fx;
@@ -307,7 +315,11 @@ export class FishController extends Component {
       const down = this.mode === "stunned";
       const prev = this.body;
       this.body = stepFlop(this.body, dt, down);
-      if (bouncedOnDeck(prev, this.body)) this.pendingBounce = true;
+      if (bouncedOnDeck(prev, this.body)) {
+        this.pendingBounce = true;
+        this.pendingBounceIndex = this.bounceCount;
+        this.bounceCount += 1;
+      }
       if (!down) {
         this.leapWait += dt;
         if (this.leapWait > 0.4 && !isAirborne(this.body)) {

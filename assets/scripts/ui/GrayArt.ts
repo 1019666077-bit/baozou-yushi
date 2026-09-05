@@ -5,6 +5,8 @@ import {
   dockOps,
   fishOps,
   islandSetOps,
+  mix,
+  speckleDots,
   type DrawOp,
   type FishFace,
   type Rgba,
@@ -64,6 +66,46 @@ function paintOps(g: Graphics, ops: DrawOp[]): void {
       g.lineWidth = op.width;
       g.circle(op.x, op.y, op.r);
       g.stroke();
+      continue;
+    }
+    if (op.t === "grad") {
+      const bands = 6;
+      for (let i = 0; i < bands; i++) {
+        const t = i / (bands - 1);
+        const rgb = mix(
+          [op.from[0], op.from[1], op.from[2]],
+          [op.to[0], op.to[1], op.to[2]],
+          t,
+        );
+        const a = Math.round(
+          (op.from[3] ?? 255) + ((op.to[3] ?? 255) - (op.from[3] ?? 255)) * t,
+        );
+        g.fillColor = toColor([rgb[0], rgb[1], rgb[2], a]);
+        if (op.axis === "x") {
+          const slice = op.w / bands;
+          if (op.r && op.r > 0 && (i === 0 || i === bands - 1)) {
+            g.roundRect(op.x + i * slice, op.y, slice + 1, op.h, op.r);
+          } else g.rect(op.x + i * slice, op.y, slice + 1, op.h);
+        } else {
+          const slice = op.h / bands;
+          g.rect(op.x, op.y + i * slice, op.w, slice + 1);
+        }
+        g.fill();
+      }
+      continue;
+    }
+    if (op.t === "speckle") {
+      g.fillColor = toColor(op.color);
+      for (const dot of speckleDots(op)) {
+        g.circle(dot.x, dot.y, dot.r);
+        g.fill();
+      }
+      continue;
+    }
+    if (op.t === "shadow") {
+      g.fillColor = toColor(op.fill);
+      g.ellipse(op.x, op.y, op.rx, op.ry);
+      g.fill();
       continue;
     }
     g.strokeColor = toColor(op.color);
@@ -173,7 +215,7 @@ export function drawJuice(
     x: number;
     y: number;
     life: number;
-    kind: "bubble" | "star" | "coin";
+    kind: "bubble" | "star" | "coin" | "dust";
     size: number;
   }>,
   flashes: Array<{
@@ -221,6 +263,12 @@ export function drawJuice(
       g.fill();
       g.fillColor = new Color(255, 248, 200, Math.round(alpha * 0.7));
       g.ellipse(particle.x - r * 0.15, particle.y + r * 0.15, r * 0.35, r * 0.22);
+      g.fill();
+      continue;
+    }
+    if (particle.kind === "dust") {
+      g.fillColor = new Color(186, 142, 78, Math.round(alpha * 0.85));
+      g.ellipse(particle.x, particle.y, r * 1.4, r * 0.55);
       g.fill();
       continue;
     }

@@ -17,7 +17,7 @@
 - 岛分包加载失败时留在港口并可重试；教学关无真实 bundle，直接成功。
 - 开放数据域以 `wechat-open-data/` 为准。
 - CI：`npm run validate` 与 `npm run simulate`。
-- 第一局体验代理与 `tools/first-run-preview/shots/` **不是** Cocos 实机证据，更 **不是** Creator 3D 证据。本轮代理加深港口层次、湾鳍活与甩砸节奏，并加 WebAudio 占位音效；仍只能报代理分，不合 main。
+- 第一局体验代理与 `tools/first-run-preview/shots/` **不是** Cocos 实机证据，更 **不是** Creator 3D 证据。本轮代理加港口分层渐变/噪点/软阴影/视差、湾鳍表情与折射、抛竿蓄力轨迹、落地冻结+扬尘，以及多音色 WebAudio 占位；仍只能报代理分，不合 main。
 - 2.5D 港湾/猎场（`HarborStage` / `DeckStage`）只在本机 Creator 预览或 web-desktop 里能看见；云端无 Creator。期望构图示意图在 `docs/stage3d/`（`gallery.html` 顶栏写清「期望构图 ≠ Creator/真机」），**不是**实机截图。`docs/stage3d/creator-shots/` 目前只有 README，**没有**伪造的 4 张 png。
 
 ## 需要发行主体或真人完成

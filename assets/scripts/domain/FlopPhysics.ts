@@ -53,6 +53,32 @@ export const CARRY_FEEL = {
   ampY: 9,
 };
 
+/**
+ * 翻扑落地节奏层：第一下冻结帧 + 扬尘，第二下短顿。
+ * 不改经济，只改「砸甲板」能不能读出物理拍子。
+ */
+export const FLOP_RHYTHM = {
+  freezeSeconds: 0.09,
+  secondFreeze: 0.05,
+  dustCount: 8,
+  settleVy: 80,
+};
+
+export function bounceFreezeSeconds(
+  bounceIndex: number,
+  lowPower = false,
+): number {
+  if (lowPower) return 0;
+  if (bounceIndex === 0) return FLOP_RHYTHM.freezeSeconds;
+  if (bounceIndex === 1) return FLOP_RHYTHM.secondFreeze;
+  return 0;
+}
+
+/** 至少弹过一次且速度收住，捡起窗口才更「落地了」。教学不靠这个挡点击。 */
+export function flopPickupReady(bounceCount: number, vy: number): boolean {
+  return bounceCount >= 1 && Math.abs(vy) < FLOP_RHYTHM.settleVy;
+}
+
 export interface FlopBody {
   x: number;
   y: number;

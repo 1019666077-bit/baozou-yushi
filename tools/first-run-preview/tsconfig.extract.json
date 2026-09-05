@@ -17,6 +17,7 @@
     "../../assets/scripts/domain/PrivacyCopy.ts",
     "../../assets/scripts/domain/HarborCopy.ts",
     "../../assets/scripts/domain/FlopPhysics.ts",
+    "../../assets/scripts/domain/CastFeel.ts",
     "../../assets/scripts/domain/GrayLook.ts",
     "../../assets/scripts/domain/ArtRecipe.ts",
     "../../assets/scripts/domain/CameraFeel.ts",

@@ -18,6 +18,7 @@ const FILES = [
   "PrivacyCopy.ts",
   "HarborCopy.ts",
   "FlopPhysics.ts",
+  "CastFeel.ts",
   "GrayLook.ts",
   "ArtRecipe.ts",
   "CameraFeel.ts",
@@ -70,6 +71,7 @@ function snapshot() {
   const CameraFeel = load("CameraFeel");
   const ProcGeom = load("ProcGeom");
   const FlopPhysics = load("FlopPhysics");
+  const CastFeel = load("CastFeel");
   const SaveMerge = load("SaveMerge");
   const HitJuice = load("HitJuice");
   const SfxFeel = load("SfxFeel");
@@ -105,8 +107,8 @@ function snapshot() {
   const data = {
     proxy: true,
     disclaimer: `非 Cocos 实机，仅 2D 辅助体验代理。2D/辅助 ≠ Creator 3D · 不是港湾真机画面 · 可浏览器代验玩法/画面 · ${SfxFeel.sfxPlaceholderNote()} · 真机 4 张只认 docs/stage3d/creator-shots/`,
-    sourceStamp: "baozou-flop-v32",
-    harborTitle: "暴走鱼市 · 潮汐港口 v32",
+    sourceStamp: "baozou-flop-v33",
+    harborTitle: "暴走鱼市 · 潮汐港口 v33",
     huntSuffix: "潮汐猎场",
     castButton: "抛竿",
     pickButton: "捡起",
@@ -174,6 +176,9 @@ function snapshot() {
       strokePrimary: GameFeel.buttonStrokeRgb("primary"),
       strokeSecondary: GameFeel.buttonStrokeRgb("secondary"),
       palette: GameFeel.feelPalette(),
+      coinChipFill: GameFeel.coinChipFillRgb(),
+      coinChipStroke: GameFeel.coinChipStrokeRgb(),
+      woodPlate: GameFeel.woodPlateFillRgba(true),
     },
     button: {
       radius: GameFeel.buttonRadius(),
@@ -303,9 +308,20 @@ function snapshot() {
       flop: FlopPhysics.FLOP_FEEL,
       knock: FlopPhysics.KNOCK_FEEL,
       carry: FlopPhysics.CARRY_FEEL,
+      rhythm: FlopPhysics.FLOP_RHYTHM,
       dockX: FlopPhysics.DOCK_X,
       deckY: FlopPhysics.DECK_Y,
       carryWalkSeconds: FlopPhysics.carryWalkSeconds(),
+      bounceFreeze: FlopPhysics.bounceFreezeSeconds(0, false),
+    },
+    castFeel: {
+      chargeMs: CastFeel.CAST_FEEL.chargeMs,
+      sweetLo: CastFeel.CAST_FEEL.sweetLo,
+      sweetHi: CastFeel.CAST_FEEL.sweetHi,
+      tutorialAutoMs: CastFeel.CAST_FEEL.tutorialAutoMs,
+      previewPts: CastFeel.CAST_FEEL.previewPts,
+      previewLift: CastFeel.CAST_FEEL.previewLift,
+      bar: CastFeel.castBarSpec(),
     },
     islands: GrayLook.harborIslandIds().map((id) => {
       const island = islands.find((item) => item.id === id);
@@ -360,6 +376,7 @@ function snapshot() {
       afterCoins: after.coins,
       afterTutorial: after.tutorialComplete,
       afterRuns: after.completedRuns,
+      castSweet: StyleCallout.castChargeCaption("sweet"),
       calloutWeak: StyleCallout.styleCallout({
         weakPoint: true,
         airborne: false,
@@ -398,6 +415,7 @@ function snapshot() {
       blinkPeriod: ArtRecipe.BLINK_PERIOD_MS,
       blinkShut: ArtRecipe.BLINK_SHUT_MS,
       weakPulseMs: ArtRecipe.WEAK_PULSE_MS,
+      swimMs: ArtRecipe.SWIM_CURVE_MS,
     },
     sfxNote: SfxFeel.sfxPlaceholderNote(),
     guideTargets: {
@@ -422,6 +440,7 @@ function snapshot() {
       sell: HitJuice.juiceCount("sell", false),
       smash: HitJuice.juiceCount("smash", false),
       yank: HitJuice.juiceCount("yank", false),
+      dust: HitJuice.juiceCount("dust", false),
     },
     juiceFlash: {
       weak: HitJuice.spawnJuiceFlash("weak", 0, 0, false),
@@ -443,6 +462,16 @@ function snapshot() {
       smash: SfxFeel.sfxTone("smash"),
       splash: SfxFeel.sfxTone("splash"),
       yank: SfxFeel.sfxTone("yank"),
+    },
+    sfxVoices: {
+      cast: SfxFeel.sfxVoices("cast"),
+      weak: SfxFeel.sfxVoices("weak"),
+      catch: SfxFeel.sfxVoices("catch"),
+      sell: SfxFeel.sfxVoices("sell"),
+      ui: SfxFeel.sfxVoices("ui"),
+      smash: SfxFeel.sfxVoices("smash"),
+      splash: SfxFeel.sfxVoices("splash"),
+      yank: SfxFeel.sfxVoices("yank"),
     },
   };
 
