@@ -73,6 +73,10 @@ import {
   juiceWantsPunch,
   spawnJuiceFlash,
   tickJuiceFlash,
+  spawnGoldRain,
+  crateBounceScaleAt,
+  popupLiftPx,
+  juiceFlashLineWidth,
   castFlashSeconds,
   castLineWidth,
   castRodScaleAt,
@@ -91,6 +95,7 @@ import {
   comboHud,
   inboxPopup,
   liveQuote,
+  sellPopup,
   styleCallout,
 } from "../assets/scripts/domain/StyleCallout";
 import {
@@ -99,7 +104,18 @@ import {
   shouldVibrate,
   hitStopSeconds,
   buttonFillRgb,
+  buttonRadius,
+  buttonSpec,
+  buttonStrokeWidth,
+  coinJumpAlpha,
+  coinJumpLiftPx,
+  coinJumpSeconds,
+  creamInkRgb,
+  feelPalette,
   goldHudRgb,
+  plateFillRgba,
+  plateSize,
+  sellPunchSeconds,
   styleHudPunchRgb,
   styleHudPunchScaleAt,
   styleHudPunchSeconds,
@@ -769,6 +785,17 @@ describe("HitJuice", () => {
     expect(castTipNudgePx(0, 0.16, false)).toBeGreaterThan(0);
     expect(castRodScaleAt(0.05, 0.16, true)).toBe(1);
   });
+
+  it("rains gold on sell and bounces the crate on catch", () => {
+    expect(juiceCount("gold", false)).toBe(12);
+    expect(juiceCount("gold", true)).toBe(6);
+    expect(spawnGoldRain(10, 20).every((p) => p.kind === "coin")).toBe(true);
+    expect(spawnJuiceFlash("sell", 0, 0, false)?.kind).toBe("sell");
+    expect(juiceWantsPunch("sell", false)).toBe(true);
+    expect(crateBounceScaleAt(0.05, false)).toBeGreaterThan(1);
+    expect(popupLiftPx(0.2)).toBeGreaterThan(popupLiftPx(0.02));
+    expect(juiceFlashLineWidth({ x: 0, y: 0, life: 1, maxLife: 0.2, kind: "weak" })).toBeGreaterThan(6);
+  });
 });
 
 describe("style HUD punch and discovery toast", () => {
@@ -788,6 +815,8 @@ describe("style HUD punch and discovery toast", () => {
     expect(discoveryToast("湾鳍鱼")).toBe("图鉴新纪录：湾鳍鱼");
     expect(discoveryToastLine(["湾鳍鱼", "焰鳗"])).toContain("等2种");
     expect(castSnapCaption().length).toBeLessThan(8);
+    expect(sellPopup(36)).toBe("卖出 +36金");
+    expect(inboxPopup(12)).toBe("入箱 +12");
   });
 });
 
@@ -993,7 +1022,8 @@ describe("TutorialFlow", () => {
     expect(tutorialGuideAnchor("crate")?.x).toBe(-520);
     const ring = tutorialGuideRing(0);
     expect(ring.lineWidth).toBeGreaterThanOrEqual(8);
-    expect(ring.maskAlpha).toBeGreaterThan(0);
+    expect(ring.maskAlpha).toBeGreaterThan(120);
+    expect(ring.fillAlpha).toBeLessThan(40);
     expect(tutorialGuideRing(400).pulse).not.toBe(ring.pulse);
   });
 
@@ -1079,6 +1109,18 @@ describe("TutorialFlow", () => {
     expect(buttonFillRgb("primary")[0]).toBeGreaterThan(buttonFillRgb("secondary")[0]);
     expect(goldHudRgb()[0]).toBe(255);
     expect(goldHudRgb()[1]).toBeGreaterThan(180);
+    expect(feelPalette().primary[0]).toBe(buttonFillRgb("primary")[0]);
+    expect(buttonRadius()).toBe(18);
+    expect(buttonStrokeWidth("primary")).toBeGreaterThan(buttonStrokeWidth("secondary"));
+    expect(buttonSpec("hero").height).toBeGreaterThan(buttonSpec("chip").height);
+    expect(buttonSpec("bar").fontSize).toBe(28);
+    expect(plateSize().width).toBeGreaterThan(700);
+    expect(plateFillRgba(true)[3]).toBeGreaterThan(plateFillRgba(false)[3]);
+    expect(creamInkRgb()[0]).toBe(255);
+    expect(coinJumpSeconds()).toBeGreaterThan(1);
+    expect(coinJumpLiftPx(0.4)).toBeGreaterThan(10);
+    expect(coinJumpAlpha(0.1)).toBeGreaterThan(coinJumpAlpha(1));
+    expect(sellPunchSeconds(false)).toBeGreaterThan(sellPunchSeconds(true));
   });
 
   it("keeps sail as the harbor CTA when the next upgrade is unaffordable", () => {

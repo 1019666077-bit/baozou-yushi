@@ -5,7 +5,9 @@ export type JuiceKind =
   | "perfect"
   | "catch"
   | "splash"
-  | "cast";
+  | "cast"
+  | "gold"
+  | "sell";
 
 export interface JuiceParticle {
   x: number;
@@ -14,12 +16,13 @@ export interface JuiceParticle {
   vy: number;
   life: number;
   maxLife: number;
-  kind: "bubble" | "star";
+  kind: "bubble" | "star" | "coin";
   size: number;
 }
 
 export function juiceCount(kind: JuiceKind, lowPower: boolean): number {
   if (kind === "cast") return lowPower ? 2 : 4;
+  if (kind === "gold" || kind === "sell") return lowPower ? 6 : 12;
   if (lowPower) return kind === "miss" ? 2 : 3;
   if (kind === "miss") return 4;
   if (kind === "splash") return 16;
@@ -49,17 +52,31 @@ export function spawnJuice(
     const angle = (i / count) * Math.PI * 2 + (kind === "miss" ? 0.6 : 0.15);
     const speed = burst + (i % 3) * 18;
     const star =
-      kind === "weak" || kind === "perfect" || kind === "catch";
+      kind === "weak" ||
+      kind === "perfect" ||
+      kind === "catch" ||
+      kind === "gold" ||
+      kind === "sell";
+    const coin = kind === "gold" || kind === "sell";
     const up =
-      kind === "splash" ? 90 : kind === "miss" ? 30 : kind === "cast" ? 18 : 8;
+      kind === "splash"
+        ? 90
+        : kind === "miss"
+          ? 30
+          : kind === "cast"
+            ? 18
+            : coin
+              ? 140
+              : 8;
     return {
       x,
       y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed + up,
       life: 1,
-      maxLife: kind === "perfect" || kind === "splash" ? 0.55 : 0.4,
-      kind: star && i % 2 === 0 ? "star" : "bubble",
+      maxLife:
+        kind === "perfect" || kind === "splash" || coin ? 0.55 : 0.4,
+      kind: coin ? "coin" : star && i % 2 === 0 ? "star" : "bubble",
       size:
         kind === "splash"
           ? 9
@@ -69,7 +86,9 @@ export function spawnJuice(
               ? 7
               : kind === "cast"
                 ? 4
-                : 5,
+                : coin
+                  ? 6
+                  : 5,
     };
   });
 }
@@ -91,7 +110,13 @@ export function juiceShakePx(kind: JuiceKind, lowPower: boolean): number {
 
 export function juiceWantsPunch(kind: JuiceKind, lowPower: boolean): boolean {
   if (lowPower) return false;
-  return kind === "hit" || kind === "weak" || kind === "catch" || kind === "perfect";
+  return (
+    kind === "hit" ||
+    kind === "weak" ||
+    kind === "catch" ||
+    kind === "perfect" ||
+    kind === "sell"
+  );
 }
 
 export function juicePunchPeak(kind: JuiceKind, lowPower: boolean): number {
@@ -130,15 +155,16 @@ export function spawnJuiceFlash(
     lowPower &&
     kind !== "weak" &&
     kind !== "perfect" &&
-    kind !== "catch"
+    kind !== "catch" &&
+    kind !== "sell"
   ) {
     return undefined;
   }
   const maxLife =
-    kind === "catch" || kind === "perfect"
+    kind === "catch" || kind === "perfect" || kind === "sell"
       ? 0.22
       : kind === "weak"
-        ? 0.18
+        ? 0.2
         : 0.12;
   return {
     x,
@@ -160,8 +186,19 @@ export function tickJuiceFlash(
 }
 
 export function juiceFlashRadius(flash: JuiceFlash): number {
-  const grow = flash.kind === "catch" || flash.kind === "perfect" ? 56 : 42;
+  const grow =
+    flash.kind === "catch" || flash.kind === "perfect" || flash.kind === "sell"
+      ? 64
+      : flash.kind === "weak"
+        ? 52
+        : 42;
   return 18 + grow * (1 - flash.life);
+}
+
+export function juiceFlashLineWidth(flash: JuiceFlash): number {
+  if (flash.kind === "weak" || flash.kind === "perfect") return 9;
+  if (flash.kind === "catch" || flash.kind === "sell") return 8;
+  return 6;
 }
 
 export function tickJuice(
@@ -176,7 +213,10 @@ export function tickJuice(
       ...particle,
       x: particle.x + particle.vx * dt,
       y: particle.y + particle.vy * dt,
-      vy: particle.vy + (particle.kind === "bubble" ? 40 : 12) * dt,
+      vy:
+        particle.vy +
+        (particle.kind === "coin" ? -220 : particle.kind === "bubble" ? 40 : 12) *
+          dt,
       vx: particle.vx * Math.max(0, 1 - 0.8 * dt),
       life,
     });
@@ -186,7 +226,7 @@ export function tickJuice(
 
 /** 欢乐钓鱼大师式甩钩：线闪很短，低配只留细线。 */
 export function castFlashSeconds(lowPower: boolean): number {
-  return lowPower ? 0.1 : 0.16;
+  return lowPower ? 0.12 : 0.2;
 }
 
 export function castLineWidth(
@@ -196,7 +236,24 @@ export function castLineWidth(
 ): number {
   if (duration <= 0) return 6;
   const t = 1 - Math.min(1, Math.max(0, elapsed / duration));
-  return lowPower ? 6 + 2 * t : 6 + 6 * t;
+  return lowPower ? 6 + 3 * t : 6 + 10 * t;
+}
+
+export function spawnGoldRain(
+  x: number,
+  y: number,
+  lowPower = false,
+): JuiceParticle[] {
+  return spawnJuice("gold", x, y, lowPower);
+}
+
+export function crateBounceScaleAt(elapsed: number, lowPower: boolean): number {
+  return juicePunchScaleAt("catch", elapsed, lowPower);
+}
+
+export function popupLiftPx(elapsed: number, duration = 0.45): number {
+  const t = duration <= 0 ? 1 : Math.min(1, Math.max(0, elapsed / duration));
+  return 36 * (1 - (1 - t) * (1 - t));
 }
 
 export function castTipNudgePx(

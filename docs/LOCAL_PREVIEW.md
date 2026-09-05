@@ -24,6 +24,16 @@ npx --yes serve build/web-desktop -l 8765
 PLAYTEST_URL=http://127.0.0.1:8765/ node tools/playtest-live.mjs
 ```
 
+## 第一局体验代理（无 Creator）
+
+没有编辑器时，可用 DOM+canvas 代理看第一局闭环（教学→抛竿→弱点→捡起→入箱→卖出→回港）：
+
+```bash
+node tools/first-run-preview/serve.mjs
+```
+
+浏览器打开 http://127.0.0.1:8766/ 。**非 Cocos 实机**，文案/CTA/色板从 `assets/scripts/domain` 抽出。说明见 `tools/first-run-preview/README.md`。
+
 ## 微信小游戏
 
 1. 构建面板选 **微信小游戏**（`build-config.wechat.json`）。把 AppID 换成自己的，**不要提交**。

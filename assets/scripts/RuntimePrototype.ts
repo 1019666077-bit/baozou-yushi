@@ -93,9 +93,11 @@ import {
   castLineWidth,
   castRodScaleAt,
   castTipNudgePx,
+  crateBounceScaleAt,
   juicePunchScaleAt,
   juicePunchSeconds,
   juiceShakePx,
+  popupLiftPx,
   spawnJuice,
   spawnJuiceFlash,
   tickJuice,
@@ -110,9 +112,11 @@ import { playerSave } from "./save/SaveService";
 import {
   drawOcean,
   drawBoat,
+  drawCrate,
   drawDock,
   makeButton,
   makeLabel,
+  makePlate,
   paintButtonTone,
   replacePlayLayer,
   tintGold,
@@ -192,6 +196,9 @@ export class RuntimePrototype extends Component {
   private shakeLeft = 0;
   private shakePx = 0;
   private crateLabel?: Label;
+  private crateGfx?: Graphics;
+  private crateNode?: Node;
+  private calloutBaseY = 188;
   private aimStartedAt = 0;
   private waveY = 0;
   private boatIFrame = 0;
@@ -310,20 +317,7 @@ export class RuntimePrototype extends Component {
     makeLabel(this.layer, `${island.name} · 潮汐猎场`, 32, 0, 318);
     this.multiplier = makeLabel(this.layer, "精彩 ×1.00", 22, -470, 318, 280);
     this.coinsLabel = tintGold(makeLabel(this.layer, "本局 0", 24, 470, 318, 280));
-    const plate = new Node("NarrationPlate");
-    plate.layer = this.layer.layer;
-    plate.parent = this.layer;
-    plate.setPosition(0, 268);
-    const plateGfx = plate.addComponent(Graphics);
-    plateGfx.fillColor = new Color(8, 22, 32, 176);
-    plateGfx.roundRect(-380, -22, 760, 44, 12);
-    plateGfx.fill();
-    if (this.tutorial) {
-      plateGfx.strokeColor = new Color(255, 214, 32, 160);
-      plateGfx.lineWidth = 2;
-      plateGfx.roundRect(-380, -22, 760, 44, 12);
-      plateGfx.stroke();
-    }
+    makePlate(this.layer, 0, 268, this.tutorial, 780, 52);
     this.status = makeLabel(
       this.layer,
       this.tutorial
@@ -339,7 +333,14 @@ export class RuntimePrototype extends Component {
     this.callout = makeLabel(this.layer, "", 28, 0, 188, 900);
     this.callout.color = new Color(255, 236, 120, 255);
     this.clockLabel = makeLabel(this.layer, "热身潮 1:40", 20, -470, 268, 280);
-    this.crateLabel = makeLabel(this.layer, "鱼箱", 20, -520, -118, 120);
+    this.crateNode = new Node("Crate");
+    this.crateNode.layer = this.layer.layer;
+    this.crateNode.parent = this.layer;
+    this.crateNode.setPosition(-520, -150);
+    this.crateNode.addComponent(UITransform).setContentSize(100, 70);
+    this.crateGfx = this.crateNode.addComponent(Graphics);
+    drawCrate(this.crateGfx);
+    this.crateLabel = makeLabel(this.layer, "鱼箱", 20, -520, -96, 120);
     this.crateLabel.color = new Color(255, 236, 180, 255);
 
     this.bindPad("MovePad", -320, 0, 640, 420, {
@@ -1580,6 +1581,7 @@ export class RuntimePrototype extends Component {
         this.lowPower,
       );
       this.callout?.node.setScale(scale, scale, 1);
+      this.callout?.node.setPosition(0, this.calloutBaseY + popupLiftPx(this.punchElapsed));
     } else {
       this.callout?.node.setScale(1, 1, 1);
     }
@@ -1587,10 +1589,12 @@ export class RuntimePrototype extends Component {
       this.cratePunchLeft = Math.max(0, this.cratePunchLeft - dt);
       const duration = juicePunchSeconds("catch", this.lowPower) || 0.16;
       const elapsed = duration - this.cratePunchLeft;
-      const scale = juicePunchScaleAt("catch", elapsed, this.lowPower);
+      const scale = crateBounceScaleAt(elapsed, this.lowPower);
       this.crateLabel?.node.setScale(scale, scale, 1);
+      this.crateNode?.setScale(scale, scale, 1);
     } else if (this.crateLabel) {
       this.crateLabel.node.setScale(1, 1, 1);
+      this.crateNode?.setScale(1, 1, 1);
     }
     if (this.hudPunchLeft > 0) {
       this.hudPunchElapsed += dt;
@@ -1628,6 +1632,7 @@ export class RuntimePrototype extends Component {
     if (!this.callout) return;
     this.callout.string = value;
     this.calloutUntil = Date.now() + 1_400;
+    this.callout.node.setPosition(0, this.calloutBaseY);
   }
 
   private setStatus(value: string): void {

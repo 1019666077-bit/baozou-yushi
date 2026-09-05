@@ -1,16 +1,115 @@
 export type ButtonTone = "primary" | "secondary";
+export type ButtonRole = "hero" | "bar" | "chip" | "mini" | "wide";
+
+export interface ButtonSpec {
+  width: number;
+  height: number;
+  fontSize: number;
+  radius: number;
+}
+
+export interface Palette {
+  primary: [number, number, number];
+  secondary: [number, number, number];
+  primaryInk: [number, number, number];
+  secondaryInk: [number, number, number];
+  gold: [number, number, number];
+  cream: [number, number, number];
+  plate: [number, number, number];
+  hud: [number, number, number];
+  strokePrimary: [number, number, number];
+  strokeSecondary: [number, number, number];
+}
+
+/** RuntimeHome / RuntimePrototype / 代理预览共用色板。 */
+export function feelPalette(): Palette {
+  return {
+    primary: [255, 156, 56],
+    secondary: [16, 78, 90],
+    primaryInk: [255, 252, 240],
+    secondaryInk: [220, 238, 244],
+    gold: [255, 220, 72],
+    cream: [255, 252, 236],
+    plate: [8, 18, 28],
+    hud: [240, 250, 255],
+    strokePrimary: [255, 236, 180],
+    strokeSecondary: [72, 168, 176],
+  };
+}
 
 /** 主 CTA 暖色，次要按钮深青，拉开层级。 */
 export function buttonFillRgb(tone: ButtonTone): [number, number, number] {
-  return tone === "primary" ? [255, 156, 56] : [16, 78, 90];
+  const p = feelPalette();
+  return tone === "primary" ? p.primary : p.secondary;
 }
 
 export function buttonLabelRgb(tone: ButtonTone): [number, number, number] {
-  return tone === "primary" ? [255, 252, 240] : [220, 238, 244];
+  const p = feelPalette();
+  return tone === "primary" ? p.primaryInk : p.secondaryInk;
+}
+
+export function buttonStrokeRgb(tone: ButtonTone): [number, number, number] {
+  const p = feelPalette();
+  return tone === "primary" ? p.strokePrimary : p.strokeSecondary;
+}
+
+export function buttonRadius(): number {
+  return 18;
+}
+
+export function buttonStrokeWidth(tone: ButtonTone): number {
+  return tone === "primary" ? 3 : 2;
+}
+
+export function buttonSpec(role: ButtonRole): ButtonSpec {
+  if (role === "hero") return { width: 300, height: 92, fontSize: 30, radius: buttonRadius() };
+  if (role === "bar") return { width: 210, height: 86, fontSize: 28, radius: buttonRadius() };
+  if (role === "wide") return { width: 300, height: 72, fontSize: 22, radius: buttonRadius() };
+  if (role === "chip") return { width: 240, height: 58, fontSize: 22, radius: 16 };
+  return { width: 150, height: 56, fontSize: 22, radius: 14 };
 }
 
 export function goldHudRgb(): [number, number, number] {
-  return [255, 220, 72];
+  return feelPalette().gold;
+}
+
+export function creamInkRgb(): [number, number, number] {
+  return feelPalette().cream;
+}
+
+export function plateFillRgba(tutorial = false): [number, number, number, number] {
+  return tutorial ? [8, 18, 28, 214] : [8, 18, 28, 188];
+}
+
+export function plateStrokeRgba(tutorial = false): [number, number, number, number] {
+  return tutorial ? [255, 214, 48, 210] : [120, 186, 196, 90];
+}
+
+export function plateSize(): { width: number; height: number; radius: number } {
+  return { width: 780, height: 52, radius: 14 };
+}
+
+export function coinJumpSeconds(): number {
+  return 1.15;
+}
+
+export function coinJumpLiftPx(elapsed: number, duration = coinJumpSeconds()): number {
+  const t = duration <= 0 ? 1 : Math.min(1, Math.max(0, elapsed / duration));
+  return 46 * t;
+}
+
+export function coinJumpAlpha(elapsed: number, duration = coinJumpSeconds()): number {
+  const t = duration <= 0 ? 1 : Math.min(1, Math.max(0, elapsed / duration));
+  const fade = t < 0.2 ? 1 : 1 - (t - 0.2) / 0.8;
+  return Math.max(0, fade);
+}
+
+export function sellPunchSeconds(lowPower: boolean): number {
+  return lowPower ? 0.12 : 0.22;
+}
+
+export function discoveryPunchSeconds(lowPower: boolean): number {
+  return lowPower ? 0.14 : 0.2;
 }
 
 export function spawnCap(lowPower: boolean): number {

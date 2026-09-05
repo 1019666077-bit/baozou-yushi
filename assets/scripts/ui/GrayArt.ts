@@ -153,6 +153,42 @@ function sun(g: Graphics, x: number, y: number, look: IslandLook): void {
   fillCircle(g, x + 6, y + 4, 8, c([255, 236, 200], 180));
 }
 
+function paintWaterBands(g: Graphics, look: IslandLook): void {
+  g.fillColor = c(look.skyTop);
+  g.rect(-640, 200, 1280, 320);
+  g.fill();
+  g.fillColor = c(look.sky);
+  g.rect(-640, 110, 1280, 110);
+  g.fill();
+  fillEllipse(g, -80, 168, 220, 22, c([255, 236, 210], 36));
+  fillEllipse(g, 0, 92, 640, 34, c(look.haze, 140));
+  g.fillColor = c(look.far);
+  g.rect(-640, 36, 1280, 78);
+  g.fill();
+  g.fillColor = c(look.mid);
+  g.rect(-640, -36, 1280, 82);
+  g.fill();
+  g.fillColor = c(look.near);
+  g.rect(-640, -176, 1280, 148);
+  g.fill();
+  g.fillColor = c(look.deep);
+  g.rect(-640, -360, 1280, 196);
+  g.fill();
+  g.strokeColor = c(look.haze, 110);
+  g.lineWidth = 4;
+  g.moveTo(-640, 44);
+  g.lineTo(640, 44);
+  g.stroke();
+  g.strokeColor = c([255, 252, 236], 36);
+  g.lineWidth = 2;
+  g.moveTo(-640, 38);
+  g.lineTo(640, 38);
+  g.stroke();
+  fillEllipse(g, -200, -72, 150, 11, c(look.haze, 46));
+  fillEllipse(g, 180, -118, 190, 13, c(look.haze, 32));
+  fillEllipse(g, 420, -200, 120, 9, c(look.haze, 24));
+}
+
 export function drawSeascape(
   parent: Node,
   options: { islandId?: string; harbor?: boolean } = {},
@@ -168,25 +204,7 @@ export function drawSeascape(
   background.addComponent(UITransform).setContentSize(1280, 720);
   const g = background.addComponent(Graphics);
 
-  g.fillColor = c(look.skyTop);
-  g.rect(-640, 160, 1280, 360);
-  g.fill();
-  g.fillColor = c(look.sky);
-  g.rect(-640, 70, 1280, 120);
-  g.fill();
-  fillEllipse(g, 0, 86, 640, 28, c(look.haze, 120));
-  g.fillColor = c(look.far);
-  g.rect(-640, 28, 1280, 70);
-  g.fill();
-  g.fillColor = c(look.mid);
-  g.rect(-640, -50, 1280, 90);
-  g.fill();
-  g.fillColor = c(look.near);
-  g.rect(-640, -200, 1280, 160);
-  g.fill();
-  g.fillColor = c(look.deep);
-  g.rect(-640, -360, 1280, 180);
-  g.fill();
+  paintWaterBands(g, look);
 
   if (harbor) {
     sun(g, 420, 250, look);
@@ -209,14 +227,6 @@ export function drawSeascape(
     foamIsle(g, 380, 80, 1.1, look);
     foamIsle(g, -420, 74, 0.7, look);
   }
-
-  g.strokeColor = c(look.haze, 90);
-  g.lineWidth = 3;
-  g.moveTo(-640, 40);
-  g.lineTo(640, 40);
-  g.stroke();
-  fillEllipse(g, -180, -90, 120, 10, c(look.haze, 40));
-  fillEllipse(g, 220, -140, 160, 12, c(look.haze, 30));
 }
 
 export function drawDock(parent: Node): void {
@@ -225,45 +235,85 @@ export function drawDock(parent: Node): void {
   node.parent = parent;
   node.addComponent(UITransform).setContentSize(1280, 720);
   const g = node.addComponent(Graphics);
-  g.fillColor = new Color(16, 42, 58, 200);
-  g.roundRect(-640, -252, 440, 26, 4);
+  g.fillColor = new Color(10, 32, 46, 210);
+  g.roundRect(-640, -258, 460, 30, 6);
   g.fill();
-  g.fillColor = new Color(176, 124, 70, 255);
-  g.roundRect(-640, -226, 410, 92, 10);
+  g.fillColor = new Color(186, 132, 74, 255);
+  g.roundRect(-640, -228, 430, 98, 12);
+  g.fill();
+  g.fillColor = new Color(214, 168, 104, 255);
+  g.roundRect(-640, -228, 430, 16, 8);
   g.fill();
   g.fillColor = new Color(142, 96, 52, 255);
-  for (let i = 0; i < 7; i++) {
-    g.rect(-630 + i * 56, -220, 6, 80);
+  for (let i = 0; i < 8; i++) {
+    g.rect(-632 + i * 52, -214, 5, 78);
     g.fill();
   }
+  g.strokeColor = new Color(92, 62, 34, 180);
+  g.lineWidth = 2;
+  g.moveTo(-630, -176);
+  g.lineTo(-230, -176);
+  g.stroke();
   g.fillColor = new Color(24, 154, 170, 255);
   g.roundRect(-556, -184, 76, 62, 10);
   g.fill();
   g.fillColor = new Color(18, 90, 104, 255);
   g.roundRect(-548, -176, 60, 18, 4);
   g.fill();
+  g.fillColor = new Color(255, 236, 180, 90);
+  g.roundRect(-540, -172, 18, 8, 3);
+  g.fill();
 }
 
 export function drawBoat(graphics: Graphics): void {
   const g = graphics;
   g.clear();
-  fillEllipse(g, 0, -20, 58, 11, new Color(18, 48, 62, 160));
-  fillPoly(g, new Color(196, 122, 64, 255), [40, -8, 62, 2, 48, 10, 28, 4]);
+  fillEllipse(g, 2, -14, 62, 12, new Color(12, 36, 48, 150));
+  fillPoly(g, new Color(196, 122, 64, 255), [44, -6, 68, 4, 50, 12, 30, 4]);
   g.fillColor = new Color(214, 160, 86, 255);
-  g.roundRect(-50, -14, 100, 28, 10);
+  g.roundRect(-54, -12, 108, 30, 12);
   g.fill();
-  g.fillColor = new Color(176, 118, 58, 255);
-  g.roundRect(-48, 6, 96, 8, 3);
+  g.fillColor = new Color(236, 196, 122, 255);
+  g.roundRect(-50, 2, 100, 8, 3);
+  g.fill();
+  g.fillColor = new Color(168, 110, 54, 255);
+  g.roundRect(-48, 8, 96, 6, 2);
   g.fill();
   g.fillColor = new Color(236, 214, 168, 255);
-  g.roundRect(-10, 6, 44, 22, 5);
+  g.roundRect(-12, 8, 48, 24, 6);
   g.fill();
-  fillCircle(g, 8, 18, 7, new Color(120, 196, 214, 255));
-  fillCircle(g, 10, 20, 3, new Color(236, 248, 255, 200));
+  fillCircle(g, 10, 20, 8, new Color(120, 196, 214, 255));
+  fillCircle(g, 12, 22, 3.2, new Color(236, 248, 255, 220));
   g.fillColor = new Color(92, 74, 48, 255);
-  g.rect(-4, 8, 5, 36);
+  g.rect(-6, 10, 5, 40);
   g.fill();
-  fillPoly(g, new Color(255, 168, 72, 255), [-2, 42, 22, 34, -2, 28]);
+  fillPoly(g, new Color(255, 168, 72, 255), [-4, 48, 26, 38, -4, 30]);
+  fillPoly(g, new Color(255, 214, 140, 200), [-4, 46, 16, 38, -4, 34]);
+}
+
+export function drawCrate(graphics: Graphics): void {
+  const g = graphics;
+  g.clear();
+  fillEllipse(g, 0, -28, 46, 8, new Color(12, 32, 44, 140));
+  g.fillColor = new Color(138, 88, 42, 255);
+  g.roundRect(-42, -26, 84, 52, 6);
+  g.fill();
+  g.fillColor = new Color(176, 124, 64, 255);
+  g.roundRect(-42, 10, 84, 16, 5);
+  g.fill();
+  g.fillColor = new Color(214, 168, 96, 255);
+  g.roundRect(-38, 16, 76, 6, 2);
+  g.fill();
+  g.fillColor = new Color(110, 70, 34, 255);
+  for (let i = 0; i < 4; i++) {
+    g.rect(-34 + i * 20, -20, 4, 30);
+    g.fill();
+  }
+  g.strokeColor = new Color(255, 220, 120, 200);
+  g.lineWidth = 3;
+  g.roundRect(-42, -26, 84, 52, 6);
+  g.stroke();
+  fillCircle(g, 0, 18, 4, new Color(255, 210, 90, 255));
 }
 
 function tint(rgb: Rgb, decoy: boolean, a = 255): Color {
@@ -383,6 +433,9 @@ export function drawFishBody(
   fillEllipse(g, 10 * s, -6 * s, 20 * s, 9 * s, belly);
   fillPoly(g, accent, [6 * s, 8 * s, 22 * s, 30 * s, 28 * s, 6 * s]);
   fillPoly(g, body, [-26 * s, 0, -54 * s, 16 * s, -48 * s, 0, -54 * s, -16 * s]);
+  fillCircle(g, 22 * s, 3 * s, 3.2 * s, new Color(20, 28, 36, decoy ? 120 : 255));
+  fillCircle(g, 23 * s, 4 * s, 1.2 * s, new Color(255, 252, 236, 220));
+  fillEllipse(g, 8 * s, 4 * s, 8 * s, 3 * s, new Color(255, 255, 255, decoy ? 40 : 70));
 }
 
 export function drawFish(
@@ -455,11 +508,11 @@ export function drawShots(
 
 export function drawJuice(
   g: Graphics,
-  particles: Array<{
+    particles: Array<{
     x: number;
     y: number;
     life: number;
-    kind: "bubble" | "star";
+    kind: "bubble" | "star" | "coin";
     size: number;
   }>,
   flashes: Array<{
@@ -472,10 +525,20 @@ export function drawJuice(
   g.clear();
   for (const flash of flashes) {
     const alpha = Math.max(0, Math.round(210 * flash.life));
-    const grow = flash.kind === "catch" || flash.kind === "perfect" ? 56 : 42;
+    const grow =
+      flash.kind === "catch" || flash.kind === "perfect" || flash.kind === "sell"
+        ? 64
+        : flash.kind === "weak"
+          ? 52
+          : 42;
     const r = 18 + grow * (1 - flash.life);
     g.strokeColor = new Color(255, 236, 120, alpha);
-    g.lineWidth = flash.kind === "catch" || flash.kind === "perfect" ? 8 : 6;
+    g.lineWidth =
+      flash.kind === "weak" || flash.kind === "perfect"
+        ? 9
+        : flash.kind === "catch" || flash.kind === "sell"
+          ? 8
+          : 6;
     g.circle(flash.x, flash.y, r);
     g.stroke();
     fillCircle(
@@ -489,6 +552,25 @@ export function drawJuice(
   for (const particle of particles) {
     const alpha = Math.max(40, Math.round(255 * particle.life));
     const r = particle.size * (0.65 + 0.35 * particle.life);
+    if (particle.kind === "coin") {
+      fillEllipse(
+        g,
+        particle.x,
+        particle.y,
+        r * 1.15,
+        r * 0.85,
+        new Color(255, 214, 72, alpha),
+      );
+      fillEllipse(
+        g,
+        particle.x - r * 0.15,
+        particle.y + r * 0.15,
+        r * 0.35,
+        r * 0.22,
+        new Color(255, 248, 200, Math.round(alpha * 0.7)),
+      );
+      continue;
+    }
     if (particle.kind === "star") {
       fillPoly(
         g,
@@ -544,7 +626,7 @@ export function drawGuideHole(
   const holeR = Math.min(right, cx + holeRadius);
   const holeB = Math.max(bottom, cy - holeRadius);
   const holeT = Math.min(top, cy + holeRadius);
-  g.fillColor = new Color(6, 14, 22, spec.maskAlpha);
+  g.fillColor = new Color(4, 10, 18, spec.maskAlpha);
   if (holeT < top) {
     g.rect(left, holeT, right - left, top - holeT);
     g.fill();
