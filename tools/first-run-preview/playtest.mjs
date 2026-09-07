@@ -183,9 +183,9 @@ try {
   await wait(350);
   await shot(page, "08-harbor-after");
   const after = await page.evaluate(() => document.body.innerText);
-  note(after.includes("潮汐港口 v34") || after.includes("潮汐港口"), "回到港口");
+  note(after.includes("潮退浮站") || after.includes("潮汐港口"), "回到浮站");
   note(after.includes("11/90") || after.includes("卖出已入账"), "卖出接到攒够进度");
-  note(after.includes("出海捕鱼"), "第二局 CTA 文案");
+  note(after.includes("再出海") || after.includes("出海捕鱼"), "第二局 CTA 文案");
   note(after.includes("● 泡沫湾"), "教学后默认泡沫湾");
   note(!after.includes("开始教学"), "开始教学已消失");
   note(after.includes("再出1局后图鉴"), "图鉴仍锁到第二局");
@@ -214,7 +214,7 @@ try {
     "升级失败不盖掉主目标",
   );
 
-  note(await tap(page, "出海捕鱼"), "自由局出海");
+  note((await tap(page, "再出海")) || (await tap(page, "出海捕鱼")), "自由局出海");
   await wait(280);
   const freeSail = await page.evaluate(() => window.proxyState());
   note(freeSail.freeHunt === true, "教完后自由局不再开教学自动甜区");

@@ -373,6 +373,7 @@ export function paintBayTraffic(ctx, phase, harbor) {
     ctx.stroke();
   }
   if (harbor) {
+    paintFloodHorizon(ctx);
     for (const [x, y] of [
       [610, 410],
       [780, 430],
@@ -383,6 +384,38 @@ export function paintBayTraffic(ctx, phase, harbor) {
       ellipse(ctx, x, y + 10, 10, 3, "rgba(8,28,40,0.25)");
     }
   }
+}
+
+/** 远景淹没楼影与浮木。原创色块，不是竞品剪影。 */
+function paintFloodHorizon(ctx) {
+  ellipse(ctx, 640, 318, 520, 18, "rgba(18, 28, 40, 0.28)");
+  const ruins = [
+    [430, 236, 28, 86, "#2a303c"],
+    [468, 250, 18, 58, "#343a46"],
+    [620, 248, 64, 72, "#262c38"],
+    [780, 242, 36, 78, "#303644"],
+    [860, 258, 22, 48, "#3a404c"],
+  ];
+  for (const [x, y, w, h, color] of ruins) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+    ellipse(ctx, x + w * 0.5, y + h, w * 0.7, 6, "rgba(210,246,255,0.18)");
+  }
+  ctx.fillStyle = "rgba(255,168,72,0.55)";
+  ctx.fillRect(440, 268, 8, 10);
+  ctx.fillStyle = "#4a3220";
+  ctx.save();
+  ctx.translate(560, 368);
+  ctx.rotate(-0.18);
+  ctx.fillRect(-34, -4, 68, 8);
+  ctx.restore();
+  ctx.save();
+  ctx.translate(720, 382);
+  ctx.rotate(0.22);
+  ctx.fillRect(-24, -3, 48, 7);
+  ctx.restore();
+  ellipse(ctx, 560, 376, 28, 5, "rgba(255,248,230,0.22)");
+  ellipse(ctx, 720, 388, 22, 4, "rgba(210,246,255,0.16)");
 }
 
 export function paintFinish(ctx, grain, w, h, hunt = false) {

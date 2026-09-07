@@ -65,6 +65,15 @@ import {
 } from "./domain/IslandPack";
 import { shouldCallCloud } from "./domain/WechatSession";
 import {
+  harborBuildingBack,
+  harborBuildingBody,
+  harborBuildingTitle,
+  harborOrderBoardLabel,
+  harborPontoonUpgradeLabel,
+  harborWorldTitle,
+  type HarborBuildingKind,
+} from "./domain/HarborCopy";
+import {
   healthAdviceLines,
   healthAdviceTitle,
   privacyBackCaption,
@@ -124,6 +133,7 @@ export class RuntimeHome extends Component {
     | "wipe"
     | "book"
     | "board"
+    | "building"
     | "settle"
     | "sea" = "harbor";
   private justDiscovered: string[] = [];
@@ -212,7 +222,7 @@ export class RuntimeHome extends Component {
     const nextLevel = tool.levels.find(
       (level) => level.level === (ownedTool?.level ?? 0) + 1,
     );
-    makeLabel(layer, "暴走鱼市 · 潮汐港口 v33", 36, 0, 310);
+    makeLabel(layer, harborWorldTitle(), 36, 0, 310);
     this.coinsLabel = tintGold(makeLabel(layer, `金币 ${save.coins}`, 26, 470, 310, 280));
     this.settleGuide = undefined;
     this.goldGfx = undefined;
@@ -381,7 +391,27 @@ export class RuntimeHome extends Component {
 
     makeButton(
       layer,
-      harborSailCaption(save.tutorialComplete),
+      harborOrderBoardLabel(),
+      -340,
+      -140,
+      () => this.showBuilding("orders"),
+      180,
+      52,
+      20,
+    );
+    makeButton(
+      layer,
+      harborPontoonUpgradeLabel(),
+      80,
+      -140,
+      () => this.showBuilding("pontoon"),
+      180,
+      52,
+      20,
+    );
+    makeButton(
+      layer,
+      harborSailCaption(save.tutorialComplete, save.completedRuns),
       -80,
       -230,
       () => this.sail(),
@@ -440,6 +470,26 @@ export class RuntimeHome extends Component {
       160,
       72,
       22,
+    );
+  }
+
+  private showBuilding(kind: HarborBuildingKind): void {
+    this.surface = "building";
+    const proto = this.node.getComponent(RuntimePrototype);
+    if (proto) proto.destroy();
+    const layer = replacePlayLayer(this.node);
+    this.paintHarborWorld(layer);
+    makeLabel(layer, harborBuildingTitle(), 34, 0, 120);
+    makeLabel(layer, harborBuildingBody(kind), 22, 0, 20, 980);
+    makeButton(
+      layer,
+      harborBuildingBack(),
+      0,
+      -230,
+      () => this.showHarbor(),
+      240,
+      72,
+      24,
     );
   }
 

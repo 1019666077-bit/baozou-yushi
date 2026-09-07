@@ -1310,6 +1310,14 @@ function renderHarbor() {
     setStatus(complete ? COPY.boardLockAfter : COPY.boardLockNew);
     render();
   });
+  cta(COPY.harborOrderBoard ?? "订单板", -340, -140, 180, 52, 20, "secondary", () => {
+    setStatus(COPY.harborBuildingOrders ?? COPY.harborBuildingTitle ?? "修建中");
+    render();
+  });
+  cta(COPY.harborPontoonUpgrade ?? "浮台升级", 80, -140, 180, 52, 20, "secondary", () => {
+    setStatus(COPY.harborBuildingPontoon ?? COPY.harborBuildingTitle ?? "修建中");
+    render();
+  });
   cta(COPY.settingsButton, -530, 310, COPY.button.mini.width, COPY.button.mini.height, COPY.button.mini.fontSize, "secondary", () => {
     setStatus("代理预览不包含设置页。");
     render();

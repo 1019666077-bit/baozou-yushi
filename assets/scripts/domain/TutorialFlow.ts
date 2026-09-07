@@ -488,8 +488,13 @@ export function harborChipSelected(
   return islandId === displayIslandId;
 }
 
-export function harborSailCaption(tutorialComplete: boolean): string {
-  return tutorialComplete ? "出海捕鱼" : "开始教学";
+export function harborSailCaption(
+  tutorialComplete: boolean,
+  completedRuns = 0,
+): string {
+  if (!tutorialComplete) return "开始教学";
+  if (completedRuns >= 1) return "再出海";
+  return "出海捕鱼";
 }
 
 function runsNeededFor(feature: HarborFeature): number {

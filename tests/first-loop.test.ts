@@ -53,6 +53,7 @@ describe("first-loop economy C", () => {
     ).toBe("sail");
     expect(canAffordNextUpgrade(firstSale, FIRST_ROD_UPGRADE_COST)).toBe(false);
     expect(harborSailCaption(true)).toBe("出海捕鱼");
+    expect(harborSailCaption(true, 1)).toBe("再出海");
   });
 
   it("tells the player the remaining coins and that another sail can fill it", () => {

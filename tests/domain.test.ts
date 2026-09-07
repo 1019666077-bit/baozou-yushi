@@ -8,7 +8,15 @@ import type {
 import { BattleStateMachine } from "../assets/scripts/domain/BattleStateMachine";
 import { CaptureEngine } from "../assets/scripts/domain/CaptureEngine";
 import { PriceCalculator } from "../assets/scripts/domain/PriceCalculator";
-import { harborFailCopy } from "../assets/scripts/domain/HarborCopy";
+import {
+  harborBuildingBack,
+  harborBuildingBody,
+  harborBuildingTitle,
+  harborFailCopy,
+  harborOrderBoardLabel,
+  harborPontoonUpgradeLabel,
+  harborWorldTitle,
+} from "../assets/scripts/domain/HarborCopy";
 import { ProgressionSystem } from "../assets/scripts/domain/ProgressionSystem";
 import {
   createDefaultSave,
@@ -275,6 +283,7 @@ import {
   dockOps,
   fishOps,
   grainStrokes,
+  floodSkylineOps,
   islandSetOps,
   lanternFlickerAt,
   recipeHasTag,
@@ -446,6 +455,26 @@ describe("ProgressionSystem", () => {
     expect(harborFailCopy(new Error("Insufficient coins: need 380"))).toBe(
       "金币不足",
     );
+  });
+
+  it("keeps flood-island harbor copy original and placeholder-only", () => {
+    expect(harborWorldTitle()).toContain("潮退浮站");
+    expect(harborWorldTitle()).toContain("浮岛小站");
+    expect(harborOrderBoardLabel()).toBe("订单板");
+    expect(harborPontoonUpgradeLabel()).toBe("浮台升级");
+    expect(harborBuildingTitle()).toBe("修建中");
+    expect(harborBuildingBody("orders")).toContain("订单板");
+    expect(harborBuildingBody("pontoon")).toContain("浮台");
+    expect(harborBuildingBack()).toBe("回到浮站");
+    const joined = [
+      harborWorldTitle(),
+      harborOrderBoardLabel(),
+      harborPontoonUpgradeLabel(),
+      harborBuildingTitle(),
+      harborBuildingBody("orders"),
+      harborBuildingBody("pontoon"),
+    ].join(" ");
+    expect(joined).not.toMatch(/Crazy|Water World|渔力全开/i);
   });
 
   it("buys a newly unlocked tool at its level-one cost", () => {
@@ -1178,6 +1207,7 @@ describe("TutorialFlow", () => {
     ).toBe(true);
     expect(harborSailCaption(false)).toBe("开始教学");
     expect(harborSailCaption(true)).toBe("出海捕鱼");
+    expect(harborSailCaption(true, 1)).toBe("再出海");
   });
 
   it("advances cast → weak point → reel → settle", () => {
@@ -1374,6 +1404,7 @@ describe("TutorialFlow", () => {
       }),
     ).toBe("sail");
     expect(harborSailCaption(true)).toBe("出海捕鱼");
+    expect(harborSailCaption(true, 1)).toBe("再出海");
     expect(
       harborGoalPrompt({
         tutorialComplete: true,
@@ -1677,9 +1708,12 @@ describe("ProcGeom budget", () => {
     expect(STAGE_BUDGET.textureBytes).toBe(0);
     expect(STAGE_BUDGET.maxLights).toBe(1);
     expect(findPart(water, "Water")?.wave).toBe(true);
-    expect(findPart(extras, "FoamHill")).toBeTruthy();
-    expect(findPart(extras, "PrismPeak")).toBeTruthy();
+    expect(findPart(extras, "RuinA")).toBeTruthy();
+    expect(findPart(extras, "RuinB")).toBeTruthy();
+    expect(findPart(extras, "DriftA")).toBeTruthy();
+    expect(findPart(extras, "Stall")).toBeTruthy();
     expect(findPart(dock, "Rail")).toBeTruthy();
+    expect(findPart(dock, "PontoonL")).toBeTruthy();
   });
 
   it("makes vertex waves and silhouette kits without adding textures", () => {
@@ -1726,6 +1760,11 @@ describe("ArtRecipe", () => {
     expect(recipeHasTag(sea, "hang")).toBe(true);
     expect(recipeHasTag(sea, "depth")).toBe(true);
     expect(recipeHasTag(sea, "ridge")).toBe(true);
+    expect(recipeHasTag(sea, "skyline")).toBe(true);
+    expect(recipeHasTag(sea, "driftwood")).toBe(true);
+    expect(recipeHasTag(floodSkylineOps(islandLook("island_foam_bay", true)), "silhouette")).toBe(
+      true,
+    );
     expect(recipeHasTag(dockOps(), "nail")).toBe(true);
     const hunt = islandSetOps("island_foam_bay", false, 0.4);
     expect(recipeHasTag(hunt, "ridge")).toBe(true);
