@@ -1,4 +1,5 @@
 import type { PlayerSave } from "../data/types";
+import { defaultStationState, normalizeStation } from "./StationOps";
 
 export const CURRENT_SAVE_SCHEMA = 1;
 
@@ -21,6 +22,7 @@ export function createDefaultSave(now = Date.now()): PlayerSave {
       vibration: true,
       lowPower: false,
     },
+    station: defaultStationState(),
   };
 }
 
@@ -59,5 +61,6 @@ export function migrate(save: PlayerSave): PlayerSave {
       ...createDefaultSave(save.updatedAt).settings,
       ...save.settings,
     },
+    station: normalizeStation(save.station),
   };
 }

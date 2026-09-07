@@ -68,11 +68,33 @@ import {
   harborBuildingBack,
   harborBuildingBody,
   harborBuildingTitle,
+  harborFlotsamDeliverToast,
+  harborFlotsamHeldLine,
+  harborFlotsamPickCaption,
+  harborFlotsamPickedToast,
+  harborOrderAcceptCaption,
+  harborOrderAcceptHint,
+  harborOrderDeliverCaption,
+  harborOrderDeliverHint,
+  harborOrderName,
+  harborOrderNeedLine,
   harborOrderBoardLabel,
+  harborPontoonBuiltHint,
+  harborPontoonTierLine,
+  harborPontoonUpgradeCaption,
   harborPontoonUpgradeLabel,
+  harborPontoonUpgradeToast,
   harborWorldTitle,
   type HarborBuildingKind,
 } from "./domain/HarborCopy";
+import {
+  canAcceptOrder,
+  canDeliverOrder,
+  canPickFlotsam,
+  canUpgradePontoon,
+  normalizeStation,
+  stationOrderNeed,
+} from "./domain/StationOps";
 import {
   healthAdviceLines,
   healthAdviceTitle,
@@ -389,6 +411,21 @@ export class RuntimeHome extends Component {
       1100,
     );
 
+    const station = normalizeStation(save.station);
+    if (canPickFlotsam(station)) {
+      makeButton(
+        layer,
+        harborFlotsamPickCaption(),
+        340,
+        -40,
+        () => void this.onPickFlotsam(),
+        180,
+        52,
+        20,
+      );
+    } else if (station.flotsamHeld > 0) {
+      makeLabel(layer, harborFlotsamHeldLine(station.flotsamHeld), 18, 340, -40, 280);
+    }
     makeButton(
       layer,
       harborOrderBoardLabel(),
@@ -479,18 +516,122 @@ export class RuntimeHome extends Component {
     if (proto) proto.destroy();
     const layer = replacePlayLayer(this.node);
     this.paintHarborWorld(layer);
-    makeLabel(layer, harborBuildingTitle(), 34, 0, 120);
-    makeLabel(layer, harborBuildingBody(kind), 22, 0, 20, 980);
+    const station = HarborActions.readStation();
+    makeLabel(layer, harborBuildingTitle(kind), 34, 0, 220);
+    if (kind === "pontoon") {
+      makeLabel(layer, harborPontoonTierLine(station.pontoonTier), 24, 0, 160, 900);
+      makeLabel(layer, harborBuildingBody("pontoon"), 22, 0, 90, 980);
+      makeLabel(layer, harborPontoonBuiltHint(), 18, 0, 30, 900);
+      makeButton(
+        layer,
+        harborPontoonUpgradeCaption(station.pontoonTier),
+        0,
+        -140,
+        () => void this.onUpgradePontoon(),
+        260,
+        64,
+        22,
+      );
+    } else {
+      makeLabel(layer, harborOrderName(), 26, 0, 164);
+      makeLabel(layer, harborBuildingBody("orders"), 22, 0, 100, 980);
+      makeLabel(
+        layer,
+        harborOrderNeedLine(station.orderProgress, stationOrderNeed()),
+        22,
+        0,
+        40,
+      );
+      if (station.flotsamHeld > 0) {
+        makeLabel(layer, harborFlotsamHeldLine(station.flotsamHeld), 18, 0, 8, 720);
+      }
+      makeButton(
+        layer,
+        harborOrderAcceptCaption(station.orderAccepted),
+        -180,
+        -140,
+        () => void this.onAcceptOrder(),
+        200,
+        64,
+        22,
+      );
+      makeButton(
+        layer,
+        harborOrderDeliverCaption(station.orderDelivered),
+        180,
+        -140,
+        () => void this.onDeliverOrder(),
+        200,
+        64,
+        22,
+      );
+    }
     makeButton(
       layer,
       harborBuildingBack(),
       0,
-      -230,
+      -250,
       () => this.showHarbor(),
       240,
       72,
       24,
     );
+  }
+
+  private async onAcceptOrder(): Promise<void> {
+    const station = HarborActions.readStation();
+    if (!canAcceptOrder(station)) {
+      this.setStatus(
+        station.orderDelivered
+          ? harborOrderDeliverCaption(true)
+          : harborOrderAcceptCaption(true),
+      );
+      this.showBuilding("orders");
+      return;
+    }
+    const error = await HarborActions.acceptOrder();
+    this.setStatus(error ?? harborOrderAcceptCaption(true));
+    this.showBuilding("orders");
+  }
+
+  private async onDeliverOrder(): Promise<void> {
+    const station = HarborActions.readStation();
+    if (!canDeliverOrder(station)) {
+      this.setStatus(
+        station.orderDelivered
+          ? harborOrderDeliverCaption(true)
+          : station.orderAccepted
+            ? harborOrderDeliverHint()
+            : harborOrderAcceptHint(),
+      );
+      this.showBuilding("orders");
+      return;
+    }
+    const error = await HarborActions.deliverOrder();
+    this.setStatus(error ?? harborFlotsamDeliverToast());
+    this.showBuilding("orders");
+  }
+
+  private async onPickFlotsam(): Promise<void> {
+    const station = HarborActions.readStation();
+    if (!canPickFlotsam(station)) return;
+    const error = await HarborActions.pickFlotsam();
+    this.setStatus(error ?? harborFlotsamPickedToast());
+    this.showHarbor();
+  }
+
+  private async onUpgradePontoon(): Promise<void> {
+    const station = HarborActions.readStation();
+    if (!canUpgradePontoon(station)) {
+      this.setStatus(harborPontoonUpgradeCaption(station.pontoonTier));
+      this.showBuilding("pontoon");
+      return;
+    }
+    const error = await HarborActions.upgradePontoon();
+    HarborStage.drop();
+    this.harbor3d = undefined;
+    this.setStatus(error ?? harborPontoonUpgradeToast());
+    this.showBuilding("pontoon");
   }
 
   private showSettle(summary: RunSummary): void {
@@ -933,11 +1074,19 @@ export class RuntimeHome extends Component {
   }
 
   private paintHarborWorld(layer: Node): void {
+    const station = HarborActions.readStation();
     try {
-      this.harbor3d = HarborStage.ensure(this.node);
+      this.harbor3d = HarborStage.ensure(this.node, {
+        pontoonTier: station.pontoonTier,
+        showFlotsam: station.flotsamSpawned,
+      });
     } catch {
       this.harbor3d = undefined;
-      drawOcean(layer, { harbor: true });
+      drawOcean(layer, {
+        harbor: true,
+        pontoonTier: station.pontoonTier,
+        showFlotsam: station.flotsamSpawned,
+      });
     }
   }
 

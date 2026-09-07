@@ -1830,6 +1830,29 @@ export function dockOps(): DrawOp[] {
   return ops;
 }
 
+/** 浮台 1→2：加宽甲板、棚角、灯。默认 1 档不追加。 */
+export function pontoonUpgradeOps(tier = 1): DrawOp[] {
+  if (tier < 2) return [];
+  return [
+    { t: "rect", x: -176, y: -232, w: 128, h: 96, r: 10, fill: rgba(WOOD.plank), tag: "deck" },
+    { t: "rect", x: -170, y: -226, w: 116, h: 14, r: 6, fill: rgba(WOOD.highlight), tag: "deck" },
+    { t: "rect", x: -148, y: -248, w: 92, h: 72, r: 10, fill: rgba(MARKET.stall), tag: "shed" },
+    { t: "rect", x: -156, y: -262, w: 108, h: 16, r: 6, fill: rgba(MARKET.awningA), tag: "shed" },
+    { t: "rect", x: -80, y: -210, w: 8, h: 74, r: 2, fill: rgba(WOOD.dark), tag: "lamp" },
+    { t: "circle", x: -76, y: -138, r: 10, fill: rgba(MARKET.lantern), tag: "lamp" },
+    { t: "circle", x: -76, y: -138, r: 22, fill: rgba(MARKET.glow, 70), tag: "lamp" },
+  ];
+}
+
+/** 近岸潮间漂木，点一下捞起，不走扑腾。 */
+export function flotsamPickupOps(): DrawOp[] {
+  return [
+    { t: "ellipse", x: 188, y: -72, rx: 42, ry: 11, fill: rgba([255, 248, 230], 48), tag: "flotsam" },
+    { t: "rect", x: 154, y: -78, w: 68, h: 14, r: 5, fill: rgba(WOOD.dark), tag: "flotsam" },
+    { t: "rect", x: 160, y: -74, w: 56, h: 6, r: 3, fill: rgba(WOOD.highlight), tag: "flotsam" },
+  ];
+}
+
 export function boatOps(): DrawOp[] {
   return [
     { t: "ellipse", x: 4, y: -16, rx: 74, ry: 13, fill: rgba(WOOD.shadow, 170) },

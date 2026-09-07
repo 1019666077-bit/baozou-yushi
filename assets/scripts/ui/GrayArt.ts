@@ -5,8 +5,10 @@ import {
   crateOps,
   dockOps,
   fishOps,
+  flotsamPickupOps,
   grainStrokes,
   islandSetOps,
+  pontoonUpgradeOps,
   mix,
   slamMarkOps,
   speckleDots,
@@ -149,7 +151,12 @@ function paintOps(g: Graphics, ops: DrawOp[]): void {
 
 export function drawSeascape(
   parent: Node,
-  options: { islandId?: string; harbor?: boolean } = {},
+  options: {
+    islandId?: string;
+    harbor?: boolean;
+    pontoonTier?: number;
+    showFlotsam?: boolean;
+  } = {},
 ): void {
   const harbor = options.harbor === true;
   const islandId = options.islandId ?? "island_foam_bay";
@@ -161,7 +168,12 @@ export function drawSeascape(
   background.parent = parent;
   background.addComponent(UITransform).setContentSize(1280, 720);
   const g = background.addComponent(Graphics);
-  paintOps(g, islandSetOps(islandId, harbor));
+  const ops = [...islandSetOps(islandId, harbor)];
+  if (harbor) {
+    ops.push(...pontoonUpgradeOps(options.pontoonTier ?? 1));
+    if (options.showFlotsam !== false) ops.push(...flotsamPickupOps());
+  }
+  paintOps(g, ops);
 }
 
 export function drawDock(parent: Node): void {

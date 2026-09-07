@@ -37,6 +37,15 @@ const save = {
   selectedIslandId: COPY.tutorialIsland.id,
 };
 
+const station = {
+  orderAccepted: false,
+  orderDelivered: false,
+  orderProgress: 0,
+  flotsamHeld: 0,
+  flotsamSpawned: true,
+  pontoonTier: 1,
+};
+
 let surface = "harbor";
 let tutorialStep = "cast";
 let carrying = false;
@@ -729,7 +738,19 @@ function paintSea(ctx, _look, harbor = false) {
   paintSkyBloom(ctx, phase, harbor);
   paintWaterLife(ctx, phase, !harbor);
   paintBayTraffic(ctx, phase, harbor);
-  paintNearPier(ctx, phase, harbor);
+  paintNearPier(ctx, phase, harbor, station.pontoonTier);
+  if (harbor && station.flotsamSpawned) {
+    const bob = Math.sin(phase * 1.4) * 5;
+    if (COPY.artFlotsam) {
+      ctx.save();
+      ctx.translate(0, bob);
+      paintOps(ctx, COPY.artFlotsam, phase);
+      ctx.restore();
+    }
+  }
+  if (harbor && station.pontoonTier >= 2 && COPY.artPontoon2) {
+    paintOps(ctx, COPY.artPontoon2, phase);
+  }
   paintFinish(ctx, grain, W, H, !harbor);
 }
 
@@ -1310,12 +1331,22 @@ function renderHarbor() {
     setStatus(complete ? COPY.boardLockAfter : COPY.boardLockNew);
     render();
   });
+  if (station.flotsamSpawned) {
+    cta(COPY.harborFlotsamPick ?? "捞起漂木", 340, -40, 180, 52, 20, "secondary", () => {
+      station.flotsamSpawned = false;
+      station.flotsamHeld = 1;
+      setStatus(COPY.harborFlotsamPicked ?? "捞到一块潮间漂木。带回订单板交给小站。");
+      render();
+    });
+  } else if (station.flotsamHeld > 0) {
+    label(COPY.harborFlotsamHeld ?? "手里有一块潮间漂木", 18, 340, -40, 280);
+  }
   cta(COPY.harborOrderBoard ?? "订单板", -340, -140, 180, 52, 20, "secondary", () => {
-    setStatus(COPY.harborBuildingOrders ?? COPY.harborBuildingTitle ?? "修建中");
+    surface = "orders";
     render();
   });
   cta(COPY.harborPontoonUpgrade ?? "浮台升级", 80, -140, 180, 52, 20, "secondary", () => {
-    setStatus(COPY.harborBuildingPontoon ?? COPY.harborBuildingTitle ?? "修建中");
+    surface = "pontoon";
     render();
   });
   cta(COPY.settingsButton, -530, 310, COPY.button.mini.width, COPY.button.mini.height, COPY.button.mini.fontSize, "secondary", () => {
@@ -1442,9 +1473,107 @@ function renderSettle() {
   cta(COPY.sellCaption, 0, -230, hero.width, hero.height, hero.fontSize, "primary", confirmSettle);
 }
 
+function renderOrderBoard() {
+  const ctx = bg.getContext("2d");
+  paintSea(ctx, COPY.looks.harbor, true);
+  hud.innerHTML = "";
+  buttons.innerHTML = "";
+  label(COPY.harborOrderBoard ?? "订单板", 34, 0, 220);
+  label(COPY.harborOrderName ?? "潮间补货", 26, 0, 164);
+  label(COPY.harborBuildingOrders ?? "", 22, 0, 100, 980);
+  label(
+    station.orderDelivered ? COPY.harborOrderNeedDone : COPY.harborOrderNeedIdle,
+    22,
+    0,
+    40,
+  );
+  if (station.flotsamHeld > 0) {
+    label(COPY.harborFlotsamHeld ?? "手里有一块潮间漂木", 18, 0, 8, 720);
+  }
+  cta(
+    station.orderAccepted ? COPY.harborOrderAccepted : COPY.harborOrderAccept,
+    -180,
+    -140,
+    200,
+    64,
+    22,
+    "secondary",
+    () => {
+      if (station.orderAccepted || station.orderDelivered) {
+        setStatus(COPY.harborOrderAccepted ?? "已记下");
+      } else {
+        station.orderAccepted = true;
+        setStatus(COPY.harborOrderAccepted ?? "已记下");
+      }
+      render();
+    },
+  );
+  cta(
+    station.orderDelivered ? COPY.harborOrderDelivered : COPY.harborOrderDeliver,
+    180,
+    -140,
+    200,
+    64,
+    22,
+    "secondary",
+    () => {
+      if (station.orderDelivered) {
+        setStatus(COPY.harborOrderDelivered ?? "已送到小站");
+      } else if (!station.orderAccepted) {
+        setStatus(COPY.harborOrderAcceptHint ?? "先记下需求，再把潮间漂木交到浮站。");
+      } else if (station.flotsamHeld <= 0) {
+        setStatus(COPY.harborOrderDeliverHint ?? "先捞起近岸的潮间漂木。");
+      } else {
+        station.flotsamHeld = 0;
+        station.orderProgress = 1;
+        station.orderDelivered = true;
+        setStatus(COPY.harborFlotsamDelivered ?? "潮间漂木已钉到棚角。小站记下了。");
+      }
+      render();
+    },
+  );
+  cta(COPY.harborBuildingBack ?? "回到浮站", 0, -250, 240, 72, 24, "secondary", () => {
+    surface = "harbor";
+    render();
+  });
+}
+
+function renderPontoon() {
+  const ctx = bg.getContext("2d");
+  paintSea(ctx, COPY.looks.harbor, true);
+  hud.innerHTML = "";
+  buttons.innerHTML = "";
+  label(COPY.harborPontoonUpgrade ?? "浮台升级", 34, 0, 220);
+  label(station.pontoonTier >= 2 ? COPY.harborPontoonTier2 : COPY.harborPontoonTier1, 24, 0, 160, 900);
+  label(COPY.harborBuildingPontoon ?? "", 22, 0, 90, 980);
+  label(COPY.harborPontoonBuiltHint ?? "第三档图纸还在修建中。", 18, 0, 30, 900);
+  cta(
+    station.pontoonTier >= 2 ? COPY.harborPontoonNailed : COPY.harborPontoonNail,
+    0,
+    -140,
+    260,
+    64,
+    22,
+    "secondary",
+    () => {
+      if (station.pontoonTier < 2) {
+        station.pontoonTier = 2;
+        setStatus(COPY.harborPontoonUpgradeToast ?? "甲板加宽了，棚角也亮着灯。售价没变。");
+      } else {
+        setStatus(COPY.harborPontoonNailed ?? "浮台已经能站住");
+      }
+      render();
+    },
+  );
+  cta(COPY.harborBuildingBack ?? "回到浮站", 0, -250, 240, 72, 24, "secondary", () => {
+    surface = "harbor";
+    render();
+  });
+}
+
 function paintBackdrop() {
   const ctx = bg.getContext("2d");
-  if (surface === "harbor" || surface === "settle") {
+  if (surface === "harbor" || surface === "settle" || surface === "orders" || surface === "pontoon") {
     paintSea(ctx, COPY.looks.harbor, true);
     if (surface === "settle" && settleGuide) paintGuide(ctx, "sell");
     return;
@@ -1466,6 +1595,8 @@ function render() {
   stage.dataset.step = tutorialStep;
   if (surface === "harbor") renderHarbor();
   else if (surface === "settle") renderSettle();
+  else if (surface === "orders") renderOrderBoard();
+  else if (surface === "pontoon") renderPontoon();
   else renderSea();
 }
 
@@ -1780,6 +1911,8 @@ function tick(now) {
       sellBridge = "";
       if (statusFlash && toastLeft <= 0) toastLeft = COPY.harborToastHoldSeconds ?? 1.25;
       if (surface === "harbor") renderHarbor();
+      if (surface === "orders") renderOrderBoard();
+      if (surface === "pontoon") renderPontoon();
     }
   }
   if (coinJumpLeft <= 0 && toastLeft > 0) {
@@ -1787,6 +1920,8 @@ function tick(now) {
     if (toastLeft === 0) {
       statusFlash = "";
       if (surface === "harbor") renderHarbor();
+      if (surface === "orders") renderOrderBoard();
+      if (surface === "pontoon") renderPontoon();
     }
   }
   if (autoSettleAt && now >= autoSettleAt && surface === "sea") {
@@ -1819,6 +1954,7 @@ Object.assign(window, {
     slamMark,
     dust: particles.filter((p) => p.kind === "dust").length,
     tutorialComplete: save.tutorialComplete,
+    station: { ...station },
   }),
   proxyHoldCharge: (value) => {
     charging = true;

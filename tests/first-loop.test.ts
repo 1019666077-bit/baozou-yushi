@@ -144,3 +144,11 @@ describe("first-loop economy C", () => {
     ).toBe(false);
   });
 });
+
+describe("W2 station stays off the 11/90 loop", () => {
+  it("does not change first-sale coins or rod upgrade cost", () => {
+    expect(tutorialFirstSaleCoins()).toBe(11);
+    expect(FIRST_ROD_UPGRADE_COST).toBe(90);
+    expect(upgradeGapRemaining(tutorialFirstSaleCoins())).toBe(79);
+  });
+});

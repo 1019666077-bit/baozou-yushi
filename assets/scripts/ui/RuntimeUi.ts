@@ -28,7 +28,12 @@ export function loadJson<T>(path: string): Promise<T> {
 
 export function drawOcean(
   parent: Node,
-  options: { islandId?: string; harbor?: boolean } = {},
+  options: {
+    islandId?: string;
+    harbor?: boolean;
+    pontoonTier?: number;
+    showFlotsam?: boolean;
+  } = {},
 ): void {
   drawSeascape(parent, options);
 }

@@ -217,7 +217,7 @@ function hut(ctx, x, y, w, h, roof, wall) {
 }
 
 /** 近景码头加厚：木桩、灯笼、摊位、挂鱼。让左岸读得出市集。 */
-export function paintNearPier(ctx, phase, harbor) {
+export function paintNearPier(ctx, phase, harbor, pontoonTier = 1) {
   if (!harbor) {
     ellipse(ctx, 210, 575, 130, 18, "rgba(8,24,36,0.45)");
     ellipse(ctx, 210, 568, 90, 10, "rgba(255,248,230,0.2)");
@@ -291,6 +291,16 @@ export function paintNearPier(ctx, phase, harbor) {
   hut(ctx, 1044, 486, 46, 36, "#2a8a86", "#d4a060");
   hut(ctx, 1098, 472, 58, 48, "#c45a28", "#e0aa62");
   ellipse(ctx, 210, 598, 90, 12, "rgba(255,248,230,0.22)");
+  if (pontoonTier >= 2) {
+    roundBox(ctx, 330, 498, 96, 104, 12, "#c47e3a");
+    ctx.fillStyle = "rgba(255,214,130,0.7)";
+    ctx.fillRect(336, 504, 84, 14);
+    roundBox(ctx, 300, 424, 86, 72, 8, "#e8d094");
+    ctx.fillStyle = "#d64e30";
+    ctx.fillRect(292, 412, 102, 16);
+    ellipse(ctx, 368, 398, 20, 20, `rgba(255,214,118,${0.5 * flicker})`);
+    ellipse(ctx, 368, 398, 7, 7, "#ffa838");
+  }
 }
 
 export function paintSkyBloom(ctx, phase, harbor) {

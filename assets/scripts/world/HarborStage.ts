@@ -1,8 +1,21 @@
 import { Camera, Color, DirectionalLight, Layers, Node } from "cc";
 import { camHarborSway, HARBOR_CAM_REST } from "../domain/CameraFeel";
 import { islandLook } from "../domain/GrayLook";
-import { boatParts, dockParts, harborExtraParts, waterAmp, waterParts } from "../domain/ProcGeom";
+import { visiblePontoonTier } from "../domain/StationOps";
+import {
+  boatParts,
+  dockParts,
+  flotsamParts,
+  harborExtraParts,
+  waterAmp,
+  waterParts,
+} from "../domain/ProcGeom";
 import { rippleWater, spawnParts } from "./StageBuild";
+
+export type HarborStageOpts = {
+  pontoonTier?: number;
+  showFlotsam?: boolean;
+};
 
 export class HarborStage {
   private static current?: HarborStage;
@@ -14,14 +27,23 @@ export class HarborStage {
   private savedPriority = 0;
   private savedVisibility = 0;
   private water?: Node;
+  private flotsam?: Node;
   private elapsed = 0;
   private alive = true;
+  private pontoonTier: 1 | 2;
+  private showFlotsam: boolean;
 
-  static ensure(canvas: Node): HarborStage {
-    if (HarborStage.current?.alive && HarborStage.current.root?.isValid) {
-      return HarborStage.current;
+  static ensure(canvas: Node, opts: HarborStageOpts = {}): HarborStage {
+    const tier = visiblePontoonTier(opts.pontoonTier ?? 1);
+    const showFlotsam = opts.showFlotsam !== false;
+    const current = HarborStage.current;
+    if (current?.alive && current.root?.isValid) {
+      if (current.pontoonTier === tier && current.showFlotsam === showFlotsam) {
+        return current;
+      }
+      HarborStage.drop();
     }
-    HarborStage.current = new HarborStage(canvas);
+    HarborStage.current = new HarborStage(canvas, tier, showFlotsam);
     return HarborStage.current;
   }
 
@@ -30,8 +52,10 @@ export class HarborStage {
     HarborStage.current = undefined;
   }
 
-  private constructor(canvas: Node) {
+  private constructor(canvas: Node, pontoonTier: 1 | 2, showFlotsam: boolean) {
     this.canvas = canvas;
+    this.pontoonTier = pontoonTier;
+    this.showFlotsam = showFlotsam;
     const scene = canvas.scene;
     if (!scene) throw new Error("HarborStage needs a scene");
 
@@ -44,13 +68,21 @@ export class HarborStage {
     this.buildCamera(look.skyTop);
     const water = spawnParts(this.root, Layers.Enum.DEFAULT, waterParts(look.near, look.deep));
     this.water = water[0];
-    spawnParts(this.root, Layers.Enum.DEFAULT, dockParts());
-    spawnParts(this.root, Layers.Enum.DEFAULT, harborExtraParts(look));
+    spawnParts(this.root, Layers.Enum.DEFAULT, dockParts(pontoonTier));
+    spawnParts(this.root, Layers.Enum.DEFAULT, harborExtraParts(look, pontoonTier));
     const boat = new Node("HarborBoat");
     boat.layer = Layers.Enum.DEFAULT;
     boat.parent = this.root;
     boat.setPosition(-3.4, 0.38, 0.7);
     spawnParts(boat, Layers.Enum.DEFAULT, boatParts());
+    if (showFlotsam) {
+      const wood = new Node("Tidewood");
+      wood.layer = Layers.Enum.DEFAULT;
+      wood.parent = this.root;
+      wood.setPosition(-0.35, 0.08, 0.9);
+      spawnParts(wood, Layers.Enum.DEFAULT, flotsamParts());
+      this.flotsam = wood;
+    }
     this.bindUiCamera();
   }
 
@@ -60,6 +92,9 @@ export class HarborStage {
     if (!lowPower && this.water?.isValid) {
       this.water.setPosition(1.6, -0.02 + Math.sin(this.elapsed * 1.1) * 0.018, 0.1);
       rippleWater(this.water, this.elapsed, waterAmp(false));
+    }
+    if (!lowPower && this.flotsam?.isValid) {
+      this.flotsam.setPosition(-0.35, 0.08 + Math.sin(this.elapsed * 1.4) * 0.03, 0.9);
     }
     if (!this.camNode?.isValid) return;
     const sway = camHarborSway(this.elapsed, lowPower);

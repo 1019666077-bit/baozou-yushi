@@ -17,6 +17,7 @@ const FILES = [
   "CloudCopy.ts",
   "PrivacyCopy.ts",
   "HarborCopy.ts",
+  "StationOps.ts",
   "FlopPhysics.ts",
   "CastFeel.ts",
   "GrayLook.ts",
@@ -65,6 +66,7 @@ function snapshot() {
   const CloudCopy = load("CloudCopy");
   const PrivacyCopy = load("PrivacyCopy");
   const HarborCopy = load("HarborCopy");
+  const StationOps = load("StationOps");
   const IslandClock = load("IslandClock");
   const GrayLook = load("GrayLook");
   const ArtRecipe = load("ArtRecipe");
@@ -112,10 +114,34 @@ function snapshot() {
     harborTitle: HarborCopy.harborWorldTitle(),
     harborOrderBoard: HarborCopy.harborOrderBoardLabel(),
     harborPontoonUpgrade: HarborCopy.harborPontoonUpgradeLabel(),
-    harborBuildingTitle: HarborCopy.harborBuildingTitle(),
+    harborBuildingTitle: HarborCopy.harborBuildingTitle("orders"),
     harborBuildingOrders: HarborCopy.harborBuildingBody("orders"),
     harborBuildingPontoon: HarborCopy.harborBuildingBody("pontoon"),
     harborBuildingBack: HarborCopy.harborBuildingBack(),
+    harborOrderName: HarborCopy.harborOrderName(),
+    harborOrderNeedIdle: HarborCopy.harborOrderNeedLine(0, 1),
+    harborOrderNeedDone: HarborCopy.harborOrderNeedLine(1, 1),
+    harborOrderAccept: HarborCopy.harborOrderAcceptCaption(false),
+    harborOrderAccepted: HarborCopy.harborOrderAcceptCaption(true),
+    harborOrderDeliver: HarborCopy.harborOrderDeliverCaption(false),
+    harborOrderDelivered: HarborCopy.harborOrderDeliverCaption(true),
+    harborOrderAcceptHint: HarborCopy.harborOrderAcceptHint(),
+    harborOrderDeliverHint: HarborCopy.harborOrderDeliverHint(),
+    harborFlotsamLabel: HarborCopy.harborFlotsamLabel(),
+    harborFlotsamPick: HarborCopy.harborFlotsamPickCaption(),
+    harborFlotsamPicked: HarborCopy.harborFlotsamPickedToast(),
+    harborFlotsamDelivered: HarborCopy.harborFlotsamDeliverToast(),
+    harborFlotsamHeld: HarborCopy.harborFlotsamHeldLine(1),
+    harborPontoonTier1: HarborCopy.harborPontoonTierLine(1),
+    harborPontoonTier2: HarborCopy.harborPontoonTierLine(2),
+    harborPontoonNail: HarborCopy.harborPontoonUpgradeCaption(1),
+    harborPontoonNailed: HarborCopy.harborPontoonUpgradeCaption(2),
+    harborPontoonUpgradeToast: HarborCopy.harborPontoonUpgradeToast(),
+    harborPontoonBuiltHint: HarborCopy.harborPontoonBuiltHint(),
+    station: StationOps.defaultStationState(),
+    stationNeed: StationOps.stationOrderNeed(),
+    artPontoon2: ArtRecipe.pontoonUpgradeOps(2),
+    artFlotsam: ArtRecipe.flotsamPickupOps(),
     castRelease: "甩出",
     huntSuffix: "潮汐猎场",
     castButton: "抛竿",

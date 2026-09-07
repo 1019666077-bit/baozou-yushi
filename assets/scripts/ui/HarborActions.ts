@@ -1,7 +1,15 @@
 import { Analytics } from "../analytics/Analytics";
 import { ConfigService } from "../data/ConfigService";
+import type { StationSave } from "../data/types";
 import { harborFailCopy } from "../domain/HarborCopy";
 import { ProgressionSystem } from "../domain/ProgressionSystem";
+import {
+  acceptOrder,
+  deliverOrder,
+  normalizeStation,
+  pickFlotsam,
+  upgradePontoon,
+} from "../domain/StationOps";
 import {
   harborFeatureLockedHint,
   harborUnlocksForSave,
@@ -83,6 +91,43 @@ export class HarborActions {
   static async clearSave(): Promise<string | null> {
     try {
       await playerSave.reset();
+      return null;
+    } catch (error) {
+      return messageOf(error);
+    }
+  }
+
+  static readStation(): StationSave {
+    return normalizeStation(playerSave.get().station);
+  }
+
+  static async acceptOrder(): Promise<string | null> {
+    return HarborActions.patchStation(acceptOrder);
+  }
+
+  static async pickFlotsam(): Promise<string | null> {
+    return HarborActions.patchStation(pickFlotsam);
+  }
+
+  static async deliverOrder(): Promise<string | null> {
+    return HarborActions.patchStation(deliverOrder);
+  }
+
+  static async upgradePontoon(): Promise<string | null> {
+    return HarborActions.patchStation(upgradePontoon);
+  }
+
+  private static async patchStation(
+    mutate: (state: StationSave) => StationSave,
+  ): Promise<string | null> {
+    try {
+      const save = playerSave.get();
+      const nextStation = mutate(normalizeStation(save.station));
+      await playerSave.save({
+        ...save,
+        coins: save.coins,
+        station: nextStation,
+      });
       return null;
     } catch (error) {
       return messageOf(error);

@@ -13,10 +13,33 @@ import {
   harborBuildingBody,
   harborBuildingTitle,
   harborFailCopy,
+  harborFlotsamLabel,
+  harborFlotsamPickCaption,
+  harborOrderAcceptCaption,
   harborOrderBoardLabel,
+  harborOrderName,
+  harborOrderNeedLine,
+  harborPontoonBuiltHint,
+  harborPontoonTierLine,
+  harborPontoonUpgradeCaption,
   harborPontoonUpgradeLabel,
   harborWorldTitle,
 } from "../assets/scripts/domain/HarborCopy";
+import {
+  STATION_ORDER_NEED,
+  STATION_PONTOON_TIER_CAP,
+  STATION_PONTOON_VISIBLE_CAP,
+  acceptOrder,
+  canDeliverOrder,
+  canPickFlotsam,
+  canUpgradePontoon,
+  defaultStationState,
+  deliverOrder,
+  normalizeStation,
+  pickFlotsam,
+  upgradePontoon,
+  visiblePontoonTier,
+} from "../assets/scripts/domain/StationOps";
 import { ProgressionSystem } from "../assets/scripts/domain/ProgressionSystem";
 import {
   createDefaultSave,
@@ -282,6 +305,8 @@ import {
   crateOps,
   dockOps,
   fishOps,
+  flotsamPickupOps,
+  pontoonUpgradeOps,
   grainStrokes,
   floodSkylineOps,
   islandSetOps,
@@ -310,6 +335,8 @@ import {
   displaceWaterPositions,
   dockParts,
   findPart,
+  flotsamParts,
+  pontoonSkinParts,
   fishParts,
   harborExtraParts,
   huntIsleParts,
@@ -457,22 +484,37 @@ describe("ProgressionSystem", () => {
     );
   });
 
-  it("keeps flood-island harbor copy original and placeholder-only", () => {
+  it("keeps flood-island harbor copy original and station-light", () => {
     expect(harborWorldTitle()).toContain("潮退浮站");
     expect(harborWorldTitle()).toContain("浮岛小站");
     expect(harborOrderBoardLabel()).toBe("订单板");
     expect(harborPontoonUpgradeLabel()).toBe("浮台升级");
-    expect(harborBuildingTitle()).toBe("修建中");
-    expect(harborBuildingBody("orders")).toContain("订单板");
-    expect(harborBuildingBody("pontoon")).toContain("浮台");
+    expect(harborBuildingTitle("orders")).toBe("订单板");
+    expect(harborBuildingTitle("pontoon")).toBe("浮台升级");
+    expect(harborOrderName()).toBe("潮间补货");
+    expect(harborOrderNeedLine(0, 1)).toBe("需要：潮间漂木 0/1");
+    expect(harborOrderAcceptCaption(false)).toBe("记下需求");
+    expect(harborFlotsamLabel()).toBe("潮间漂木");
+    expect(harborFlotsamPickCaption()).toBe("捞起漂木");
+    expect(harborPontoonTierLine(1)).toContain("窄板浮台");
+    expect(harborPontoonUpgradeCaption(1)).toBe("钉宽甲板");
+    expect(harborPontoonBuiltHint()).toContain("修建中");
+    expect(harborBuildingBody("orders")).toContain("潮间漂木");
+    expect(harborBuildingBody("pontoon")).toContain("售价");
     expect(harborBuildingBack()).toBe("回到浮站");
     const joined = [
       harborWorldTitle(),
       harborOrderBoardLabel(),
       harborPontoonUpgradeLabel(),
-      harborBuildingTitle(),
+      harborBuildingTitle("orders"),
+      harborBuildingTitle("pontoon"),
       harborBuildingBody("orders"),
       harborBuildingBody("pontoon"),
+      harborOrderName(),
+      harborOrderNeedLine(1, 1),
+      harborFlotsamLabel(),
+      harborPontoonTierLine(2),
+      harborPontoonBuiltHint(),
     ].join(" ");
     expect(joined).not.toMatch(/Crazy|Water World|渔力全开/i);
   });
@@ -534,6 +576,54 @@ describe("save merging", () => {
     } as ReturnType<typeof createDefaultSave>;
     delete (legacy as { completedRuns?: number }).completedRuns;
     expect(mergeSaves(legacy, null).completedRuns).toBe(1);
+  });
+
+  it("fills missing station progress without touching coins", () => {
+    const legacy = { ...createDefaultSave(1), coins: 11 } as ReturnType<
+      typeof createDefaultSave
+    >;
+    delete legacy.station;
+    const merged = mergeSaves(legacy, null);
+    expect(merged.coins).toBe(11);
+    expect(merged.station?.pontoonTier).toBe(1);
+    expect(merged.station?.flotsamSpawned).toBe(true);
+    expect(merged.station?.orderAccepted).toBe(false);
+  });
+});
+
+describe("W2 station ops", () => {
+  it("tracks one flotsam order as local intent and does not change coins", () => {
+    const start = defaultStationState();
+    expect(STATION_ORDER_NEED).toBe(1);
+    expect(STATION_PONTOON_TIER_CAP).toBe(3);
+    expect(STATION_PONTOON_VISIBLE_CAP).toBe(2);
+    expect(canPickFlotsam(start)).toBe(true);
+    const accepted = acceptOrder(start);
+    expect(accepted.orderAccepted).toBe(true);
+    expect(canDeliverOrder(accepted)).toBe(false);
+    const held = pickFlotsam(accepted);
+    expect(held.flotsamHeld).toBe(1);
+    expect(held.flotsamSpawned).toBe(false);
+    const done = deliverOrder(held);
+    expect(done.orderDelivered).toBe(true);
+    expect(done.orderProgress).toBe(1);
+    expect(done.flotsamHeld).toBe(0);
+    expect(pickFlotsam(done).flotsamSpawned).toBe(false);
+    const save = createDefaultSave(1);
+    expect(save.coins).toBe(0);
+    expect(save.station?.pontoonTier).toBe(1);
+  });
+
+  it("upgrades pontoon look 1→2 and keeps a third tier as data-only", () => {
+    const start = defaultStationState();
+    expect(visiblePontoonTier(start.pontoonTier)).toBe(1);
+    expect(canUpgradePontoon(start)).toBe(true);
+    const next = upgradePontoon(start);
+    expect(next.pontoonTier).toBe(2);
+    expect(visiblePontoonTier(next.pontoonTier)).toBe(2);
+    expect(canUpgradePontoon(next)).toBe(false);
+    expect(upgradePontoon(next).pontoonTier).toBe(2);
+    expect(normalizeStation({ pontoonTier: 9 }).pontoonTier).toBe(3);
   });
 });
 
@@ -1714,6 +1804,20 @@ describe("ProcGeom budget", () => {
     expect(findPart(extras, "Stall")).toBeTruthy();
     expect(findPart(dock, "Rail")).toBeTruthy();
     expect(findPart(dock, "PontoonL")).toBeTruthy();
+    const wide = dockParts(2);
+    expect(findPart(wide, "Dock")!.sx).toBeGreaterThan(findPart(dock, "Dock")!.sx);
+    const skin = pontoonSkinParts(2);
+    expect(findPart(skin, "Shed")).toBeTruthy();
+    expect(findPart(skin, "LampGlow")).toBeTruthy();
+    expect(pontoonSkinParts(1)).toEqual([]);
+    expect(findPart(flotsamParts(), "Tidewood")).toBeTruthy();
+    expect(
+      countParts([...water, ...wide, ...harborExtraParts({
+        land: [236, 210, 118],
+        landDark: [72, 168, 112],
+        accent: [255, 148, 42],
+      }, 2), ...boat, ...flotsamParts()]),
+    ).toBeLessThanOrEqual(stageMeshCap("harbor"));
   });
 
   it("makes vertex waves and silhouette kits without adding textures", () => {
@@ -1766,6 +1870,10 @@ describe("ArtRecipe", () => {
       true,
     );
     expect(recipeHasTag(dockOps(), "nail")).toBe(true);
+    expect(pontoonUpgradeOps(1)).toEqual([]);
+    expect(recipeHasTag(pontoonUpgradeOps(2), "shed")).toBe(true);
+    expect(recipeHasTag(pontoonUpgradeOps(2), "lamp")).toBe(true);
+    expect(recipeHasTag(flotsamPickupOps(), "flotsam")).toBe(true);
     const hunt = islandSetOps("island_foam_bay", false, 0.4);
     expect(recipeHasTag(hunt, "ridge")).toBe(true);
     expect(recipeHasTag(hunt, "depth")).toBe(true);

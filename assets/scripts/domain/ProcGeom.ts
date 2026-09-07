@@ -189,7 +189,12 @@ export function waterParts(
   ];
 }
 
-export function dockParts(): StagePart[] {
+export function dockParts(tier = 1): StagePart[] {
+  const wide = tier >= 2;
+  const deckX = wide ? -3.7 : -4.2;
+  const deckSx = wide ? 5.8 : 4.6;
+  const plankSx = wide ? 5.7 : 4.5;
+  const railSx = wide ? 5.6 : 4.4;
   const piles: StagePart[] = [];
   for (let i = 0; i < 4; i++) {
     piles.push({
@@ -209,34 +214,34 @@ export function dockParts(): StagePart[] {
     {
       name: "Dock",
       kind: "box",
-      x: -4.2,
+      x: deckX,
       y: 0.14,
       z: 1.2,
-      sx: 4.6,
+      sx: deckSx,
       sy: 0.2,
-      sz: 2.5,
+      sz: wide ? 2.85 : 2.5,
       color: WOOD,
       finish: "wood",
     },
     {
       name: "Plank",
       kind: "box",
-      x: -4.2,
+      x: deckX,
       y: 0.26,
       z: 1.2,
-      sx: 4.5,
+      sx: plankSx,
       sy: 0.04,
-      sz: 2.4,
+      sz: wide ? 2.7 : 2.4,
       color: WOOD_LIGHT,
       finish: "wood",
     },
     {
       name: "Rail",
       kind: "box",
-      x: -4.2,
+      x: deckX,
       y: 0.5,
       z: 0.06,
-      sx: 4.4,
+      sx: railSx,
       sy: 0.08,
       sz: 0.08,
       color: WOOD_DARK,
@@ -525,12 +530,91 @@ export function fishParts(
   ];
 }
 
-export function harborExtraParts(look: {
-  land: readonly [number, number, number];
-  landDark: readonly [number, number, number];
-  accent: readonly [number, number, number];
-  deep?: readonly [number, number, number];
-}): StagePart[] {
+/** 潮间漂木：点一下捞起，不做扑腾刚体。 */
+export function flotsamParts(): StagePart[] {
+  return [
+    {
+      name: "Tidewood",
+      kind: "box",
+      x: 0,
+      y: 0,
+      z: 0,
+      sx: 0.95,
+      sy: 0.12,
+      sz: 0.24,
+      color: WOOD,
+      rz: 18,
+      finish: "wood",
+    },
+  ];
+}
+
+/** 浮台 1→2 换皮：棚角 + 灯。数据可到 3 档，可见只做 2。 */
+export function pontoonSkinParts(tier = 1): StagePart[] {
+  if (tier < 2) return [];
+  return [
+    {
+      name: "Shed",
+      kind: "box",
+      x: -3.15,
+      y: 0.88,
+      z: 1.85,
+      sx: 1.05,
+      sy: 0.72,
+      sz: 0.78,
+      color: [236, 208, 148],
+      finish: "wood",
+    },
+    {
+      name: "ShedRoof",
+      kind: "box",
+      x: -3.15,
+      y: 1.28,
+      z: 1.85,
+      sx: 1.22,
+      sy: 0.08,
+      sz: 0.92,
+      color: MARKET,
+      rz: -8,
+      finish: "prop",
+    },
+    {
+      name: "LampPost",
+      kind: "box",
+      x: -2.35,
+      y: 0.92,
+      z: 0.55,
+      sx: 0.07,
+      sy: 1.05,
+      sz: 0.07,
+      color: WOOD_DARK,
+      finish: "wood",
+    },
+    {
+      name: "LampGlow",
+      kind: "sphere",
+      x: -2.35,
+      y: 1.48,
+      z: 0.55,
+      sx: 0.2,
+      sy: 0.2,
+      sz: 0.2,
+      color: GOLD,
+      finish: "prop",
+      glow: true,
+    },
+  ];
+}
+
+export function harborExtraParts(
+  look: {
+    land: readonly [number, number, number];
+    landDark: readonly [number, number, number];
+    accent: readonly [number, number, number];
+    deep?: readonly [number, number, number];
+  },
+  tier = 1,
+): StagePart[] {
   const ruin = mixRgb(look.landDark, [48, 52, 64], 0.62);
   const ruinWet = mixRgb(look.deep ?? [8, 36, 52], ruin, 0.45);
   const ruinHi = shadeRgb(ruin, 1.16);
@@ -735,6 +819,7 @@ export function harborExtraParts(look: {
       finish: "prop",
       glow: true,
     },
+    ...pontoonSkinParts(tier),
   ];
 }
 
