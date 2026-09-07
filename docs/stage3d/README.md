@@ -13,7 +13,7 @@
 
 | 文件 | 应对齐 | 不能顶替 |
 | --- | --- | --- |
-| `expect_harbor_composition.jpg` | 港口：近/中/远海、左侧码头市集、三岛分层、日落侧光 | `creator-shots/01_harbor_wide.png` |
+| `expect_harbor_composition.jpg` | 港口：近/中/远海、左侧浮站市集、日落侧光；W1 应对齐半沉楼影/浮木（本图仍是旧构图示意图） | `creator-shots/01_harbor_wide.png` |
 | `expect_fish_five_parts.jpg` | 鱼 5 件：身 / 脸 / 鳞片色块 / 尾 / 大金弱点 | `creator-shots/03_bayfin_weak.png` |
 | `expect_cast_flop_cam.jpg` | 抛竿跟线、命中微震、翻扑抛物与略抬镜 | `creator-shots/04_flop_smash.png` |
 
