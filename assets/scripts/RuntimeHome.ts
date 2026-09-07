@@ -520,7 +520,7 @@ export class RuntimeHome extends Component {
     makeLabel(layer, harborBuildingTitle(kind), 34, 0, 220);
     if (kind === "pontoon") {
       makeLabel(layer, harborPontoonTierLine(station.pontoonTier), 24, 0, 160, 900);
-      makeLabel(layer, harborBuildingBody("pontoon"), 22, 0, 90, 980);
+      makeLabel(layer, harborBuildingBody("pontoon", station.pontoonTier), 22, 0, 90, 980);
       makeLabel(layer, harborPontoonBuiltHint(), 18, 0, 30, 900);
       makeButton(
         layer,

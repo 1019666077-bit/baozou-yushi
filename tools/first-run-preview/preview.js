@@ -1545,7 +1545,15 @@ function renderPontoon() {
   buttons.innerHTML = "";
   label(COPY.harborPontoonUpgrade ?? "浮台升级", 34, 0, 220);
   label(station.pontoonTier >= 2 ? COPY.harborPontoonTier2 : COPY.harborPontoonTier1, 24, 0, 160, 900);
-  label(COPY.harborBuildingPontoon ?? "", 22, 0, 90, 980);
+  label(
+    station.pontoonTier >= 2
+      ? COPY.harborPontoonUpgradeToast ?? COPY.harborBuildingPontoon ?? ""
+      : COPY.harborBuildingPontoon ?? "",
+    22,
+    0,
+    90,
+    980,
+  );
   label(COPY.harborPontoonBuiltHint ?? "第三档图纸还在修建中。", 18, 0, 30, 900);
   cta(
     station.pontoonTier >= 2 ? COPY.harborPontoonNailed : COPY.harborPontoonNail,

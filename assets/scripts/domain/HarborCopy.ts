@@ -26,9 +26,14 @@ export function harborBuildingTitle(kind: HarborBuildingKind = "orders"): string
   return kind === "pontoon" ? harborPontoonUpgradeLabel() : harborOrderBoardLabel();
 }
 
-export function harborBuildingBody(kind: HarborBuildingKind = "orders"): string {
+export function harborBuildingBody(
+  kind: HarborBuildingKind = "orders",
+  pontoonTier = 1,
+): string {
   if (kind === "pontoon") {
-    return "还能再钉宽一块甲板、加一盏灯。只换皮，不改箱容和售价。";
+    return pontoonTier >= 2
+      ? "甲板加宽了，棚角也亮着灯。只换皮，不改箱容和售价。"
+      : "还能再钉宽一块甲板、加一盏灯。只换皮，不改箱容和售价。";
   }
   return "退潮刚过，小站缺一块潮间漂木钉棚角。记下需求，捞到再交到浮站。";
 }

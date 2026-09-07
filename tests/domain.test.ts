@@ -501,6 +501,8 @@ describe("ProgressionSystem", () => {
     expect(harborPontoonBuiltHint()).toContain("修建中");
     expect(harborBuildingBody("orders")).toContain("潮间漂木");
     expect(harborBuildingBody("pontoon")).toContain("售价");
+    expect(harborBuildingBody("pontoon", 1)).toContain("钉宽");
+    expect(harborBuildingBody("pontoon", 2)).toContain("加宽");
     expect(harborBuildingBack()).toBe("回到浮站");
     const joined = [
       harborWorldTitle(),
