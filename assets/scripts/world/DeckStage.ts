@@ -13,7 +13,8 @@ import {
 } from "cc";
 import { FishController } from "../battle/FishController";
 import { toActorWorld, toBoatWorld, deckKindForFish } from "../domain/DeckMap";
-import { fishLook, islandLook } from "../domain/GrayLook";
+import { deckFishShape, fishLook, islandLook, islandRules } from "../domain/GrayLook";
+import { COMMON_ART, cosmeticLook, MARKET_UI } from "../domain/MarketArtStyle";
 import { deckFlag } from "./deckFlag";
 
 export class DeckStage {
@@ -31,13 +32,13 @@ export class DeckStage {
   private mid = new Vec3();
   private to = new Vec3();
 
-  static mount(canvas: Node, islandId: string): DeckStage {
-    const stage = new DeckStage(canvas, islandId);
+  static mount(canvas: Node, islandId: string, boatCosmeticId?: string): DeckStage {
+    const stage = new DeckStage(canvas, islandId, boatCosmeticId);
     deckFlag.live = true;
     return stage;
   }
 
-  private constructor(canvas: Node, islandId: string) {
+  private constructor(canvas: Node, islandId: string, boatCosmeticId?: string) {
     this.canvas = canvas;
     const scene = canvas.scene;
     if (!scene) throw new Error("DeckStage needs a scene");
@@ -52,14 +53,21 @@ export class DeckStage {
     this.root.parent = scene;
 
     const look = islandLook(islandId);
+    const cosmetic = cosmeticLook(boatCosmeticId);
     this.buildLight();
     this.buildCamera(look.sky);
-    this.buildSet(look);
-    this.boat = this.makeBox("Boat", 1.15, 0.32, 0.52, rgb(214, 160, 86));
-    const cabin = this.makeBox("Cabin", 0.42, 0.28, 0.34, rgb(236, 214, 168));
+    this.buildSet(look, islandId, boatCosmeticId);
+    this.boat = this.makeBox(
+      "Boat",
+      1.15,
+      0.32,
+      0.52,
+      rgb(...cosmetic.hull),
+    );
+    const cabin = this.makeBox("Cabin", 0.42, 0.28, 0.34, rgb(...COMMON_ART.cabin));
     cabin.parent = this.boat;
     cabin.setPosition(0.12, 0.22, 0);
-    this.line = this.makeBox("Line", 0.06, 0.06, 1, rgb(255, 214, 70));
+    this.line = this.makeBox("Line", 0.06, 0.06, 1, rgb(...COMMON_ART.line));
     this.line.active = false;
 
     this.bindUiCamera();
@@ -176,7 +184,27 @@ export class DeckStage {
       : rgb(look.body[0], look.body[1], look.body[2]);
     const tier = fish.fishConfig?.tier;
     const s = tier === "boss" ? 1.7 : tier === "elite" ? 1.05 : 0.62;
-    node = this.makeBox(`${fish.id || "fish"}`, s * 1.55, s * 0.38, s * 0.5, color);
+    const shape = deckFishShape(fish.id.replace(/_decoy$/, ""));
+    node = new Node(`${fish.id || "fish"}`);
+    node.layer = Layers.Enum.DEFAULT;
+    node.parent = this.root;
+    const body = this.makeBox(
+      "Body",
+      s * shape.length,
+      s * shape.height,
+      s * shape.width,
+      color,
+    );
+    body.parent = node;
+    const fin = this.makeBox(
+      `Mark-${look.silhouette}`,
+      s * 0.2,
+      s * shape.finHeight,
+      s * 0.12,
+      rgb(...look.accent),
+    );
+    fin.parent = node;
+    fin.setPosition(s * shape.finX, s * (shape.height * 0.65), 0);
     this.fishes.set(id, node);
     return node;
   }
@@ -219,7 +247,13 @@ export class DeckStage {
     light.illuminance = 120000;
   }
 
-  private buildSet(look: ReturnType<typeof islandLook>): void {
+  private buildSet(
+    look: ReturnType<typeof islandLook>,
+    islandId: string,
+    boatCosmeticId?: string,
+  ): void {
+    const rules = islandRules(islandId);
+    const cosmetic = cosmeticLook(boatCosmeticId);
     this.makeBox("Water", 22, 0.18, 16, rgb(look.near[0], look.near[1], look.near[2])).setPosition(
       1.4,
       -0.08,
@@ -230,9 +264,15 @@ export class DeckStage {
       -0.12,
       -2.4,
     );
-    this.makeBox("Dock", 4.4, 0.22, 2.6, rgb(176, 124, 70)).setPosition(-4.25, 0.12, 1.15);
-    this.makeBox("PlankDark", 4.35, 0.04, 2.55, rgb(142, 96, 52)).setPosition(-4.25, 0.24, 1.15);
-    this.makeBox("Crate", 0.85, 0.72, 0.85, rgb(24, 154, 170)).setPosition(-5.2, 0.62, 1.5);
+    this.makeBox("Dock", 4.4, 0.22, 2.6, rgb(...MARKET_UI.wood)).setPosition(-4.25, 0.12, 1.15);
+    this.makeBox(
+      `Plank-${rules.deck}`,
+      4.35,
+      0.04,
+      2.55,
+      rgb(...MARKET_UI.woodDark),
+    ).setPosition(-4.25, 0.24, 1.15);
+    this.makeBox("Crate", 0.85, 0.72, 0.85, rgb(...cosmetic.crate)).setPosition(-5.2, 0.62, 1.5);
     this.makeBox("Isle", 2.4, 0.7, 1.6, rgb(look.land[0], look.land[1], look.land[2])).setPosition(
       4.8,
       0.4,

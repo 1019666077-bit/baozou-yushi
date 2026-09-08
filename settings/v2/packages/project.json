@@ -3,7 +3,7 @@
     "designResolution": {
       "width": 1280,
       "height": 720,
-      "fitWidth": false,
+      "fitWidth": true,
       "fitHeight": true
     }
   },

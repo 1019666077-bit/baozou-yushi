@@ -2,9 +2,11 @@ import { Color, Graphics, Node, UITransform } from "cc";
 import {
   fishLook,
   islandLook,
+  islandRules,
   type IslandLook,
   type Rgb,
 } from "../domain/GrayLook";
+import { COMMON_ART, cosmeticLook, MARKET_UI } from "../domain/MarketArtStyle";
 
 function c(rgb: Rgb, a = 255): Color {
   return new Color(rgb[0], rgb[1], rgb[2], a);
@@ -137,12 +139,12 @@ function pier(g: Graphics, look: IslandLook): void {
   g.fillColor = c(look.accent);
   g.roundRect(-520, -228, 260, 18, 4);
   g.fill();
-  g.fillColor = c([138, 108, 64]);
+  g.fillColor = c(MARKET_UI.woodDark);
   for (let i = 0; i < 5; i++) {
     g.roundRect(-500 + i * 48, -248, 10, 28, 2);
     g.fill();
   }
-  g.fillColor = c([176, 132, 78]);
+  g.fillColor = c(MARKET_UI.wood);
   g.roundRect(-520, -214, 260, 10, 3);
   g.fill();
 }
@@ -159,11 +161,13 @@ export function drawSeascape(
 ): void {
   const harbor = options.harbor === true;
   const look = islandLook(options.islandId ?? "island_foam_bay", harbor);
+  const rules = islandRules(options.islandId ?? "island_foam_bay");
   const canvasTransform =
     parent.getComponent(UITransform) ?? parent.addComponent(UITransform);
   canvasTransform.setContentSize(1280, 720);
 
   const background = new Node("OceanBackground");
+  background.layer = parent.layer;
   background.parent = parent;
   background.addComponent(UITransform).setContentSize(1280, 720);
   const g = background.addComponent(Graphics);
@@ -217,9 +221,16 @@ export function drawSeascape(
   g.stroke();
   fillEllipse(g, -180, -90, 120, 10, c(look.haze, 40));
   fillEllipse(g, 220, -140, 160, 12, c(look.haze, 30));
+  g.strokeColor = c(look.haze, Math.round(255 * rules.fogAlpha));
+  g.lineWidth = rules.water === "storm-swell" ? 7 : 3;
+  for (let y = -40; y > -300; y -= 54) {
+    g.moveTo(-610, y);
+    g.lineTo(610, y + rules.waveSlant);
+    g.stroke();
+  }
 }
 
-export function drawDock(parent: Node): void {
+export function drawDock(parent: Node, cosmeticId?: string): void {
   const node = new Node("Dock");
   node.layer = parent.layer;
   node.parent = parent;
@@ -228,42 +239,44 @@ export function drawDock(parent: Node): void {
   g.fillColor = new Color(16, 42, 58, 200);
   g.roundRect(-640, -252, 440, 26, 4);
   g.fill();
-  g.fillColor = new Color(176, 124, 70, 255);
+  g.fillColor = c(MARKET_UI.wood);
   g.roundRect(-640, -226, 410, 92, 10);
   g.fill();
-  g.fillColor = new Color(142, 96, 52, 255);
+  g.fillColor = c(MARKET_UI.woodDark);
   for (let i = 0; i < 7; i++) {
     g.rect(-630 + i * 56, -220, 6, 80);
     g.fill();
   }
-  g.fillColor = new Color(24, 154, 170, 255);
+  const cosmetic = cosmeticLook(cosmeticId);
+  g.fillColor = c(cosmetic.crate);
   g.roundRect(-556, -184, 76, 62, 10);
   g.fill();
-  g.fillColor = new Color(18, 90, 104, 255);
+  g.fillColor = c(cosmetic.crateDark);
   g.roundRect(-548, -176, 60, 18, 4);
   g.fill();
 }
 
-export function drawBoat(graphics: Graphics): void {
+export function drawBoat(graphics: Graphics, cosmeticId?: string): void {
   const g = graphics;
+  const cosmetic = cosmeticLook(cosmeticId);
   g.clear();
-  fillEllipse(g, 0, -20, 58, 11, new Color(18, 48, 62, 160));
+  fillEllipse(g, 0, -20, 58, 11, c(COMMON_ART.shadow, 160));
   fillPoly(g, new Color(196, 122, 64, 255), [40, -8, 62, 2, 48, 10, 28, 4]);
-  g.fillColor = new Color(214, 160, 86, 255);
+  g.fillColor = c(cosmetic.hull);
   g.roundRect(-50, -14, 100, 28, 10);
   g.fill();
-  g.fillColor = new Color(176, 118, 58, 255);
+  g.fillColor = c(cosmetic.trim);
   g.roundRect(-48, 6, 96, 8, 3);
   g.fill();
-  g.fillColor = new Color(236, 214, 168, 255);
+  g.fillColor = c(COMMON_ART.cabin);
   g.roundRect(-10, 6, 44, 22, 5);
   g.fill();
-  fillCircle(g, 8, 18, 7, new Color(120, 196, 214, 255));
-  fillCircle(g, 10, 20, 3, new Color(236, 248, 255, 200));
-  g.fillColor = new Color(92, 74, 48, 255);
+  fillCircle(g, 8, 18, 7, c(COMMON_ART.window));
+  fillCircle(g, 10, 20, 3, c(COMMON_ART.highlight, 200));
+  g.fillColor = c(COMMON_ART.mast);
   g.rect(-4, 8, 5, 36);
   g.fill();
-  fillPoly(g, new Color(255, 168, 72, 255), [-2, 42, 22, 34, -2, 28]);
+  fillPoly(g, c(COMMON_ART.flag), [-2, 42, 22, 34, -2, 28]);
 }
 
 function tint(rgb: Rgb, decoy: boolean, a = 255): Color {
@@ -379,6 +392,37 @@ export function drawFishBody(
     fillPoly(g, body, [-22 * s, 2 * s, -48 * s, 18 * s, -40 * s, 0, -48 * s, -16 * s]);
     return;
   }
+  const procedural = [
+    "bell", "goby", "pike", "fogShell", "towerRay", "chronist",
+    "cinder", "drill", "ashKite", "basalt", "furnace", "warden",
+  ] as const;
+  const variant = procedural.indexOf(kind as (typeof procedural)[number]);
+  if (variant >= 0) {
+    const long = 26 + (variant % 4) * 5;
+    const tall = 12 + (variant % 3) * 4;
+    const tail = 42 + (variant % 5) * 5;
+    fillEllipse(g, 2 * s, 0, long * s, tall * s, body);
+    fillEllipse(g, 9 * s, -5 * s, (long - 9) * s, Math.max(7, tall - 6) * s, belly);
+    fillPoly(g, accent, [
+      -long * s, 0,
+      -tail * s, (10 + (variant % 3) * 5) * s,
+      -(tail - 7) * s, 0,
+      -tail * s, -(9 + ((variant + 1) % 3) * 5) * s,
+    ]);
+    const crown = 14 + (variant % 4) * 6;
+    fillPoly(g, accent, [
+      (-8 + (variant % 5) * 4) * s, tall * 0.5 * s,
+      (variant % 2 === 0 ? 2 : 12) * s, crown * s,
+      (12 + (variant % 3) * 5) * s, tall * 0.45 * s,
+    ]);
+    if (variant % 3 === 1) {
+      fillCircle(g, 25 * s, 4 * s, 5 * s, accent);
+    }
+    if (variant === 5 || variant === 11) {
+      fillPoly(g, accent, [2 * s, -tall * s, 14 * s, -30 * s, 22 * s, -tall * s]);
+    }
+    return;
+  }
   fillEllipse(g, 2 * s, 0, 32 * s, 16 * s, body);
   fillEllipse(g, 10 * s, -6 * s, 20 * s, 9 * s, belly);
   fillPoly(g, accent, [6 * s, 8 * s, 22 * s, 30 * s, 28 * s, 6 * s]);
@@ -395,31 +439,48 @@ export function drawFish(
     hit: boolean;
     hooked: boolean;
     flashing: boolean;
+    stunned?: boolean;
+    behavior?: string;
   },
 ): void {
   const look = fishLook(id);
   const s = scale;
   g.clear();
   if (state.hooked) {
-    g.strokeColor = new Color(255, 210, 90, 230);
+    g.strokeColor = c(COMMON_ART.line, 230);
     g.lineWidth = 4;
     g.circle(0, 0, 58 * s);
     g.stroke();
   }
   drawFishBody(g, id, s, state.decoy, state.armored);
+  if (state.stunned) {
+    fillPoly(g, c(look.accent), [-18 * s, 30 * s, -10 * s, 42 * s, -2 * s, 30 * s]);
+    fillPoly(g, c(look.accent), [4 * s, 34 * s, 12 * s, 46 * s, 20 * s, 32 * s]);
+  } else if (state.behavior === "dash") {
+    g.strokeColor = c(look.accent);
+    g.lineWidth = 5;
+    g.moveTo(-70 * s, 24 * s);
+    g.lineTo(-40 * s, 14 * s);
+    g.stroke();
+  } else if (state.behavior === "split") {
+    g.strokeColor = c(look.accent);
+    g.lineWidth = 3;
+    g.rect(-48 * s, -28 * s, 96 * s, 56 * s);
+    g.stroke();
+  }
   if (state.hit) {
-    g.strokeColor = new Color(255, 255, 255, 230);
+    g.strokeColor = c(COMMON_ART.highlight, 230);
     g.lineWidth = 6;
     g.ellipse(0, 0, 54 * s, 30 * s);
     g.stroke();
   }
   const glow = state.flashing
-    ? new Color(255, 255, 120, 255)
-    : new Color(255, 245, 150, 255);
+    ? c(COMMON_ART.weakOpen)
+    : c(COMMON_ART.weak);
   fillCircle(g, look.weakX * s, look.weakY * s, (state.flashing ? 11 : 5) * s, glow);
   g.strokeColor = state.flashing
-    ? new Color(255, 255, 255, 255)
-    : new Color(255, 255, 255, 220);
+    ? c(COMMON_ART.highlight)
+    : c(COMMON_ART.highlight, 220);
   g.lineWidth = state.flashing ? 5 : 3;
   g.circle(look.weakX * s, look.weakY * s, (state.flashing ? 16 : 10) * s);
   g.stroke();
@@ -435,15 +496,17 @@ export function drawShots(
     kind: string;
     radius: number;
   }>,
+  trailId?: string,
 ): void {
+  const cosmetic = cosmeticLook(trailId);
   for (const shot of shots) {
     const tail = shot.kind === "harpoon" ? 30 : 16;
     const color =
       shot.kind === "harpoon"
         ? new Color(255, 180, 90, 240)
         : shot.kind === "cannon"
-          ? new Color(140, 230, 255, 230)
-          : new Color(255, 236, 150, 240);
+          ? c(cosmetic.sparkle, 230)
+          : c(cosmetic.hit, 240);
     g.strokeColor = color;
     g.lineWidth = shot.kind === "harpoon" ? 6 : 4;
     g.moveTo(shot.x - shot.nx * tail, shot.y - shot.ny * tail);
@@ -462,7 +525,9 @@ export function drawJuice(
     kind: "bubble" | "star";
     size: number;
   }>,
+  trailId?: string,
 ): void {
+  const cosmetic = cosmeticLook(trailId);
   g.clear();
   for (const particle of particles) {
     const alpha = Math.max(40, Math.round(255 * particle.life));
@@ -470,7 +535,7 @@ export function drawJuice(
     if (particle.kind === "star") {
       fillPoly(
         g,
-        new Color(255, 236, 120, alpha),
+        c(cosmetic.hit, alpha),
         [
           particle.x,
           particle.y + r * 1.4,
@@ -489,7 +554,7 @@ export function drawJuice(
       particle.x,
       particle.y,
       r,
-      new Color(170, 240, 255, alpha),
+      c(cosmetic.sparkle, alpha),
     );
     fillCircle(
       g,

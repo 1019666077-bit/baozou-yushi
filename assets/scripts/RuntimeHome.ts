@@ -3,8 +3,8 @@ import { fishIdsForIsland } from "./content/IslandFishPool";
 import { ConfigService } from "./data/ConfigService";
 import type { PlayerSave, RemoteConfig, RunSummary } from "./data/types";
 import {
-  applyRunRewards,
   bookLines,
+  settleRun,
   settleHeadline,
   settleRows,
   settleSlogan,
@@ -24,7 +24,8 @@ import {
 } from "./domain/CloudCopy";
 import { LeaderboardService } from "./platform/LeaderboardService";
 import { SfxPlayer } from "./platform/SfxPlayer";
-import { WechatAdapter } from "./platform/WechatAdapter";
+import { ensureCocosPlatform } from "./platform/CocosPlatformBootstrap";
+import { platformAdapter } from "./platform/PlatformRuntime";
 import { playerSave } from "./save/SaveService";
 import { HarborActions } from "./ui/HarborActions";
 import {
@@ -37,6 +38,7 @@ import { harborIslandIds, harborIslandX } from "./domain/GrayLook";
 import { FriendBoardView } from "./ui/FriendBoardView";
 import { ensureIslandPack } from "./content/IslandPackLoader";
 import { harborSailWait } from "./domain/IslandPack";
+import { canSelectCosmetic, cosmeticSlot } from "./domain/MarketArtStyle";
 import {
   privacyBackCaption,
   privacyLines,
@@ -49,6 +51,24 @@ import {
   wipeTitle,
 } from "./domain/PrivacyCopy";
 import { RuntimePrototype } from "./RuntimePrototype";
+import {
+  applyAuthoritativeDailyClaim,
+  claimDailyOrder,
+  ensureDailyOrders,
+  generateDailyOrders,
+} from "./domain/DailyOrders";
+import {
+  generateWeeklyRules,
+  isoWeekKey,
+  recordWeeklyAttempt,
+} from "./domain/WeeklyChallenge";
+import { Analytics } from "./analytics/Analytics";
+import {
+  hasActiveEntitlement,
+  visibleProducts,
+} from "./monetization/ProductCatalog";
+import { purchaseService } from "./monetization/MonetizationRuntime";
+import { adGrants } from "./monetization/AdGrantService";
 
 const { ccclass } = _decorator;
 
@@ -61,20 +81,27 @@ export class RuntimeHome extends Component {
   private lastSummary?: RunSummary;
   private pendingSummary?: RunSummary;
   private settling = false;
+  private pendingWeekly = false;
+  private authoritativeNow?: number;
   private cloudKind: CloudKind = "syncing";
   private statusFlash?: string;
+  private bookPage = 0;
   private surface:
     | "harbor"
     | "settings"
     | "privacy"
     | "wipe"
     | "book"
+    | "store"
+    | "cosmetics"
+    | "challenges"
     | "board"
     | "settle"
     | "sea" = "harbor";
 
   protected onLoad(): void {
     try {
+      ensureCocosPlatform();
       ConfigService.ensureBundled();
       playerSave.loadLocal();
       const save = playerSave.get();
@@ -92,16 +119,29 @@ export class RuntimeHome extends Component {
   private async bootstrapCloud(): Promise<void> {
     this.cloudKind = "syncing";
     try {
-      const response = await WechatAdapter.callCloud<{ config: RemoteConfig }>(
-        "getRemoteConfig",
-      );
-      ConfigService.applyRemoteConfig(response.config);
+      const remote = platformAdapter().remoteConfig;
+      if (remote) ConfigService.applyRemoteConfig(await remote.load<RemoteConfig>());
     } catch {
       // Bundled remote-default keeps the harbor playable.
     }
     await playerSave.load();
+    try {
+      this.authoritativeNow =
+        await platformAdapter().dailyClaims?.serverNow();
+    } catch {
+      this.authoritativeNow = undefined;
+    }
+    try {
+      await purchaseService().retryPendingFinalizations();
+      await purchaseService().syncRevocations();
+    } catch {
+      // A still-valid server authority cache remains usable offline.
+    }
     this.cloudKind = playerSave.cloudKind();
-    if (this.surface === "harbor") this.showHarbor();
+    if (this.surface === "harbor") {
+      this.showHarbor();
+      if (!playerSave.get().tutorialComplete) void this.sail();
+    }
   }
 
   showHarbor(): void {
@@ -115,6 +155,8 @@ export class RuntimeHome extends Component {
     makeLabel(layer, "暴走鱼市 · 潮汐港口 v28", 34, 0, 310);
     this.coinsLabel = makeLabel(layer, `金币 ${save.coins}`, 24, 470, 310, 280);
     makeButton(layer, "设置", -530, 310, () => this.showSettings(), 140, 52, 22);
+    makeButton(layer, "商店", 285, 260, () => void this.showStore(), 120, 48, 20);
+    makeButton(layer, "外观", 425, 260, () => this.showCosmetics(), 120, 48, 20);
     makeLabel(layer, cloudStatusLine(this.cloudKind), 18, 0, 278, 900);
     this.status = makeLabel(
       layer,
@@ -193,24 +235,30 @@ export class RuntimeHome extends Component {
       1100,
     );
 
-    makeButton(layer, "出海捕鱼", -80, -230, () => this.sail(), 220, 88, 28);
+    makeButton(layer, "出海捕鱼", -120, -230, () => this.sail(), 210, 88, 26);
     makeButton(
       layer,
       ownedTool && nextLevel ? `升级${tool.name}` : "查看升级",
-      -470,
+      -500,
       -230,
       () => void this.onUpgrade(),
       200,
       72,
       20,
     );
-    makeButton(layer, "图鉴", 220, -230, () => this.showBook(), 180, 72, 22);
-    makeButton(layer, "榜", 470, -230, () => this.showBoard(), 160, 72, 22);
+    makeButton(layer, "图鉴", 100, -230, () => this.showBook(), 150, 72, 22);
+    makeButton(layer, "目标", 280, -230, () => this.showChallenges(), 150, 72, 22);
+    makeButton(layer, "榜", 460, -230, () => this.showBoard(), 140, 72, 22);
   }
 
-  private showSettle(summary: RunSummary): void {
+  private showSettle(
+    summary: RunSummary,
+    rewardAllowed = true,
+    weekly = false,
+  ): void {
     this.surface = "settle";
     this.pendingSummary = summary;
+    this.pendingWeekly = weekly;
     const proto = this.node.getComponent(RuntimePrototype);
     if (proto) proto.destroy();
     const layer = replacePlayLayer(this.node);
@@ -227,13 +275,121 @@ export class RuntimeHome extends Component {
     makeButton(
       layer,
       caption,
-      0,
+      -170,
       -230,
-      () => void this.confirmSettle(summary),
-      280,
+      () => void this.confirmSettle(summary, false),
+      250,
       88,
       28,
     );
+    if (rewardAllowed && summary.totalCoins > 0) {
+      makeButton(
+        layer,
+        "广告加收50%",
+        170,
+        -230,
+        () => void this.confirmSettle(summary, true),
+        250,
+        88,
+        24,
+      );
+    }
+  }
+
+  private async showStore(): Promise<void> {
+    this.surface = "store";
+    Analytics.track("store_open", { platform: platformAdapter().kind });
+    const store = purchaseService();
+    await store.loadPrices();
+    if (this.surface !== "store") return;
+    const layer = replacePlayLayer(this.node);
+    drawOcean(layer, { harbor: true });
+    const save = playerSave.get();
+    makeLabel(layer, "潮汐商店", 34, 0, 302);
+    makeLabel(
+      layer,
+      platformAdapter().billing?.enabled
+        ? "结账价格以平台弹窗为准"
+        : "当前渠道未接商店，商品安全禁用",
+      19,
+      0,
+      258,
+    );
+    visibleProducts(save.endlessTide.unlocked).forEach((product, index) => {
+      const col = index % 2;
+      const row = Math.floor(index / 2);
+      const owned =
+        hasActiveEntitlement(save, product.id) ||
+        (!!product.cosmeticId && save.cosmetics.includes(product.cosmeticId));
+      makeButton(
+        layer,
+        `${owned ? "已拥有 " : ""}${product.title} ${store.displayPrice(product.id)}`,
+        col === 0 ? -285 : 285,
+        185 - row * 75,
+        () => void this.buyProduct(product.id),
+        500,
+        60,
+        19,
+      );
+    });
+    makeButton(layer, "恢复购买", -150, -270, () => void this.restorePurchases(), 240, 58, 20);
+    makeButton(layer, "返回港口", 150, -270, () => this.showHarbor(), 240, 58, 20);
+  }
+
+  private async buyProduct(productId: string): Promise<void> {
+    const result = await purchaseService().purchase(productId);
+    if (result.status === "granted") SfxPlayer.play("purchase");
+    this.statusFlash =
+      result.status === "granted"
+        ? "购买已验证并发放"
+        : result.status === "cancelled"
+          ? "已取消，未扣除游戏内权益"
+          : result.message ?? "购买未完成，未发放权益";
+    await this.showStore();
+  }
+
+  private async restorePurchases(): Promise<void> {
+    const count = await purchaseService().restore();
+    this.statusFlash = count > 0 ? `已恢复${count}项已验证权益` : "没有可恢复的已验证权益";
+    await this.showStore();
+  }
+
+  private showCosmetics(): void {
+    this.surface = "cosmetics";
+    const layer = replacePlayLayer(this.node);
+    drawOcean(layer, { harbor: true });
+    const save = playerSave.get();
+    makeLabel(layer, "船坞外观", 34, 0, 300);
+    if (save.cosmetics.length === 0) {
+      makeLabel(layer, "尚未拥有外观；外观不提供数值增益。", 22, 0, 100);
+    }
+    save.cosmetics.forEach((id, index) => {
+      const kind = cosmeticSlot(id);
+      if (!kind) return;
+      const selected = save.selectedCosmetics[kind] === id;
+      makeButton(
+        layer,
+        `${selected ? "● " : ""}${id}`,
+        0,
+        180 - index * 70,
+        () => void this.selectCosmetic(kind, id),
+        420,
+        56,
+        21,
+      );
+    });
+    makeButton(layer, "返回港口", 0, -250, () => this.showHarbor(), 240, 68, 22);
+  }
+
+  private async selectCosmetic(kind: "boat" | "trail", id: string): Promise<void> {
+    const save = playerSave.get();
+    if (!canSelectCosmetic(save.cosmetics, id, kind)) return;
+    await playerSave.save({
+      ...save,
+      selectedCosmetics: { ...save.selectedCosmetics, [kind]: id },
+    });
+    Analytics.track("cosmetic_select", { kind, id });
+    this.showCosmetics();
   }
 
   private showBook(): void {
@@ -249,7 +405,16 @@ export class RuntimeHome extends Component {
       0,
       246,
     );
-    bookLines(ConfigService.allFish(), save.discoveredFish).forEach(
+    const allLines = bookLines(
+      ConfigService.allFish(),
+      save.discoveredFish,
+      save.fishMastery,
+    );
+    const pageCount = Math.max(1, Math.ceil(allLines.length / 12));
+    this.bookPage = Math.min(this.bookPage, pageCount - 1);
+    allLines
+      .slice(this.bookPage * 12, this.bookPage * 12 + 12)
+      .forEach(
       (line, index) => {
         const col = index % 2;
         const row = Math.floor(index / 2);
@@ -263,7 +428,187 @@ export class RuntimeHome extends Component {
         );
       },
     );
+    makeLabel(layer, `${this.bookPage + 1}/${pageCount}页`, 18, 0, -176, 160);
+    if (this.bookPage > 0) {
+      makeButton(layer, "上一页", -260, -250, () => {
+        this.bookPage -= 1;
+        this.showBook();
+      }, 180, 64, 22);
+    }
+    if (this.bookPage + 1 < pageCount) {
+      makeButton(layer, "下一页", 260, -250, () => {
+        this.bookPage += 1;
+        this.showBook();
+      }, 180, 64, 22);
+    }
+    makeButton(layer, "返回港口", 0, -250, () => this.showHarbor(), 220, 64, 22);
+  }
+
+  private showChallenges(): void {
+    this.surface = "challenges";
+    const layer = replacePlayLayer(this.node);
+    drawOcean(layer, { harbor: true });
+    const save = playerSave.get();
+    const toolKinds = save.tools.map(
+      (owned) => ConfigService.toolById(owned.toolId).kind,
+    );
+    const daily = ensureDailyOrders(
+      save.dailyOrders,
+      this.authoritativeNow ?? Date.now(),
+      save.unlockedIslands,
+      toolKinds,
+      this.authoritativeNow !== undefined,
+    );
+    if (daily !== save.dailyOrders) void this.applySavePatch({ dailyOrders: daily });
+    const definitions = generateDailyOrders(
+      daily.dateKey,
+      save.unlockedIslands,
+      toolKinds,
+    );
+    makeLabel(layer, "港口目标", 34, 0, 304);
+    makeLabel(layer, `每日订单 ${daily.dateKey} · 约15分钟`, 22, -300, 250, 520);
+    daily.orders.forEach((progress, index) => {
+      const definition = definitions.find((item) => item.id === progress.id);
+      const reward = definition?.reward;
+      const rewardText =
+        reward?.kind === "coins" ? `${reward.amount}金` : `${reward?.amount ?? 1}外观碎片`;
+      const caption = `${definition?.title ?? "每日目标"} ${progress.current}/${progress.target} · ${progress.claimed ? "已领" : rewardText}`;
+      makeButton(
+        layer,
+        caption,
+        -300,
+        185 - index * 62,
+        () => void this.claimOrder(progress.id),
+        540,
+        52,
+        18,
+      );
+    });
+    const weekly = generateWeeklyRules(isoWeekKey(), ConfigService.allFish());
+    makeLabel(layer, `周挑战 ${weekly.weekKey}`, 22, 330, 250, 500);
+    makeLabel(
+      layer,
+      `${ConfigService.islandById(weekly.islandId).name} · ${weekly.toolKind} · 统一鱼池${weekly.fishPool.length}种\n本周 ${save.weeklyChallenge?.score ?? 0}分 · 最好${save.weeklyChallenge?.bestRun ?? 0}`,
+      19,
+      330,
+      145,
+      500,
+    );
+    makeButton(layer, "进入周挑战", 330, 45, () => void this.startWeekly(), 260, 62, 22);
+    makeButton(
+      layer,
+      save.endlessTide.unlocked ? "进入无尽潮" : "无尽潮：击败Boss解锁",
+      330,
+      -45,
+      () => void this.startEndless(),
+      300,
+      62,
+      21,
+    );
     makeButton(layer, "返回港口", 0, -250, () => this.showHarbor(), 240, 72, 24);
+  }
+
+  private async claimOrder(orderId: string): Promise<void> {
+    try {
+      const base = playerSave.get();
+      const prepared = {
+        ...base,
+        dailyOrders: ensureDailyOrders(
+          base.dailyOrders,
+          this.authoritativeNow ?? Date.now(),
+          base.unlockedIslands,
+          base.tools.map((owned) => ConfigService.toolById(owned.toolId).kind),
+          this.authoritativeNow !== undefined,
+        ),
+      };
+      const authority = platformAdapter().dailyClaims;
+      let next: PlayerSave;
+      if (authority) {
+        const result = await authority.claim(orderId);
+        this.authoritativeNow = result.serverNow;
+        next = applyAuthoritativeDailyClaim(
+          prepared,
+          orderId,
+          result.reward,
+          result.serverNow,
+        );
+      } else {
+        next = claimDailyOrder(prepared, orderId);
+      }
+      await playerSave.save(next);
+      Analytics.track("daily_order_claim", { orderId });
+      this.showChallenges();
+    } catch (error) {
+      this.statusFlash = error instanceof Error ? error.message : "暂不可领取";
+      this.showChallenges();
+    }
+  }
+
+  private async startWeekly(): Promise<void> {
+    const rules = generateWeeklyRules(isoWeekKey(), ConfigService.allFish());
+    const tool =
+      ConfigService.allTools().find((item) => item.kind === rules.toolKind) ??
+      ConfigService.allTools()[0];
+    Analytics.track("weekly_challenge_start", { weekKey: rules.weekKey, seed: rules.seed });
+    await ensureIslandPack(rules.islandId);
+    this.surface = "sea";
+    RuntimePrototype.pending = {
+      islandId: rules.islandId,
+      toolId: tool.id,
+      challenge: "weekly",
+      weeklyRules: rules,
+      onHarbor: (summary) => void this.finishWeekly(summary),
+    };
+    this.node.addComponent(RuntimePrototype);
+  }
+
+  private async finishWeekly(summary: RunSummary): Promise<void> {
+    const weeklyChallenge = recordWeeklyAttempt(
+      playerSave.get().weeklyChallenge,
+      { score: summary.totalCoins },
+    );
+    await this.applySavePatch({ weeklyChallenge });
+    Analytics.track("weekly_challenge_finish", {
+      weekKey: weeklyChallenge.weekKey,
+      score: summary.totalCoins,
+      eligible: weeklyChallenge.leaderboardEligible,
+    });
+    this.showSettle(summary, false, true);
+  }
+
+  private async startEndless(): Promise<void> {
+    const save = playerSave.get();
+    if (!save.endlessTide.unlocked) {
+      this.statusFlash = "先击败任意Boss解锁无尽潮。";
+      this.showChallenges();
+      return;
+    }
+    Analytics.track("endless_start", {});
+    RuntimePrototype.pending = {
+      islandId: this.selectedIslandId,
+      toolId: this.selectedToolId,
+      challenge: "endless",
+      onHarbor: (summary) => void this.finishEndless(summary),
+    };
+    this.surface = "sea";
+    this.node.addComponent(RuntimePrototype);
+  }
+
+  private async finishEndless(summary: RunSummary): Promise<void> {
+    const save = playerSave.get();
+    await this.applySavePatch({
+      endlessTide: {
+        ...save.endlessTide,
+        runs: save.endlessTide.runs + 1,
+        bestRound: Math.max(
+          save.endlessTide.bestRound,
+          summary.endlessRound ?? 1,
+        ),
+        bestBankedCoins: Math.max(save.endlessTide.bestBankedCoins, summary.totalCoins),
+      },
+    });
+    Analytics.track("endless_withdraw", { round: 1, coins: summary.totalCoins });
+    this.showSettle(summary);
   }
 
   private showSettings(): void {
@@ -447,21 +792,44 @@ export class RuntimeHome extends Component {
     if (error) this.setStatus(error);
   }
 
-  private async confirmSettle(summary?: RunSummary): Promise<void> {
+  private async confirmSettle(summary?: RunSummary, rewardAd = false): Promise<void> {
     const run = summary ?? this.pendingSummary;
     if (!run || this.settling) return;
     this.settling = true;
+    const weekly = this.pendingWeekly;
     try {
-      const next = applyRunRewards(playerSave.get(), run);
+      const next = settleRun(playerSave.get(), run);
       await playerSave.save(next);
+      try {
+        await platformAdapter().dailyClaims?.recordRun(
+          run,
+          next.dailyOrders?.orders.map((item) => item.id) ?? [],
+        );
+      } catch {
+        this.statusFlash = "订单进度待联网校验，当前不可领取";
+      }
+      if (rewardAd) {
+        const bonus = await adGrants.rewardSettlement(run.runId, run.totalCoins);
+        this.statusFlash = bonus > 0 ? `广告奖励 +${bonus}金币` : "广告未完成，正常结算不受影响";
+      }
+      Analytics.track("daily_order_progress", {
+        dateKey: next.dailyOrders?.dateKey,
+        orders: next.dailyOrders?.orders.map((item) => ({
+          id: item.id,
+          current: item.current,
+          target: item.target,
+        })),
+      });
       this.cloudKind = playerSave.cloudKind();
       if (run.fish.length > 0) SfxPlayer.play("sell");
-      WechatAdapter.submitStyleScore(next.bestStyleScore);
+      LeaderboardService.submitStyleScore(next.bestStyleScore);
       void LeaderboardService.submit(run).catch(() => undefined);
       this.lastSummary = run;
       this.pendingSummary = undefined;
-      this.statusFlash = undefined;
+      this.pendingWeekly = false;
+      if (!rewardAd) this.statusFlash = undefined;
       this.showHarbor();
+      void adGrants.showInterstitial(weekly);
     } finally {
       this.settling = false;
     }
@@ -477,6 +845,12 @@ export class RuntimeHome extends Component {
       const error = await HarborActions.unlockIsland(islandId);
       this.setStatus(error ?? `已解锁${ConfigService.islandById(islandId).name}`);
       if (!error) this.selectedIslandId = islandId;
+      if (!error) {
+        Analytics.track("content_progress", {
+          kind: "island_unlock",
+          islandId,
+        });
+      }
       this.showHarbor();
       return;
     }

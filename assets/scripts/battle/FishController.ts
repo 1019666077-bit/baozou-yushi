@@ -3,6 +3,7 @@ import type { FishConfig, ToolKind, ToolLevel } from "../data/types";
 import { CaptureEngine, type HitResult } from "../domain/CaptureEngine";
 import {
   poseForBehavior,
+  burrowOpen,
   shieldDamageScale,
   shieldGapOpen,
   shotFromFront,
@@ -21,6 +22,7 @@ import {
   yankStep,
   type FlopBody,
 } from "../domain/FlopPhysics";
+import { toolShieldScale } from "../domain/ToolFeel";
 
 const { ccclass } = _decorator;
 
@@ -49,12 +51,19 @@ export class FishController extends Component {
   private stunnedNow = false;
   private patternStun = 0;
   private hitPulse = 0;
+  private airborneHit = false;
   private mode: "swim" | "yank" | "flop" | "stunned" | "carried" = "swim";
   private body: FlopBody = createFlopBody(0, 0);
   private leapWait = 0;
   private waterTime = 0;
   private pendingBounce = false;
   private pendingSplash = false;
+  private deckElapsed = 0;
+  private assist?: {
+    forceWeak?: boolean;
+    radiusScale?: number;
+    damageScale?: number;
+  };
   decoy = false;
 
   initialize(config: FishConfig, decoy = false): void {
@@ -64,11 +73,14 @@ export class FishController extends Component {
     this.hooked = false;
     this.decoy = decoy;
     this.patternStun = 0;
+    this.airborneHit = false;
     this.mode = "swim";
     this.leapWait = 0;
     this.waterTime = 0;
     this.pendingBounce = false;
     this.pendingSplash = false;
+    this.deckElapsed = 0;
+    this.assist = undefined;
     this.node.angle = 0;
     this.origin.set(this.node.position);
     this.body = createFlopBody(this.node.position.x, this.node.position.y);
@@ -147,11 +159,14 @@ export class FishController extends Component {
     this.body = knock(this.body, fromX, fromY, power);
   }
 
-  setAssist(_options?: {
+  setAssist(options?: {
     freezeSeconds?: number;
     forceWeak?: boolean;
     radiusScale?: number;
-  }): void {}
+    damageScale?: number;
+  }): void {
+    this.assist = options;
+  }
 
   applyHit(
     tool: ToolLevel,
@@ -174,16 +189,26 @@ export class FishController extends Component {
         ? shotFromFront(context.originX, this.node.position.x, this.facing)
         : false;
     const gap = this.shieldOpen;
-    const scale =
-      (this.config?.behavior === "shield"
-        ? shieldDamageScale({
+    const behaviorScale =
+      this.config?.behavior === "shield"
+        ? toolShieldScale(
+            shieldDamageScale({
             gapOpen: gap,
             weakPoint,
             fromFront,
             toolKind: kind,
-          })
-        : 1) * (context?.damageBonus ?? 1);
+            }),
+            tool,
+          )
+        : this.config?.behavior === "burrow" && !burrowOpen(this.elapsed)
+          ? 0.18
+          : 1;
+    const scale =
+      behaviorScale *
+      (context?.damageBonus ?? 1) *
+      (this.assist?.damageScale ?? 1);
     this.hitPulse = FishController.lowPower ? 0 : 0.18;
+    this.airborneHit = this.airborneHit || this.airborneNow;
     const result = this.capture.hit(tool, accuracy, weakPoint, charge, scale);
     if (context?.originX != null) {
       this.knockFrom(context.originX, this.node.position.y, tool.power);
@@ -233,8 +258,16 @@ export class FishController extends Component {
     return this.airborneNow;
   }
 
+  get capturedFromAir(): boolean {
+    return this.airborneHit;
+  }
+
   get stunned(): boolean {
     return this.stunnedNow;
+  }
+
+  get deckSeconds(): number {
+    return this.deckElapsed;
   }
 
   get shieldOpen(): boolean {
@@ -242,8 +275,13 @@ export class FishController extends Component {
   }
 
   get weakOpen(): boolean {
+    if (this.assist?.forceWeak) return true;
     if (this.patternStun > 0 && this.config?.behavior === "boss") return true;
     if (this.config?.behavior === "shield") return this.shieldOpen;
+    if (this.config?.behavior === "burrow") return burrowOpen(this.elapsed);
+    if (this.config?.behavior === "school") {
+      return Math.sin(this.elapsed * 1.45) > 0.55;
+    }
     return Math.sin(this.elapsed * 2.2) > 0.25;
   }
 
@@ -262,7 +300,11 @@ export class FishController extends Component {
   }
 
   weakRadius(): number {
-    return (this.view?.weakPointOffset().radius ?? 10) * this.depth();
+    return (
+      (this.view?.weakPointOffset().radius ?? 10) *
+      this.depth() *
+      (this.assist?.radiusScale ?? 1)
+    );
   }
 
   viewOffset(): { x: number; y: number; radius: number } {
@@ -282,6 +324,7 @@ export class FishController extends Component {
     }
     this.elapsed += dt;
     if (this.mode === "carried") {
+      this.deckElapsed += dt;
       this.stunnedNow = true;
       this.airborneNow = false;
       this.present();
@@ -302,6 +345,7 @@ export class FishController extends Component {
       return;
     }
     if (this.mode === "flop" || this.mode === "stunned") {
+      this.deckElapsed += dt;
       if (this.remainingToughness <= 0) this.mode = "stunned";
       const down = this.mode === "stunned";
       const prev = this.body;
@@ -373,6 +417,7 @@ export class FishController extends Component {
       decoy: this.decoy,
       armored: this.config?.behavior === "shield" && !this.shieldOpen,
       hit: this.hitPulse > 0,
+      stunned: this.stunnedNow || this.patternStun > 0,
     });
   }
 }

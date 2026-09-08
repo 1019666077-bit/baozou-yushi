@@ -1,5 +1,13 @@
 export type FishTier = "normal" | "elite" | "boss";
 export type ToolKind = "rod" | "cannon" | "harpoon";
+export type FishBehavior =
+  | "cruise"
+  | "dash"
+  | "shield"
+  | "split"
+  | "burrow"
+  | "school"
+  | "boss";
 export type StyleAction =
   | "weakPoint"
   | "airborne"
@@ -16,7 +24,7 @@ export interface FishConfig {
   basePrice: number;
   rarityMultiplier: number;
   weakPointMultiplier: number;
-  behavior: "cruise" | "dash" | "shield" | "split" | "boss";
+  behavior: FishBehavior;
   escapeSeconds: number;
 }
 
@@ -26,6 +34,16 @@ export interface ToolLevel {
   cooldownMs: number;
   lineStrength?: number;
   upgradeCost: number;
+  modifiers?: ToolModifiers;
+}
+
+export interface ToolModifiers {
+  weakPointRadiusScale?: number;
+  freshnessFloorBonus?: number;
+  shieldPierce?: number;
+  multiHit?: number;
+  airborneBonus?: number;
+  chargeTimeScale?: number;
 }
 
 export interface ToolConfig {
@@ -78,6 +96,10 @@ export interface CapturedFish {
   fishId: string;
   freshness: number;
   styleMultiplier: number;
+  stylePoints?: number;
+  styleGrade?: import("../domain/StyleGrade").StyleGrade;
+  captureChain?: number;
+  airborneCapture?: boolean;
   price: number;
   capturedAt: number;
 }
@@ -94,6 +116,85 @@ export interface RecentRun {
   fishCount: number;
 }
 
+export type StyleGrade = "C" | "B" | "A" | "S";
+
+export interface FishMastery {
+  fishId: string;
+  captures: number;
+  bestGrade: StyleGrade;
+  mastery: number;
+}
+
+export type OrderMetric =
+  | "capture"
+  | "airborne"
+  | "gradeA"
+  | "tool"
+  | "island";
+
+export interface ChallengeProgress {
+  id: string;
+  current: number;
+  target: number;
+  claimed: boolean;
+}
+
+export interface DailyOrderState {
+  dateKey: string;
+  generatedAt: number;
+  lastSeenAt: number;
+  clockTrusted?: boolean;
+  orders: ChallengeProgress[];
+}
+
+export interface WeeklyChallengeState {
+  weekKey: string;
+  score: number;
+  bestRun: number;
+  attempts: number;
+  leaderboardEligible: boolean;
+}
+
+export interface EndlessTideState {
+  unlocked: boolean;
+  bestRound: number;
+  bestBankedCoins: number;
+  runs: number;
+}
+
+export interface VerifiedEntitlement {
+  productId: string;
+  source: "google-play" | "crazygames" | "admin";
+  verifiedAt: number;
+  authorityExpiresAt: number;
+  authorityToken: string;
+}
+
+export interface PendingTransaction {
+  id: string;
+  productId: string;
+  platform: "android" | "crazygames";
+  purchaseToken?: string;
+  state:
+    | "purchasing"
+    | "awaiting_verification"
+    | "finalize_pending"
+    | "verification_failed";
+  verifiedAt?: number;
+  authorityExpiresAt?: number;
+  authorityToken?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AdGrantState {
+  dayKey: string;
+  lastInterstitialAt: number;
+  settlementRewards: number;
+  reliefGrants: number;
+  grantIds: string[];
+}
+
 export interface PlayerSave {
   schemaVersion: number;
   revision: number;
@@ -106,6 +207,20 @@ export interface PlayerSave {
   tutorialComplete: boolean;
   completedRuns: number;
   recentRuns: RecentRun[];
+  fishMastery: Record<string, FishMastery>;
+  challengeProgress: Record<string, number>;
+  cosmeticShards: number;
+  dailyOrders: DailyOrderState | null;
+  weeklyChallenge: WeeklyChallengeState | null;
+  endlessTide: EndlessTideState;
+  entitlements: Record<string, VerifiedEntitlement>;
+  cosmetics: string[];
+  selectedCosmetics: {
+    boat?: string;
+    trail?: string;
+  };
+  adGrants: AdGrantState;
+  pendingTransactions: PendingTransaction[];
   settings: {
     music: boolean;
     sfx: boolean;
@@ -125,6 +240,11 @@ export interface RunSummary {
   styleEvents: StyleEvent[];
   totalCoins: number;
   bestMultiplier: number;
+  bestStyleGrade?: import("../domain/StyleGrade").StyleGrade;
+  bestCaptureChain?: number;
+  tutorialCompleted?: boolean;
+  endlessRound?: number;
+  endlessFailed?: boolean;
 }
 
 export interface RemoteConfig {

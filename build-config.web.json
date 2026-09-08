@@ -14,5 +14,19 @@
   ],
   "useSplashScreen": false,
   "md5Cache": false,
-  "sourceMaps": false
+  "sourceMaps": false,
+  "packages": {
+    "web-desktop": {
+      "orientation": "landscape",
+      "embedWebDebugger": false
+    }
+  },
+  "platformOptions": {
+    "adapter": "auto",
+    "basicLaunch": true,
+    "crazyGames": {
+      "sdk": "official-html5-v3",
+      "adsEnabled": false
+    }
+  }
 }

@@ -1,12 +1,10 @@
 import { _decorator, Component, Label, Node } from "cc";
-import { Analytics } from "../analytics/Analytics";
 import { gameEvents } from "../core/EventBus";
 import {
   advanceTutorial,
   tutorialPrompt,
   type TutorialStep,
 } from "../domain/TutorialFlow";
-import { playerSave } from "../save/SaveService";
 
 const { ccclass, property } = _decorator;
 
@@ -33,7 +31,7 @@ export class TutorialController extends Component {
       gameEvents.on<{ weakPoint: boolean }>("fish_hit", ({ weakPoint }) => {
         if (weakPoint) this.move("weakHit");
       }),
-      gameEvents.on("fish_captured", () => void this.finish()),
+      gameEvents.on("fish_captured", () => this.finish()),
     ];
     this.render();
   }
@@ -47,12 +45,10 @@ export class TutorialController extends Component {
     this.render();
   }
 
-  private async finish(): Promise<void> {
-    this.step = "complete";
+  private finish(): void {
+    this.step = advanceTutorial(this.step, "pickedUp");
+    this.step = advanceTutorial(this.step, "stored");
     this.render();
-    const save = playerSave.get();
-    await playerSave.save({ ...save, tutorialComplete: true });
-    Analytics.track("tutorial_finish");
   }
 
   private render(): void {
@@ -61,6 +57,6 @@ export class TutorialController extends Component {
     if (this.weakPointHighlight) {
       this.weakPointHighlight.active = this.step === "weakPoint";
     }
-    if (this.reelHighlight) this.reelHighlight.active = this.step === "reel";
+    if (this.reelHighlight) this.reelHighlight.active = this.step === "pickUp";
   }
 }

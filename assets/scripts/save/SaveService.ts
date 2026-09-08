@@ -4,48 +4,80 @@ import {
   createDefaultSave,
   mergeSaves,
 } from "../domain/SaveMerge";
-import { WechatAdapter } from "../platform/WechatAdapter";
+import type { PlatformAdapter } from "../platform/PlatformAdapter";
+import { platformAdapter } from "../platform/PlatformRuntime";
 
 const SAVE_KEY = "baozou_yushi_save_v1";
 
 export class SaveService {
   private current: PlayerSave = createDefaultSave();
   private sync: Exclude<CloudKind, "syncing"> = "local";
+  private loading?: Promise<PlayerSave>;
+  private hasLocalSave = false;
+
+  constructor(
+    private readonly platform: () => PlatformAdapter = platformAdapter,
+  ) {}
 
   loadLocal(): PlayerSave {
-    const local = WechatAdapter.getLocal<PlayerSave>(SAVE_KEY);
+    const local = this.platform().localSave.get<PlayerSave>(SAVE_KEY);
+    this.hasLocalSave = local !== null;
     this.current = mergeSaves(local, null);
-    this.persistLocal();
+    // Do not persist a generated default before an asynchronous platform data
+    // store has had a chance to load its authoritative copy.
+    if (local) this.persistLocal();
     return this.get();
   }
 
   async load(): Promise<PlayerSave> {
-    this.loadLocal();
+    if (this.loading) return this.loading;
+    this.loading = this.performLoad();
     try {
-      const response = await WechatAdapter.callCloud<{ save: PlayerSave | null }>(
-        "loadSave",
+      return await this.loading;
+    } finally {
+      this.loading = undefined;
+    }
+  }
+
+  private async performLoad(): Promise<PlayerSave> {
+    this.loadLocal();
+    const cloud = this.platform().cloudSave;
+    if (!cloud) {
+      this.sync = "local";
+      this.persistLocal();
+      return this.get();
+    }
+    try {
+      this.current = mergeSaves(
+        this.hasLocalSave ? this.get() : null,
+        await cloud.load<PlayerSave>(),
       );
-      this.current = mergeSaves(this.get(), response.save);
       this.persistLocal();
       this.sync = "cloud";
     } catch {
-      this.sync = WechatAdapter.available ? "offline" : "local";
+      this.sync = "offline";
     }
     return this.get();
   }
 
   async save(next: PlayerSave): Promise<void> {
+    if (this.loading) await this.loading;
     this.current = {
       ...next,
       revision: Math.max(this.current.revision + 1, next.revision),
       updatedAt: Date.now(),
     };
     this.persistLocal();
+    const cloud = this.platform().cloudSave;
+    if (!cloud) {
+      this.sync = "local";
+      return;
+    }
     try {
-      await WechatAdapter.callCloud("saveGame", { save: this.current });
+      await cloud.save(this.current);
       this.sync = "cloud";
     } catch {
-      this.sync = WechatAdapter.available ? "offline" : "local";
+      this.sync = "offline";
     }
   }
 
@@ -58,20 +90,30 @@ export class SaveService {
   }
 
   async reset(): Promise<PlayerSave> {
-    WechatAdapter.removeLocal(SAVE_KEY);
+    this.platform().localSave.remove(SAVE_KEY);
     this.current = createDefaultSave();
     this.persistLocal();
+    const cloud = this.platform().cloudSave;
+    if (!cloud) {
+      this.sync = "local";
+      return this.get();
+    }
     try {
-      await WechatAdapter.callCloud("deleteSave");
+      await cloud.delete();
       this.sync = "cloud";
-    } catch {
-      this.sync = WechatAdapter.available ? "offline" : "local";
+    } catch (error) {
+      this.sync = "offline";
+      throw new Error(
+        `本机档已清空，但云端删除失败：${
+          error instanceof Error ? error.message : "未知错误"
+        }`,
+      );
     }
     return this.get();
   }
 
   private persistLocal(): void {
-    WechatAdapter.setLocal(SAVE_KEY, this.current);
+    this.platform().localSave.set(SAVE_KEY, this.current);
   }
 }
 
