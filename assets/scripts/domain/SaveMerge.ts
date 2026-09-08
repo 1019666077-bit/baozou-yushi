@@ -4,6 +4,7 @@ import {
   bundledIslands,
   bundledTools,
 } from "../data/bundledConfig";
+import { defaultStationState, normalizeStation } from "./StationOps";
 
 import { localDayKey } from "./MonetizationPolicy";
 import { sanitizeCosmeticSelection } from "./MarketArtStyle";
@@ -51,6 +52,7 @@ export function createDefaultSave(now = Date.now()): PlayerSave {
       vibration: true,
       lowPower: false,
     },
+    station: defaultStationState(),
   };
 }
 
@@ -214,5 +216,6 @@ export function migrate(save: PlayerSave): PlayerSave {
       ...fallback.settings,
       ...(source.settings ?? {}),
     },
+    station: normalizeStation(save.station),
   };
 }

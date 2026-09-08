@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const output = path.join(root, "build", "wechatgame");
-const openDataTarget = path.join(output, "openDataContext", "index.js");
+const openDataTarget = path.join(output, "wechat-open-data", "index.js");
 
 if (!fs.existsSync(path.join(output, "game.json"))) {
   throw new Error("WeChat build not found. Build with Cocos Creator first.");
@@ -18,6 +18,7 @@ fs.copyFileSync(
 for (const obsolete of [
   path.join(output, "openDataContext", "engine.js"),
   path.join(output, "openDataContext", "render"),
+  path.join(output, "open-data"),
 ]) {
   if (fs.existsSync(obsolete)) {
     fs.rmSync(obsolete, { recursive: true, force: true });
@@ -27,7 +28,7 @@ for (const obsolete of [
 const gamePath = path.join(output, "game.json");
 const game = JSON.parse(fs.readFileSync(gamePath, "utf8"));
 game.deviceOrientation = "landscape";
-game.openDataContext = "openDataContext";
+game.openDataContext = "wechat-open-data";
 
 const projectPath = path.join(output, "project.config.json");
 const project = JSON.parse(fs.readFileSync(projectPath, "utf8"));

@@ -1,167 +1,170 @@
 import { Color, Graphics, Node, UITransform } from "cc";
 import {
-  fishLook,
-  islandLook,
-  islandRules,
-  type IslandLook,
-  type Rgb,
-} from "../domain/GrayLook";
-import { COMMON_ART, cosmeticLook, MARKET_UI } from "../domain/MarketArtStyle";
+  boatOps,
+  burstPts,
+  crateOps,
+  dockOps,
+  fishOps,
+  flotsamPickupOps,
+  grainStrokes,
+  islandSetOps,
+  pontoonUpgradeOps,
+  mix,
+  slamMarkOps,
+  speckleDots,
+  washBlobs,
+  type DrawOp,
+  type FishFace,
+  type Rgba,
+} from "../domain/ArtRecipe";
+import { cosmeticLook } from "../domain/MarketArtStyle";
 
-function c(rgb: Rgb, a = 255): Color {
-  return new Color(rgb[0], rgb[1], rgb[2], a);
+function rgba(rgb: readonly [number, number, number], alpha = 255): Rgba {
+  return [rgb[0], rgb[1], rgb[2], alpha];
 }
 
-function fillEllipse(
-  g: Graphics,
-  x: number,
-  y: number,
-  rx: number,
-  ry: number,
-  color: Color,
-): void {
-  g.fillColor = color;
-  g.ellipse(x, y, rx, ry);
-  g.fill();
+function toColor(rgba: Rgba): Color {
+  return new Color(rgba[0], rgba[1], rgba[2], rgba[3] ?? 255);
 }
 
-function fillCircle(
-  g: Graphics,
-  x: number,
-  y: number,
-  r: number,
-  color: Color,
-): void {
-  g.fillColor = color;
-  g.circle(x, y, r);
-  g.fill();
-}
-
-function fillPoly(g: Graphics, color: Color, pts: number[]): void {
-  g.fillColor = color;
-  g.moveTo(pts[0], pts[1]);
-  for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]);
-  g.close();
-  g.fill();
-}
-
-function palm(g: Graphics, x: number, y: number, s: number, look: IslandLook): void {
-  g.fillColor = c(look.accent);
-  g.roundRect(x - 3 * s, y, 6 * s, 28 * s, 2);
-  g.fill();
-  fillPoly(g, c(look.landDark), [
-    x,
-    y + 30 * s,
-    x - 22 * s,
-    y + 18 * s,
-    x - 8 * s,
-    y + 24 * s,
-  ]);
-  fillPoly(g, c(look.landDark), [
-    x,
-    y + 30 * s,
-    x + 22 * s,
-    y + 16 * s,
-    x + 6 * s,
-    y + 24 * s,
-  ]);
-  fillPoly(g, c(look.accent), [
-    x,
-    y + 32 * s,
-    x - 10 * s,
-    y + 42 * s,
-    x + 10 * s,
-    y + 42 * s,
-  ]);
-}
-
-function foamIsle(g: Graphics, x: number, y: number, s: number, look: IslandLook): void {
-  fillEllipse(g, x, y, 78 * s, 22 * s, c(look.landDark, 180));
-  fillEllipse(g, x, y + 8 * s, 70 * s, 18 * s, c(look.land));
-  fillEllipse(g, x + 8 * s, y + 18 * s, 28 * s, 16 * s, c(look.landDark));
-  palm(g, x - 18 * s, y + 10 * s, s, look);
-  palm(g, x + 16 * s, y + 8 * s, 0.75 * s, look);
-}
-
-function prismIsle(g: Graphics, x: number, y: number, s: number, look: IslandLook): void {
-  fillEllipse(g, x, y, 70 * s, 16 * s, c(look.landDark, 160));
-  fillPoly(g, c(look.land), [
-    x - 40 * s,
-    y + 6 * s,
-    x - 8 * s,
-    y + 54 * s,
-    x + 18 * s,
-    y + 6 * s,
-  ]);
-  fillPoly(g, c(look.accent), [
-    x - 6 * s,
-    y + 6 * s,
-    x + 16 * s,
-    y + 62 * s,
-    x + 34 * s,
-    y + 6 * s,
-  ]);
-  fillPoly(g, c(look.landDark), [
-    x + 8 * s,
-    y + 6 * s,
-    x + 40 * s,
-    y + 36 * s,
-    x + 52 * s,
-    y + 6 * s,
-  ]);
-}
-
-function stormIsle(g: Graphics, x: number, y: number, s: number, look: IslandLook): void {
-  fillEllipse(g, x, y, 88 * s, 20 * s, c(look.landDark, 200));
-  fillPoly(g, c(look.land), [
-    x - 48 * s,
-    y + 4 * s,
-    x,
-    y + 58 * s,
-    x + 48 * s,
-    y + 4 * s,
-  ]);
-  fillPoly(g, c(look.landDark), [
-    x - 18 * s,
-    y + 36 * s,
-    x,
-    y + 70 * s,
-    x + 18 * s,
-    y + 36 * s,
-  ]);
-  fillEllipse(g, x, y + 58 * s, 12 * s, 6 * s, c(look.accent));
-  fillEllipse(g, x + 6 * s, y + 78 * s, 14 * s, 10 * s, c(look.haze, 140));
-  fillEllipse(g, x + 18 * s, y + 92 * s, 18 * s, 8 * s, c(look.haze, 90));
-}
-
-function pier(g: Graphics, look: IslandLook): void {
-  fillEllipse(g, -420, -210, 90, 16, c(look.deep, 180));
-  g.fillColor = c(look.accent);
-  g.roundRect(-520, -228, 260, 18, 4);
-  g.fill();
-  g.fillColor = c(MARKET_UI.woodDark);
-  for (let i = 0; i < 5; i++) {
-    g.roundRect(-500 + i * 48, -248, 10, 28, 2);
-    g.fill();
+function paintOps(g: Graphics, ops: DrawOp[]): void {
+  for (const op of ops) {
+    if (op.t === "ellipse") {
+      g.fillColor = toColor(op.fill);
+      g.ellipse(op.x, op.y, op.rx, op.ry);
+      g.fill();
+      continue;
+    }
+    if (op.t === "circle") {
+      g.fillColor = toColor(op.fill);
+      g.circle(op.x, op.y, op.r);
+      g.fill();
+      continue;
+    }
+    if (op.t === "rect") {
+      g.fillColor = toColor(op.fill);
+      if (op.r && op.r > 0) g.roundRect(op.x, op.y, op.w, op.h, op.r);
+      else g.rect(op.x, op.y, op.w, op.h);
+      g.fill();
+      continue;
+    }
+    if (op.t === "poly") {
+      g.fillColor = toColor(op.fill);
+      g.moveTo(op.pts[0], op.pts[1]);
+      for (let i = 2; i < op.pts.length; i += 2) g.lineTo(op.pts[i], op.pts[i + 1]);
+      g.close();
+      g.fill();
+      continue;
+    }
+    if (op.t === "line") {
+      g.strokeColor = toColor(op.color);
+      g.lineWidth = op.width;
+      g.moveTo(op.x1, op.y1);
+      g.lineTo(op.x2, op.y2);
+      g.stroke();
+      continue;
+    }
+    if (op.t === "bezier") {
+      g.strokeColor = toColor(op.color);
+      g.lineWidth = op.width;
+      g.moveTo(op.x1, op.y1);
+      g.bezierCurveTo(op.c1x, op.c1y, op.c2x, op.c2y, op.x2, op.y2);
+      g.stroke();
+      continue;
+    }
+    if (op.t === "ring") {
+      g.strokeColor = toColor(op.color);
+      g.lineWidth = op.width;
+      g.circle(op.x, op.y, op.r);
+      g.stroke();
+      continue;
+    }
+    if (op.t === "grad") {
+      const bands = 6;
+      for (let i = 0; i < bands; i++) {
+        const t = i / (bands - 1);
+        const rgb = mix(
+          [op.from[0], op.from[1], op.from[2]],
+          [op.to[0], op.to[1], op.to[2]],
+          t,
+        );
+        const a = Math.round(
+          (op.from[3] ?? 255) + ((op.to[3] ?? 255) - (op.from[3] ?? 255)) * t,
+        );
+        g.fillColor = toColor([rgb[0], rgb[1], rgb[2], a]);
+        if (op.axis === "x") {
+          const slice = op.w / bands;
+          if (op.r && op.r > 0 && (i === 0 || i === bands - 1)) {
+            g.roundRect(op.x + i * slice, op.y, slice + 1, op.h, op.r);
+          } else g.rect(op.x + i * slice, op.y, slice + 1, op.h);
+        } else {
+          const slice = op.h / bands;
+          g.rect(op.x, op.y + i * slice, op.w, slice + 1);
+        }
+        g.fill();
+      }
+      continue;
+    }
+    if (op.t === "speckle") {
+      g.fillColor = toColor(op.color);
+      for (const dot of speckleDots(op)) {
+        g.circle(dot.x, dot.y, dot.r);
+        g.fill();
+      }
+      continue;
+    }
+    if (op.t === "shadow") {
+      g.fillColor = toColor(op.fill);
+      g.ellipse(op.x, op.y, op.rx, op.ry);
+      g.fill();
+      continue;
+    }
+    if (op.t === "grain") {
+      g.strokeColor = toColor(op.color);
+      for (const stroke of grainStrokes(op)) {
+        g.lineWidth = stroke.w;
+        g.moveTo(stroke.x1, stroke.y1);
+        g.lineTo(stroke.x2, stroke.y2);
+        g.stroke();
+      }
+      continue;
+    }
+    if (op.t === "wash") {
+      g.fillColor = toColor(op.color);
+      for (const blob of washBlobs(op)) {
+        g.ellipse(blob.x, blob.y, blob.rx, blob.ry);
+        g.fill();
+      }
+      continue;
+    }
+    if (op.t === "burst") {
+      const pts = burstPts(op);
+      g.fillColor = toColor(op.fill);
+      g.moveTo(pts[0], pts[1]);
+      for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]);
+      g.close();
+      g.fill();
+      continue;
+    }
+    g.strokeColor = toColor(op.color);
+    g.lineWidth = op.width;
+    if (op.r && op.r > 0) g.roundRect(op.x, op.y, op.w, op.h, op.r);
+    else g.rect(op.x, op.y, op.w, op.h);
+    g.stroke();
   }
-  g.fillColor = c(MARKET_UI.wood);
-  g.roundRect(-520, -214, 260, 10, 3);
-  g.fill();
-}
-
-function sun(g: Graphics, x: number, y: number, look: IslandLook): void {
-  fillCircle(g, x, y, 36, c(look.accent, 80));
-  fillCircle(g, x, y, 22, c(look.accent));
-  fillCircle(g, x + 6, y + 4, 8, c([255, 236, 200], 180));
 }
 
 export function drawSeascape(
   parent: Node,
-  options: { islandId?: string; harbor?: boolean } = {},
+  options: {
+    islandId?: string;
+    harbor?: boolean;
+    pontoonTier?: number;
+    showFlotsam?: boolean;
+  } = {},
 ): void {
   const harbor = options.harbor === true;
-  const look = islandLook(options.islandId ?? "island_foam_bay", harbor);
-  const rules = islandRules(options.islandId ?? "island_foam_bay");
+  const islandId = options.islandId ?? "island_foam_bay";
   const canvasTransform =
     parent.getComponent(UITransform) ?? parent.addComponent(UITransform);
   canvasTransform.setContentSize(1280, 720);
@@ -171,63 +174,12 @@ export function drawSeascape(
   background.parent = parent;
   background.addComponent(UITransform).setContentSize(1280, 720);
   const g = background.addComponent(Graphics);
-
-  g.fillColor = c(look.skyTop);
-  g.rect(-640, 160, 1280, 360);
-  g.fill();
-  g.fillColor = c(look.sky);
-  g.rect(-640, 70, 1280, 120);
-  g.fill();
-  fillEllipse(g, 0, 86, 640, 28, c(look.haze, 120));
-  g.fillColor = c(look.far);
-  g.rect(-640, 28, 1280, 70);
-  g.fill();
-  g.fillColor = c(look.mid);
-  g.rect(-640, -50, 1280, 90);
-  g.fill();
-  g.fillColor = c(look.near);
-  g.rect(-640, -200, 1280, 160);
-  g.fill();
-  g.fillColor = c(look.deep);
-  g.rect(-640, -360, 1280, 180);
-  g.fill();
-
+  const ops = [...islandSetOps(islandId, harbor)];
   if (harbor) {
-    sun(g, 420, 250, look);
-    foamIsle(g, -160, 78, 1, islandLook("island_foam_bay"));
-    prismIsle(g, 170, 82, 1, islandLook("island_prism_reef"));
-    stormIsle(g, 470, 76, 0.85, islandLook("island_storm_eye"));
-    pier(g, look);
-  } else if (options.islandId === "island_prism_reef") {
-    sun(g, -480, 240, look);
-    prismIsle(g, 360, 86, 1.15, look);
-    prismIsle(g, -390, 80, 0.7, look);
-    fillEllipse(g, 80, 48, 40, 8, c(look.accent, 90));
-    fillEllipse(g, -120, 56, 24, 6, c(look.land, 80));
-  } else if (options.islandId === "island_storm_eye") {
-    fillCircle(g, 500, 250, 28, c(look.haze, 160));
-    stormIsle(g, 340, 78, 1.2, look);
-    foamIsle(g, -430, 70, 0.55, islandLook("island_foam_bay"));
-  } else {
-    sun(g, 460, 248, look);
-    foamIsle(g, 380, 80, 1.1, look);
-    foamIsle(g, -420, 74, 0.7, look);
+    ops.push(...pontoonUpgradeOps(options.pontoonTier ?? 1));
+    if (options.showFlotsam !== false) ops.push(...flotsamPickupOps());
   }
-
-  g.strokeColor = c(look.haze, 90);
-  g.lineWidth = 3;
-  g.moveTo(-640, 40);
-  g.lineTo(640, 40);
-  g.stroke();
-  fillEllipse(g, -180, -90, 120, 10, c(look.haze, 40));
-  fillEllipse(g, 220, -140, 160, 12, c(look.haze, 30));
-  g.strokeColor = c(look.haze, Math.round(255 * rules.fogAlpha));
-  g.lineWidth = rules.water === "storm-swell" ? 7 : 3;
-  for (let y = -40; y > -300; y -= 54) {
-    g.moveTo(-610, y);
-    g.lineTo(610, y + rules.waveSlant);
-    g.stroke();
-  }
+  paintOps(g, ops);
 }
 
 export function drawDock(parent: Node, cosmeticId?: string): void {
@@ -235,58 +187,23 @@ export function drawDock(parent: Node, cosmeticId?: string): void {
   node.layer = parent.layer;
   node.parent = parent;
   node.addComponent(UITransform).setContentSize(1280, 720);
-  const g = node.addComponent(Graphics);
-  g.fillColor = new Color(16, 42, 58, 200);
-  g.roundRect(-640, -252, 440, 26, 4);
-  g.fill();
-  g.fillColor = c(MARKET_UI.wood);
-  g.roundRect(-640, -226, 410, 92, 10);
-  g.fill();
-  g.fillColor = c(MARKET_UI.woodDark);
-  for (let i = 0; i < 7; i++) {
-    g.rect(-630 + i * 56, -220, 6, 80);
-    g.fill();
-  }
-  const cosmetic = cosmeticLook(cosmeticId);
-  g.fillColor = c(cosmetic.crate);
-  g.roundRect(-556, -184, 76, 62, 10);
-  g.fill();
-  g.fillColor = c(cosmetic.crateDark);
-  g.roundRect(-548, -176, 60, 18, 4);
-  g.fill();
+  paintOps(node.addComponent(Graphics), dockOps());
 }
 
 export function drawBoat(graphics: Graphics, cosmeticId?: string): void {
-  const g = graphics;
+  graphics.clear();
   const cosmetic = cosmeticLook(cosmeticId);
-  g.clear();
-  fillEllipse(g, 0, -20, 58, 11, c(COMMON_ART.shadow, 160));
-  fillPoly(g, new Color(196, 122, 64, 255), [40, -8, 62, 2, 48, 10, 28, 4]);
-  g.fillColor = c(cosmetic.hull);
-  g.roundRect(-50, -14, 100, 28, 10);
-  g.fill();
-  g.fillColor = c(cosmetic.trim);
-  g.roundRect(-48, 6, 96, 8, 3);
-  g.fill();
-  g.fillColor = c(COMMON_ART.cabin);
-  g.roundRect(-10, 6, 44, 22, 5);
-  g.fill();
-  fillCircle(g, 8, 18, 7, c(COMMON_ART.window));
-  fillCircle(g, 10, 20, 3, c(COMMON_ART.highlight, 200));
-  g.fillColor = c(COMMON_ART.mast);
-  g.rect(-4, 8, 5, 36);
-  g.fill();
-  fillPoly(g, c(COMMON_ART.flag), [-2, 42, 22, 34, -2, 28]);
+  const ops = boatOps();
+  const hull = ops[2];
+  const trim = ops[3];
+  if (hull && "fill" in hull) hull.fill = rgba(cosmetic.hull);
+  if (trim && "fill" in trim) trim.fill = rgba(cosmetic.trim);
+  paintOps(graphics, ops);
 }
 
-function tint(rgb: Rgb, decoy: boolean, a = 255): Color {
-  if (!decoy) return c(rgb, a);
-  return new Color(
-    Math.round((rgb[0] + 200) / 2),
-    Math.round((rgb[1] + 210) / 2),
-    Math.round((rgb[2] + 220) / 2),
-    Math.round(a * 0.45),
-  );
+export function drawCrate(graphics: Graphics): void {
+  graphics.clear();
+  paintOps(graphics, crateOps());
 }
 
 export function drawFishBody(
@@ -295,138 +212,9 @@ export function drawFishBody(
   scale: number,
   decoy: boolean,
   armored: boolean,
+  face: FishFace = "idle",
 ): void {
-  const look = fishLook(id);
-  const s = scale;
-  const body = tint(look.body, decoy);
-  const belly = tint(look.belly, decoy);
-  const accent = tint(look.accent, decoy);
-  const kind = look.silhouette;
-
-  if (kind === "eel") {
-    fillEllipse(g, -28 * s, -4 * s, 22 * s, 9 * s, accent);
-    fillEllipse(g, -6 * s, 0, 24 * s, 11 * s, body);
-    fillEllipse(g, 18 * s, 2 * s, 20 * s, 10 * s, belly);
-    fillCircle(g, 32 * s, 3 * s, 4 * s, new Color(20, 24, 32, decoy ? 120 : 255));
-    return;
-  }
-  if (kind === "ray") {
-    fillPoly(g, body, [
-      22 * s,
-      4 * s,
-      -8 * s,
-      36 * s,
-      -28 * s,
-      4 * s,
-      -8 * s,
-      -28 * s,
-    ]);
-    fillEllipse(g, 8 * s, 2 * s, 16 * s, 10 * s, belly);
-    fillPoly(g, accent, [-24 * s, 2 * s, -52 * s, 8 * s, -52 * s, -4 * s]);
-    return;
-  }
-  if (kind === "whale") {
-    fillEllipse(g, 4 * s, 0, 48 * s, 22 * s, body);
-    fillEllipse(g, 10 * s, -8 * s, 36 * s, 12 * s, belly);
-    fillPoly(g, accent, [-36 * s, 0, -72 * s, 22 * s, -72 * s, -22 * s]);
-    fillPoly(g, accent, [6 * s, 18 * s, 18 * s, 34 * s, 22 * s, 16 * s]);
-    fillCircle(g, 28 * s, 6 * s, 3.5 * s, new Color(20, 28, 40, 255));
-    fillEllipse(g, 18 * s, 16 * s, 6 * s, 4 * s, new Color(40, 56, 90, 255));
-    return;
-  }
-  if (kind === "ribbon") {
-    fillEllipse(g, 8 * s, 0, 38 * s, 10 * s, body);
-    fillEllipse(g, 16 * s, -3 * s, 22 * s, 6 * s, belly);
-    fillPoly(g, accent, [-28 * s, 0, -70 * s, 16 * s, -58 * s, 0, -70 * s, -16 * s]);
-    fillPoly(g, belly, [-24 * s, 2 * s, -48 * s, 8 * s, -40 * s, 0]);
-    return;
-  }
-  if (kind === "pod") {
-    fillEllipse(g, 0, 0, 28 * s, 22 * s, body);
-    fillEllipse(g, 4 * s, -6 * s, 18 * s, 12 * s, belly);
-    fillCircle(g, -6 * s, 8 * s, 5 * s, accent);
-    fillCircle(g, 8 * s, 10 * s, 4 * s, accent);
-    fillCircle(g, 4 * s, 4 * s, 3 * s, new Color(255, 252, 210, 255));
-    return;
-  }
-  if (kind === "sail") {
-    fillPoly(g, accent, [-6 * s, 8 * s, 8 * s, 48 * s, 22 * s, 8 * s]);
-    fillEllipse(g, 2 * s, -2 * s, 30 * s, 14 * s, body);
-    fillEllipse(g, 8 * s, -6 * s, 20 * s, 8 * s, belly);
-    fillPoly(g, body, [-26 * s, 0, -52 * s, 14 * s, -52 * s, -14 * s]);
-    return;
-  }
-  if (kind === "jaw") {
-    fillEllipse(g, 0, 0, 34 * s, 20 * s, body);
-    fillEllipse(g, 8 * s, -8 * s, 22 * s, 10 * s, belly);
-    fillEllipse(g, 22 * s, -4 * s, 16 * s, 12 * s, accent);
-    fillPoly(g, tint(look.accent, decoy, 255), [
-      18 * s,
-      -12 * s,
-      40 * s,
-      -6 * s,
-      22 * s,
-      2 * s,
-    ]);
-    fillPoly(g, body, [-28 * s, 0, -50 * s, 16 * s, -50 * s, -16 * s]);
-    if (armored) {
-      fillEllipse(g, 4 * s, 4 * s, 22 * s, 16 * s, new Color(210, 176, 110, 230));
-    }
-    return;
-  }
-  if (kind === "shell") {
-    fillEllipse(g, 0, 0, 32 * s, 20 * s, belly);
-    fillEllipse(g, 4 * s, 6 * s, 24 * s, 16 * s, body);
-    fillEllipse(g, -8 * s, 8 * s, 16 * s, 12 * s, accent);
-    fillEllipse(g, 12 * s, 10 * s, 14 * s, 12 * s, accent);
-    fillPoly(g, accent, [-24 * s, 0, -44 * s, 12 * s, -44 * s, -12 * s]);
-    if (armored) {
-      fillEllipse(g, 6 * s, 4 * s, 20 * s, 16 * s, new Color(230, 196, 120, 240));
-    }
-    return;
-  }
-  if (kind === "hopper") {
-    fillEllipse(g, 4 * s, 0, 28 * s, 16 * s, body);
-    fillEllipse(g, 10 * s, -6 * s, 18 * s, 9 * s, belly);
-    fillPoly(g, accent, [4 * s, 10 * s, 18 * s, 28 * s, 20 * s, 8 * s]);
-    fillPoly(g, body, [-22 * s, 2 * s, -48 * s, 18 * s, -40 * s, 0, -48 * s, -16 * s]);
-    return;
-  }
-  const procedural = [
-    "bell", "goby", "pike", "fogShell", "towerRay", "chronist",
-    "cinder", "drill", "ashKite", "basalt", "furnace", "warden",
-  ] as const;
-  const variant = procedural.indexOf(kind as (typeof procedural)[number]);
-  if (variant >= 0) {
-    const long = 26 + (variant % 4) * 5;
-    const tall = 12 + (variant % 3) * 4;
-    const tail = 42 + (variant % 5) * 5;
-    fillEllipse(g, 2 * s, 0, long * s, tall * s, body);
-    fillEllipse(g, 9 * s, -5 * s, (long - 9) * s, Math.max(7, tall - 6) * s, belly);
-    fillPoly(g, accent, [
-      -long * s, 0,
-      -tail * s, (10 + (variant % 3) * 5) * s,
-      -(tail - 7) * s, 0,
-      -tail * s, -(9 + ((variant + 1) % 3) * 5) * s,
-    ]);
-    const crown = 14 + (variant % 4) * 6;
-    fillPoly(g, accent, [
-      (-8 + (variant % 5) * 4) * s, tall * 0.5 * s,
-      (variant % 2 === 0 ? 2 : 12) * s, crown * s,
-      (12 + (variant % 3) * 5) * s, tall * 0.45 * s,
-    ]);
-    if (variant % 3 === 1) {
-      fillCircle(g, 25 * s, 4 * s, 5 * s, accent);
-    }
-    if (variant === 5 || variant === 11) {
-      fillPoly(g, accent, [2 * s, -tall * s, 14 * s, -30 * s, 22 * s, -tall * s]);
-    }
-    return;
-  }
-  fillEllipse(g, 2 * s, 0, 32 * s, 16 * s, body);
-  fillEllipse(g, 10 * s, -6 * s, 20 * s, 9 * s, belly);
-  fillPoly(g, accent, [6 * s, 8 * s, 22 * s, 30 * s, 28 * s, 6 * s]);
-  fillPoly(g, body, [-26 * s, 0, -54 * s, 16 * s, -48 * s, 0, -54 * s, -16 * s]);
+  paintOps(g, fishOps(id, scale, { decoy, armored, hit: false, hooked: false, flashing: false, face }));
 }
 
 export function drawFish(
@@ -439,51 +227,11 @@ export function drawFish(
     hit: boolean;
     hooked: boolean;
     flashing: boolean;
-    stunned?: boolean;
-    behavior?: string;
+    face?: FishFace;
   },
 ): void {
-  const look = fishLook(id);
-  const s = scale;
   g.clear();
-  if (state.hooked) {
-    g.strokeColor = c(COMMON_ART.line, 230);
-    g.lineWidth = 4;
-    g.circle(0, 0, 58 * s);
-    g.stroke();
-  }
-  drawFishBody(g, id, s, state.decoy, state.armored);
-  if (state.stunned) {
-    fillPoly(g, c(look.accent), [-18 * s, 30 * s, -10 * s, 42 * s, -2 * s, 30 * s]);
-    fillPoly(g, c(look.accent), [4 * s, 34 * s, 12 * s, 46 * s, 20 * s, 32 * s]);
-  } else if (state.behavior === "dash") {
-    g.strokeColor = c(look.accent);
-    g.lineWidth = 5;
-    g.moveTo(-70 * s, 24 * s);
-    g.lineTo(-40 * s, 14 * s);
-    g.stroke();
-  } else if (state.behavior === "split") {
-    g.strokeColor = c(look.accent);
-    g.lineWidth = 3;
-    g.rect(-48 * s, -28 * s, 96 * s, 56 * s);
-    g.stroke();
-  }
-  if (state.hit) {
-    g.strokeColor = c(COMMON_ART.highlight, 230);
-    g.lineWidth = 6;
-    g.ellipse(0, 0, 54 * s, 30 * s);
-    g.stroke();
-  }
-  const glow = state.flashing
-    ? c(COMMON_ART.weakOpen)
-    : c(COMMON_ART.weak);
-  fillCircle(g, look.weakX * s, look.weakY * s, (state.flashing ? 11 : 5) * s, glow);
-  g.strokeColor = state.flashing
-    ? c(COMMON_ART.highlight)
-    : c(COMMON_ART.highlight, 220);
-  g.lineWidth = state.flashing ? 5 : 3;
-  g.circle(look.weakX * s, look.weakY * s, (state.flashing ? 16 : 10) * s);
-  g.stroke();
+  paintOps(g, fishOps(id, scale, state));
 }
 
 export function drawShots(
@@ -505,14 +253,16 @@ export function drawShots(
       shot.kind === "harpoon"
         ? new Color(255, 180, 90, 240)
         : shot.kind === "cannon"
-          ? c(cosmetic.sparkle, 230)
-          : c(cosmetic.hit, 240);
+          ? toColor(rgba(cosmetic.sparkle, 230))
+          : toColor(rgba(cosmetic.hit, 240));
     g.strokeColor = color;
     g.lineWidth = shot.kind === "harpoon" ? 6 : 4;
     g.moveTo(shot.x - shot.nx * tail, shot.y - shot.ny * tail);
     g.lineTo(shot.x, shot.y);
     g.stroke();
-    fillCircle(g, shot.x, shot.y, shot.radius, color);
+    g.fillColor = color;
+    g.circle(shot.x, shot.y, shot.radius);
+    g.fill();
   }
 }
 
@@ -522,46 +272,179 @@ export function drawJuice(
     x: number;
     y: number;
     life: number;
-    kind: "bubble" | "star";
+    kind: "bubble" | "star" | "coin" | "dust";
     size: number;
   }>,
+  flashes: Array<{
+    x: number;
+    y: number;
+    life: number;
+    kind: string;
+  }> = [],
+  slamMarks: Array<{ x: number; y: number; life: number }> = [],
   trailId?: string,
 ): void {
   const cosmetic = cosmeticLook(trailId);
   g.clear();
+  for (const mark of slamMarks) {
+    if (mark.life < 0.12) continue;
+    paintOps(g, slamMarkOps(mark.x, mark.y));
+  }
+  for (const flash of flashes) {
+    const alpha = Math.max(0, Math.round(210 * flash.life));
+    const grow =
+      flash.kind === "catch" || flash.kind === "perfect" || flash.kind === "sell"
+        ? 42
+        : flash.kind === "weak" || flash.kind === "smash"
+          ? 28
+          : 30;
+    const r = 18 + grow * (1 - flash.life);
+    g.strokeColor = new Color(255, 236, 120, alpha);
+    g.lineWidth =
+      flash.kind === "weak" || flash.kind === "perfect" || flash.kind === "smash"
+        ? 6
+        : flash.kind === "catch" || flash.kind === "sell"
+          ? 6
+          : 5;
+    g.circle(flash.x, flash.y, r);
+    g.stroke();
+    const cover = flash.kind === "weak" ? 0.18 : 0.32;
+    g.fillColor = new Color(
+      255,
+      250,
+      200,
+      Math.round((flash.kind === "weak" ? 36 : 64) * flash.life),
+    );
+    g.circle(flash.x, flash.y, r * cover);
+    g.fill();
+  }
   for (const particle of particles) {
     const alpha = Math.max(40, Math.round(255 * particle.life));
     const r = particle.size * (0.65 + 0.35 * particle.life);
-    if (particle.kind === "star") {
-      fillPoly(
-        g,
-        c(cosmetic.hit, alpha),
-        [
-          particle.x,
-          particle.y + r * 1.4,
-          particle.x + r * 0.9,
-          particle.y,
-          particle.x,
-          particle.y - r * 1.4,
-          particle.x - r * 0.9,
-          particle.y,
-        ],
-      );
+    if (particle.kind === "coin") {
+      g.fillColor = new Color(255, 214, 72, alpha);
+      g.ellipse(particle.x, particle.y, r * 1.15, r * 0.85);
+      g.fill();
+      g.fillColor = new Color(255, 248, 200, Math.round(alpha * 0.7));
+      g.ellipse(particle.x - r * 0.15, particle.y + r * 0.15, r * 0.35, r * 0.22);
+      g.fill();
       continue;
     }
-    fillCircle(
-      g,
-      particle.x,
-      particle.y,
-      r,
-      c(cosmetic.sparkle, alpha),
+    if (particle.kind === "dust") {
+      g.fillColor = new Color(168, 118, 58, Math.round(alpha * 0.9));
+      g.ellipse(particle.x, particle.y, r * 2.4, r * 1.05);
+      g.fill();
+      g.fillColor = new Color(230, 186, 110, Math.round(alpha * 0.45));
+      g.ellipse(particle.x - r * 0.2, particle.y + r * 0.15, r * 1.1, r * 0.5);
+      g.fill();
+      continue;
+    }
+    if (particle.kind === "star") {
+      g.fillColor = toColor(rgba(cosmetic.hit, alpha));
+      g.moveTo(particle.x, particle.y + r * 1.4);
+      g.lineTo(particle.x + r * 0.9, particle.y);
+      g.lineTo(particle.x, particle.y - r * 1.4);
+      g.lineTo(particle.x - r * 0.9, particle.y);
+      g.close();
+      g.fill();
+      continue;
+    }
+    g.fillColor = toColor(rgba(cosmetic.sparkle, alpha));
+    g.circle(particle.x, particle.y, r);
+    g.fill();
+    g.fillColor = new Color(255, 255, 255, Math.round(alpha * 0.7));
+    g.circle(particle.x - r * 0.25, particle.y + r * 0.2, r * 0.35);
+    g.fill();
+  }
+}
+
+export function drawSmashWindow(
+  g: Graphics,
+  x: number,
+  y: number,
+  spec: {
+    radius: number;
+    width: number;
+    rgb: [number, number, number];
+    alpha: number;
+  },
+): void {
+  g.strokeColor = new Color(spec.rgb[0], spec.rgb[1], spec.rgb[2], spec.alpha);
+  g.lineWidth = spec.width;
+  g.circle(x, y, spec.radius);
+  g.stroke();
+  g.strokeColor = new Color(spec.rgb[0], spec.rgb[1], spec.rgb[2], Math.round(spec.alpha * 0.45));
+  g.lineWidth = Math.max(2, spec.width - 3);
+  g.circle(x, y, spec.radius * 0.62);
+  g.stroke();
+}
+
+export function drawGuideHole(
+  g: Graphics,
+  cx: number,
+  cy: number,
+  holeRadius: number,
+  spec: {
+    lineWidth: number;
+    fillAlpha: number;
+    maskAlpha: number;
+    stroke: [number, number, number, number];
+    haloWidth?: number;
+  },
+): void {
+  g.clear();
+  const left = -640;
+  const right = 640;
+  const top = 360;
+  const bottom = -360;
+  const holeL = Math.max(left, cx - holeRadius);
+  const holeR = Math.min(right, cx + holeRadius);
+  const holeB = Math.max(bottom, cy - holeRadius);
+  const holeT = Math.min(top, cy + holeRadius);
+  g.fillColor = new Color(4, 10, 18, spec.maskAlpha);
+  if (holeT < top) {
+    g.rect(left, holeT, right - left, top - holeT);
+    g.fill();
+  }
+  if (holeB > bottom) {
+    g.rect(left, bottom, right - left, holeB - bottom);
+    g.fill();
+  }
+  if (holeL > left && holeT > holeB) {
+    g.rect(left, holeB, holeL - left, holeT - holeB);
+    g.fill();
+  }
+  if (holeR < right && holeT > holeB) {
+    g.rect(holeR, holeB, right - holeR, holeT - holeB);
+    g.fill();
+  }
+  g.fillColor = new Color(
+    spec.stroke[0],
+    spec.stroke[1],
+    spec.stroke[2],
+    spec.fillAlpha,
+  );
+  g.circle(cx, cy, holeRadius);
+  g.fill();
+  g.strokeColor = new Color(
+    spec.stroke[0],
+    spec.stroke[1],
+    spec.stroke[2],
+    spec.stroke[3],
+  );
+  g.lineWidth = spec.lineWidth;
+  g.circle(cx, cy, holeRadius);
+  g.stroke();
+  const halo = spec.haloWidth ?? 4;
+  if (halo > 0) {
+    g.lineWidth = halo;
+    g.strokeColor = new Color(
+      spec.stroke[0],
+      spec.stroke[1],
+      spec.stroke[2],
+      Math.max(40, Math.round(spec.stroke[3] * 0.45)),
     );
-    fillCircle(
-      g,
-      particle.x - r * 0.25,
-      particle.y + r * 0.2,
-      r * 0.35,
-      new Color(255, 255, 255, Math.round(alpha * 0.7)),
-    );
+    g.circle(cx, cy, holeRadius + 10);
+    g.stroke();
   }
 }

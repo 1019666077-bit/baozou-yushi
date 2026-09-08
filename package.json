@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "typecheck:cocos": "tsc -p tsconfig.cocos-check.json --noEmit",
+    "sync:config": "node tools/sync-bundled-config.mjs",
     "preflight": "node tools/sync-bundled-config.mjs && node tools/preflight.mjs",
     "preflight:web": "node tools/platform-preflight.mjs web",
     "preflight:crazygames": "node tools/platform-preflight.mjs crazygames",
@@ -24,7 +25,11 @@
     "testers:google": "node tools/analyze-google-testers.mjs",
     "release:readiness": "node tools/launch-readiness.mjs",
     "postbuild:wechat": "node tools/postbuild-wechat.mjs",
-    "validate": "npm run typecheck && npm run typecheck:cocos && npm test && npm run preflight"
+    "preview:extract": "node tools/first-run-preview/extract-copy.mjs",
+    "art:vector": "node tools/generate-vector-art.mjs",
+    "try:web-desktop": "node tools/try-web-desktop-build.mjs",
+    "shots:list": "node tools/stage3d-shot-checklist.mjs",
+    "validate": "npm run art:vector && npm run typecheck && npm run typecheck:cocos && npm test && npm run preflight && npm run preview:extract && npm run shots:list"
   },
   "devDependencies": {
     "@cocos/creator-types": "^3.8.8",

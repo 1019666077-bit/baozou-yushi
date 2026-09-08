@@ -1,5 +1,6 @@
 import type { RunSummary } from "../data/types";
 import { platformAdapter } from "./PlatformRuntime";
+import { WechatAdapter } from "./WechatAdapter";
 
 export class LeaderboardService {
   static async submit(run: RunSummary): Promise<{
@@ -7,7 +8,11 @@ export class LeaderboardService {
     score?: number;
     reasons?: string[];
   }> {
-    const leaderboard = platformAdapter().leaderboard;
+    const platform = platformAdapter();
+    if (platform.kind === "wechat" && !WechatAdapter.signedIn) {
+      return { ok: false, reasons: ["unsigned"] };
+    }
+    const leaderboard = platform.leaderboard;
     if (!leaderboard) return { ok: false, reasons: ["unsupported"] };
     return leaderboard.submit(run);
   }

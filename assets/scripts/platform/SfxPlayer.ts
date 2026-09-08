@@ -1,4 +1,12 @@
-import { sfxRecipe, type SfxId, type SfxTone } from "../domain/SfxFeel";
+import {
+  sfxCastVoices,
+  sfxRecipe,
+  sfxVoices,
+  type SfxId,
+  type SfxTone,
+  type SfxVoice,
+} from "../domain/SfxFeel";
+import type { CastQuality } from "../domain/CastFeel";
 import { createWechatAudioContext } from "./WechatAudio";
 
 type MiniOscillator = {
@@ -13,18 +21,36 @@ type MiniGain = {
   gain: {
     value: number;
     setValueAtTime(value: number, time: number): void;
+    linearRampToValueAtTime?(value: number, time: number): void;
     exponentialRampToValueAtTime(value: number, time: number): void;
   };
   connect(node: unknown): void;
 };
 
+type MiniAudioBuffer = {
+  getChannelData(channel: number): Float32Array;
+};
+
+type MiniBufferSource = {
+  buffer: MiniAudioBuffer | null;
+  connect(node: unknown): void;
+  start(when?: number): void;
+};
+
 type MiniAudioContext = {
   currentTime: number;
   destination: unknown;
+  sampleRate?: number;
   state?: string;
   resume?: () => Promise<void>;
   createOscillator(): MiniOscillator;
   createGain(): MiniGain;
+  createBuffer?(
+    channels: number,
+    frames: number,
+    sampleRate: number,
+  ): MiniAudioBuffer;
+  createBufferSource?(): MiniBufferSource;
 };
 
 function createContext(): MiniAudioContext | undefined {
@@ -32,7 +58,8 @@ function createContext(): MiniAudioContext | undefined {
     const fromWx = createWechatAudioContext<MiniAudioContext>();
     if (fromWx) return fromWx;
     const Ctor =
-      (globalThis as { AudioContext?: new () => MiniAudioContext }).AudioContext ??
+      (globalThis as { AudioContext?: new () => MiniAudioContext })
+        .AudioContext ??
       (globalThis as { webkitAudioContext?: new () => MiniAudioContext })
         .webkitAudioContext;
     return Ctor ? new Ctor() : undefined;
@@ -77,6 +104,46 @@ export function playSynthRecipe(
   }
 }
 
+function playVoice(ctx: MiniAudioContext, voice: SfxVoice): void {
+  const now = ctx.currentTime + (voice.delay ?? 0);
+  const duration = voice.ms / 1000;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime?.(
+    voice.gain,
+    now + (voice.attack ?? 0.006),
+  );
+  if (!gain.gain.linearRampToValueAtTime) {
+    gain.gain.setValueAtTime(voice.gain, now + (voice.attack ?? 0.006));
+  }
+  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+  gain.connect(ctx.destination);
+
+  const createBuffer = ctx.createBuffer?.bind(ctx);
+  const createBufferSource = ctx.createBufferSource?.bind(ctx);
+  if (voice.type === "noise" && createBuffer && createBufferSource) {
+    const rate = ctx.sampleRate ?? 44100;
+    const frames = Math.max(1, Math.floor(rate * duration));
+    const buffer = createBuffer(1, frames, rate);
+    const data = buffer.getChannelData(0);
+    for (let index = 0; index < frames; index += 1) {
+      data[index] = (Math.random() * 2 - 1) * (1 - index / frames);
+    }
+    const source = createBufferSource();
+    source.buffer = buffer;
+    source.connect(gain);
+    source.start(now);
+    return;
+  }
+
+  const oscillator = ctx.createOscillator();
+  oscillator.type = voice.type === "noise" ? "sawtooth" : voice.type;
+  oscillator.frequency.value = voice.freq;
+  oscillator.connect(gain);
+  oscillator.start(now);
+  oscillator.stop(now + duration + 0.02);
+}
+
 export class SfxPlayer {
   private static enabled = true;
   private static ctx?: MiniAudioContext;
@@ -96,7 +163,25 @@ export class SfxPlayer {
     const ctx = this.context();
     if (!ctx) return;
     safeResume(ctx);
+    try {
+      for (const voice of sfxVoices(id)) playVoice(ctx, voice);
+      return;
+    } catch {
+      // Fall through to the simpler recipe for partial WebAudio implementations.
+    }
     playSynthRecipe(ctx, sfxRecipe(id), this.enabled);
+  }
+
+  static playCast(quality: CastQuality): void {
+    if (!this.enabled) return;
+    const ctx = this.context();
+    if (!ctx) return;
+    safeResume(ctx);
+    try {
+      for (const voice of sfxCastVoices(quality)) playVoice(ctx, voice);
+    } catch {
+      playSynthRecipe(ctx, sfxRecipe("cast"), this.enabled);
+    }
   }
 
   private static context(): MiniAudioContext | undefined {

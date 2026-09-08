@@ -37,14 +37,18 @@ describe("content configuration", () => {
     expect(fish.filter((item) => item.tier === "elite")).toHaveLength(5);
     expect(fish.filter((item) => item.tier === "boss")).toHaveLength(3);
     expect(tools).toHaveLength(3);
-    expect(islands).toHaveLength(5);
+    expect(
+      islands.filter((item) => item.id !== "island_tutorial"),
+    ).toHaveLength(5);
+    expect(islands.some((item) => item.id === "island_tutorial")).toBe(true);
   });
 
   it("has no broken fish, island, or tool references", () => {
     const fishIds = new Set(fish.map((item) => item.id));
     const islandIds = new Set(islands.map((item) => item.id));
     for (const item of fish) expect(islandIds.has(item.islandId)).toBe(true);
-    for (const tool of tools) expect(islandIds.has(tool.unlockIsland)).toBe(true);
+    for (const tool of tools)
+      expect(islandIds.has(tool.unlockIsland)).toBe(true);
     for (const island of islands) {
       for (const wave of island.waves) {
         for (const id of wave.fishPool) expect(fishIds.has(id)).toBe(true);
@@ -63,9 +67,7 @@ describe("content configuration", () => {
     for (const tool of tools) {
       expect(tool.levels.map((entry) => entry.level)).toEqual([1, 2, 3, 4, 5]);
       expect(tool.levels[4].power).toBeGreaterThan(tool.levels[0].power);
-      expect(tool.levels[4].cooldownMs).toBeLessThan(
-        tool.levels[0].cooldownMs,
-      );
+      expect(tool.levels[4].cooldownMs).toBeLessThan(tool.levels[0].cooldownMs);
       expect(tool.levels[3].modifiers).toBeTruthy();
       expect(tool.levels[4].modifiers).toBeTruthy();
     }
@@ -79,15 +81,30 @@ describe("content configuration", () => {
     expect(pool.every((id) => typeof id === "string")).toBe(true);
   });
 
+  it("gives the tutorial tide a 60s clock so the first crate budget matches the wave", () => {
+    const tutorial = islands.find((item) => item.id === "island_tutorial");
+    expect(tutorial?.targetSessionSeconds).toBe(60);
+    expect(tutorial?.waves[0]?.durationSeconds).toBe(60);
+    expect(
+      tutorial!.waves.reduce((sum, wave) => sum + wave.durationSeconds, 0),
+    ).toBeLessThanOrEqual(60);
+  });
+
+  it("expands island fish pools into string ids, not a Set", () => {
+    const tutorial = islands.find((item) => item.id === "island_tutorial");
+    expect(tutorial).toBeTruthy();
+    const pool = fishIdsForIsland(tutorial!);
+    expect(pool).toEqual(["fish_bayfin"]);
+    expect(pool.every((id) => typeof id === "string")).toBe(true);
+  });
+
   it("defines a three-phase tide-singer that can be reeled in one window", () => {
     const final = islands.find((item) => item.id === "island_storm_eye");
     const boss = fish.find((item) => item.id === "boss_tide_singer");
     expect(final?.bossId).toBe("boss_tide_singer");
     expect(final?.bossPhases).toHaveLength(3);
     expect(final?.bossPhases?.map((phase) => phase.threshold)).toEqual([
-      1,
-      0.66,
-      0.33,
+      1, 0.66, 0.33,
     ]);
     expect(boss?.toughness).toBe(420);
     expect(boss?.escapeSeconds).toBe(90);

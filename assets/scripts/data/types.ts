@@ -195,6 +195,15 @@ export interface AdGrantState {
   grantIds: string[];
 }
 
+export interface StationSave {
+  orderAccepted: boolean;
+  orderDelivered: boolean;
+  orderProgress: number;
+  flotsamHeld: number;
+  flotsamSpawned: boolean;
+  pontoonTier: number;
+}
+
 export interface PlayerSave {
   schemaVersion: number;
   revision: number;
@@ -227,6 +236,8 @@ export interface PlayerSave {
     vibration: boolean;
     lowPower: boolean;
   };
+  /** W2 活站本地进度：订单意图 / 漂物 / 浮台换皮。不影响售价。 */
+  station?: StationSave;
 }
 
 export interface RunSummary {

@@ -3,73 +3,106 @@ import {
   Color,
   DirectionalLight,
   Layers,
-  Material,
-  Mesh,
-  MeshRenderer,
   Node,
   Vec3,
-  primitives,
-  utils,
 } from "cc";
 import { FishController } from "../battle/FishController";
+import {
+  CAM_REST,
+  composeHuntCam,
+  smashHoldSeconds,
+  yankCamK,
+} from "../domain/CameraFeel";
 import { toActorWorld, toBoatWorld, deckKindForFish } from "../domain/DeckMap";
-import { deckFishShape, fishLook, islandLook, islandRules } from "../domain/GrayLook";
-import { COMMON_ART, cosmeticLook, MARKET_UI } from "../domain/MarketArtStyle";
+import type { SmashGrade } from "../domain/FlopPhysics";
+import { smashSquashAt } from "../domain/HitJuice";
+import { fishLook, islandLook } from "../domain/GrayLook";
+import { cosmeticLook } from "../domain/MarketArtStyle";
+import {
+  boatParts,
+  dockParts,
+  fishParts,
+  huntIsleParts,
+  waterAmp,
+  waterParts,
+} from "../domain/ProcGeom";
 import { deckFlag } from "./deckFlag";
+import { HarborStage } from "./HarborStage";
+import { rippleWater, spawnPart, spawnParts } from "./StageBuild";
+
+export type DeckFeel = {
+  smashElapsed?: number;
+  lowPower?: boolean;
+  smashGrade?: SmashGrade;
+};
 
 export class DeckStage {
   private root: Node;
   private canvas: Node;
   private uiCam?: Camera;
+  private worldCam!: Camera;
+  private camNode!: Node;
   private savedClear = 0;
   private savedPriority = 0;
   private savedVisibility = 0;
-  private boxMesh!: Mesh;
   private boat!: Node;
   private line!: Node;
   private fishes = new Map<string, Node>();
-  private mats = new Map<string, Material>();
+  private weakBase = new Map<string, { x: number; y: number; z: number }>();
   private mid = new Vec3();
   private to = new Vec3();
+  private water?: Node;
+  private foam?: Node;
+  private waveT = 0;
 
   static mount(canvas: Node, islandId: string, boatCosmeticId?: string): DeckStage {
-    const stage = new DeckStage(canvas, islandId, boatCosmeticId);
-    deckFlag.live = true;
-    return stage;
+    HarborStage.drop();
+    DeckStage.purgeRoots(canvas.scene);
+    try {
+      const stage = new DeckStage(canvas, islandId, boatCosmeticId);
+      deckFlag.live = true;
+      return stage;
+    } catch (error) {
+      deckFlag.live = false;
+      DeckStage.purgeRoots(canvas.scene);
+      throw error;
+    }
+  }
+
+  private static purgeRoots(scene: Node | null): void {
+    for (const root of scene?.children.filter((node) => node.name === "DeckWorld") ?? []) {
+      for (const camera of root.getComponentsInChildren(Camera)) camera.enabled = false;
+      root.removeFromParent();
+      root.destroy();
+    }
   }
 
   private constructor(canvas: Node, islandId: string, boatCosmeticId?: string) {
     this.canvas = canvas;
     const scene = canvas.scene;
     if (!scene) throw new Error("DeckStage needs a scene");
-    if (!primitives?.box || !utils?.createMesh) {
-      throw new Error("3d primitive module is off");
-    }
-
-    this.boxMesh = utils.createMesh(primitives.box());
 
     this.root = new Node("DeckWorld");
     this.root.layer = Layers.Enum.DEFAULT;
     this.root.parent = scene;
 
     const look = islandLook(islandId);
-    const cosmetic = cosmeticLook(boatCosmeticId);
     this.buildLight();
     this.buildCamera(look.sky);
-    this.buildSet(look, islandId, boatCosmeticId);
-    this.boat = this.makeBox(
-      "Boat",
-      1.15,
-      0.32,
-      0.52,
-      rgb(...cosmetic.hull),
-    );
-    const cabin = this.makeBox("Cabin", 0.42, 0.28, 0.34, rgb(...COMMON_ART.cabin));
-    cabin.parent = this.boat;
-    cabin.setPosition(0.12, 0.22, 0);
-    this.line = this.makeBox("Line", 0.06, 0.06, 1, rgb(...COMMON_ART.line));
+    this.buildSet(islandId, look);
+    this.boat = this.makeBoat(boatCosmeticId);
+    this.line = spawnPart(this.root, Layers.Enum.DEFAULT, {
+      name: "Line",
+      kind: "box",
+      x: 0,
+      y: 0,
+      z: 0,
+      sx: 0.05,
+      sy: 0.05,
+      sz: 1,
+      color: [255, 214, 70],
+    });
     this.line.active = false;
-
     this.bindUiCamera();
   }
 
@@ -78,6 +111,7 @@ export class DeckStage {
     fishRoot: Node,
     hooked?: FishController,
     aimTo?: Vec3,
+    feel: DeckFeel = {},
   ): void {
     if (!this.root?.isValid || !player?.isValid || !fishRoot?.isValid) return;
     const boat = toBoatWorld(player.position.x, player.position.y);
@@ -100,13 +134,15 @@ export class DeckStage {
       puppet.setRotationFromEuler(
         kind === "deck" ? child.angle : 0,
         child.position.x > player.position.x ? 0 : 180,
-        kind === "sea" ? 90 : 20,
+        kind === "sea" ? 12 : 8,
       );
+      this.squashFish(puppet, feel, fish);
     }
     for (const [id, node] of this.fishes) {
       if (seen.has(id)) continue;
       node.destroy();
       this.fishes.delete(id);
+      this.weakBase.delete(id);
     }
 
     if (hooked?.yanking && hooked.node.active) {
@@ -139,19 +175,51 @@ export class DeckStage {
     } else {
       this.line.active = false;
     }
+
+    this.aimCamera(hooked, feel);
+  }
+
+  tickWater(dt: number, lowPower: boolean): void {
+    if (lowPower || !this.water?.isValid) return;
+    this.waveT += dt;
+    this.water.setPosition(1.6, -0.02 + Math.sin(this.waveT * 1.4) * 0.02, 0.1);
+    rippleWater(this.water, this.waveT, waterAmp(false));
+    if (this.foam?.isValid) {
+      this.foam.setPosition(-1.1 + Math.sin(this.waveT * 0.6) * 0.15, 0.03, 0.35);
+    }
+    this.pulseWeaks();
   }
 
   dispose(): void {
     deckFlag.live = false;
+    for (const camera of this.root.getComponentsInChildren(Camera)) camera.enabled = false;
     if (this.uiCam?.isValid) {
       this.uiCam.clearFlags = this.savedClear;
       this.uiCam.priority = this.savedPriority;
       this.uiCam.visibility = this.savedVisibility;
     }
     this.uiCam = undefined;
-    if (this.root?.isValid) this.root.destroy();
+    if (this.root?.isValid) {
+      this.root.removeFromParent();
+      this.root.destroy();
+    }
     this.fishes.clear();
-    this.mats.clear();
+    this.weakBase.clear();
+  }
+
+  private aimCamera(hooked: FishController | undefined, feel: DeckFeel): void {
+    if (!this.camNode?.isValid) return;
+    const lowPower = feel.lowPower === true;
+    const pose = composeHuntCam({
+      rest: CAM_REST,
+      yankK: hooked?.yanking ? yankCamK(hooked.node.position.x) : 0,
+      airborne: !lowPower && hooked?.airborne === true,
+      smashElapsed: feel.smashElapsed ?? 1,
+      smashDuration: smashHoldSeconds(lowPower),
+      lowPower,
+    });
+    this.camNode.setPosition(pose.x, pose.y, pose.z);
+    this.camNode.setRotationFromEuler(pose.pitch, pose.yaw, 0);
   }
 
   private placeLine(
@@ -174,39 +242,66 @@ export class DeckStage {
     let node = this.fishes.get(id);
     if (node?.isValid) return node;
     const look = fishLook(fish.id.replace(/_decoy$/, "") || "fish_bayfin");
-    const color = fish.decoy
-      ? rgb(
+    const body = fish.decoy
+      ? ([
           Math.round((look.body[0] + 200) / 2),
           Math.round((look.body[1] + 210) / 2),
           Math.round((look.body[2] + 220) / 2),
-          140,
-        )
-      : rgb(look.body[0], look.body[1], look.body[2]);
+        ] as const)
+      : look.body;
     const tier = fish.fishConfig?.tier;
-    const s = tier === "boss" ? 1.7 : tier === "elite" ? 1.05 : 0.62;
-    const shape = deckFishShape(fish.id.replace(/_decoy$/, ""));
-    node = new Node(`${fish.id || "fish"}`);
+    const s = tier === "boss" ? 1.55 : tier === "elite" ? 1.05 : 0.62;
+    node = new Node(fish.id || "fish");
     node.layer = Layers.Enum.DEFAULT;
     node.parent = this.root;
-    const body = this.makeBox(
-      "Body",
-      s * shape.length,
-      s * shape.height,
-      s * shape.width,
-      color,
+    spawnParts(
+      node,
+      Layers.Enum.DEFAULT,
+      fishParts(body, look.belly, look.accent, s, look.silhouette),
     );
-    body.parent = node;
-    const fin = this.makeBox(
-      `Mark-${look.silhouette}`,
-      s * 0.2,
-      s * shape.finHeight,
-      s * 0.12,
-      rgb(...look.accent),
-    );
-    fin.parent = node;
-    fin.setPosition(s * shape.finX, s * (shape.height * 0.65), 0);
     this.fishes.set(id, node);
     return node;
+  }
+
+  private squashFish(puppet: Node, feel: DeckFeel, fish?: FishController): void {
+    const dur = smashHoldSeconds(feel.lowPower === true);
+    const elapsed = feel.smashElapsed ?? 1;
+    const squash = smashSquashAt(elapsed, feel.lowPower === true, dur);
+    const grade = fish?.smashGrade ?? feel.smashGrade;
+    const pulse =
+      grade === "perfect" ? 1 + 0.1 * Math.abs(Math.sin(this.waveT * 9)) : grade === "open" ? 1.04 : 1;
+    puppet.setScale(squash.sx * pulse, squash.sy * pulse, squash.sx);
+  }
+
+  private pulseWeaks(): void {
+    for (const [id, node] of this.fishes) {
+      if (!node.isValid) continue;
+      const weak = node.getChildByName("Weak");
+      if (!weak?.isValid) continue;
+      let base = this.weakBase.get(id);
+      if (!base) {
+        base = { x: weak.scale.x, y: weak.scale.y, z: weak.scale.z };
+        this.weakBase.set(id, base);
+      }
+      const k = 1 + Math.sin(this.waveT * 5.6) * 0.2;
+      weak.setScale(base.x * k, base.y * k, base.z * k);
+    }
+  }
+
+  private makeBoat(cosmeticId?: string): Node {
+    const root = new Node("Boat");
+    root.layer = Layers.Enum.DEFAULT;
+    root.parent = this.root;
+    const cosmetic = cosmeticLook(cosmeticId);
+    const parts = boatParts().map((part) =>
+      part.name === "Hull"
+        ? { ...part, color: cosmetic.hull }
+        : part.name === "Gunwale"
+          ? { ...part, color: cosmetic.trim }
+          : part,
+    );
+    spawnParts(root, Layers.Enum.DEFAULT, parts);
+    return root;
   }
 
   private bindUiCamera(): void {
@@ -222,97 +317,40 @@ export class DeckStage {
   }
 
   private buildCamera(sky: readonly [number, number, number]): void {
-    const node = new Node("DeckCamera");
-    node.layer = Layers.Enum.DEFAULT;
-    node.parent = this.root;
-    node.setPosition(0.4, 6.8, 9.6);
-    node.setRotationFromEuler(-32, 6, 0);
-    const cam = node.addComponent(Camera);
-    cam.projection = Camera.ProjectionType.PERSPECTIVE;
-    cam.fov = 42;
-    cam.near = 0.2;
-    cam.far = 80;
-    cam.priority = 0;
-    cam.clearFlags = Camera.ClearFlag.SOLID_COLOR;
-    cam.clearColor = rgb(sky[0], sky[1], sky[2]);
-    cam.visibility = Layers.Enum.DEFAULT;
+    this.camNode = new Node("DeckCamera");
+    this.camNode.layer = Layers.Enum.DEFAULT;
+    this.camNode.parent = this.root;
+    this.camNode.setPosition(CAM_REST.x, CAM_REST.y, CAM_REST.z);
+    this.camNode.setRotationFromEuler(CAM_REST.pitch, CAM_REST.yaw, 0);
+    this.worldCam = this.camNode.addComponent(Camera);
+    this.worldCam.projection = Camera.ProjectionType.PERSPECTIVE;
+    this.worldCam.fov = 38;
+    this.worldCam.near = 0.2;
+    this.worldCam.far = 80;
+    this.worldCam.priority = 0;
+    this.worldCam.clearFlags = Camera.ClearFlag.SOLID_COLOR;
+    this.worldCam.clearColor = new Color(sky[0], sky[1], sky[2], 255);
+    this.worldCam.visibility = Layers.Enum.DEFAULT;
   }
 
   private buildLight(): void {
     const node = new Node("DeckLight");
     node.layer = Layers.Enum.DEFAULT;
     node.parent = this.root;
-    node.setRotationFromEuler(-48, -28, 0);
+    node.setRotationFromEuler(-52, -18, 0);
     const light = node.addComponent(DirectionalLight);
     light.illuminance = 120000;
   }
 
-  private buildSet(
-    look: ReturnType<typeof islandLook>,
-    islandId: string,
-    boatCosmeticId?: string,
-  ): void {
-    const rules = islandRules(islandId);
-    const cosmetic = cosmeticLook(boatCosmeticId);
-    this.makeBox("Water", 22, 0.18, 16, rgb(look.near[0], look.near[1], look.near[2])).setPosition(
-      1.4,
-      -0.08,
-      0.2,
+  private buildSet(islandId: string, look: ReturnType<typeof islandLook>): void {
+    const water = spawnParts(
+      this.root,
+      Layers.Enum.DEFAULT,
+      waterParts(look.near, look.deep),
     );
-    this.makeBox("Deep", 10, 0.16, 8, rgb(look.deep[0], look.deep[1], look.deep[2])).setPosition(
-      4.6,
-      -0.12,
-      -2.4,
-    );
-    this.makeBox("Dock", 4.4, 0.22, 2.6, rgb(...MARKET_UI.wood)).setPosition(-4.25, 0.12, 1.15);
-    this.makeBox(
-      `Plank-${rules.deck}`,
-      4.35,
-      0.04,
-      2.55,
-      rgb(...MARKET_UI.woodDark),
-    ).setPosition(-4.25, 0.24, 1.15);
-    this.makeBox("Crate", 0.85, 0.72, 0.85, rgb(...cosmetic.crate)).setPosition(-5.2, 0.62, 1.5);
-    this.makeBox("Isle", 2.4, 0.7, 1.6, rgb(look.land[0], look.land[1], look.land[2])).setPosition(
-      4.8,
-      0.4,
-      -4.6,
-    );
+    this.water = water[0];
+    this.foam = water[3];
+    spawnParts(this.root, Layers.Enum.DEFAULT, dockParts());
+    spawnParts(this.root, Layers.Enum.DEFAULT, huntIsleParts(islandId, look));
   }
-
-  private makeBox(
-    name: string,
-    w: number,
-    h: number,
-    d: number,
-    color: Color,
-  ): Node {
-    const node = new Node(name);
-    node.layer = Layers.Enum.DEFAULT;
-    node.parent = this.root;
-    node.setScale(w, h, d);
-    const renderer = node.addComponent(MeshRenderer);
-    renderer.mesh = this.boxMesh;
-    renderer.material = this.material(color);
-    renderer.shadowCastingMode = MeshRenderer.ShadowCastingMode.OFF;
-    return node;
-  }
-
-  private material(color: Color): Material {
-    const key = `${color.r},${color.g},${color.b},${color.a}`;
-    const cached = this.mats.get(key);
-    if (cached) return cached;
-    const mat = new Material();
-    mat.initialize({
-      effectName: "builtin-unlit",
-      defines: { USE_INSTANCING: false },
-    });
-    mat.setProperty("mainColor", color);
-    this.mats.set(key, mat);
-    return mat;
-  }
-}
-
-function rgb(r: number, g: number, b: number, a = 255): Color {
-  return new Color(r, g, b, a);
 }

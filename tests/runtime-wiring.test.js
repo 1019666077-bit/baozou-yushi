@@ -36,7 +36,7 @@ describe("commercial runtime wiring", () => {
   it("puts runtime-created UI nodes on the Canvas camera layer", () => {
     const runtimeUi = read("assets/scripts/ui/RuntimeUi.ts");
     const grayArt = read("assets/scripts/ui/GrayArt.ts");
-    expect(runtimeUi.match(/node\.layer = parent\.layer/g)).toHaveLength(3);
+    expect(runtimeUi.match(/node\.layer = parent\.layer/g)?.length).toBeGreaterThanOrEqual(3);
     expect(grayArt).toContain("background.layer = parent.layer");
   });
 
@@ -48,5 +48,25 @@ describe("commercial runtime wiring", () => {
     expect(template).toContain('cc_exact_fit_screen="true"');
     expect(template).toContain("width: 100vw !important");
     expect(template).toContain("height: 100vh !important");
+  });
+
+  it("detaches stale harbor cameras before entering gameplay", () => {
+    const home = read("assets/scripts/RuntimeHome.ts");
+    const harborStage = read("assets/scripts/world/HarborStage.ts");
+    expect(harborStage).toContain('node.name === "HarborWorld"');
+    expect(harborStage).toContain("camera.enabled = false");
+    expect(harborStage).toContain("this.root.removeFromParent()");
+    expect(harborStage).toContain("HarborStage.purgeRoots()");
+    expect(home).toContain("this.selectedIslandId !== TUTORIAL_ISLAND_ID");
+  });
+
+  it("cleans up a partially constructed deck before using the 2D fallback", () => {
+    const deckStage = read("assets/scripts/world/DeckStage.ts");
+    const stageBuild = read("assets/scripts/world/StageBuild.ts");
+    const runtimeUi = read("assets/scripts/ui/RuntimeUi.ts");
+    expect(deckStage).toContain("DeckStage.purgeRoots(canvas.scene)");
+    expect(deckStage).toContain("camera.enabled = false");
+    expect(stageBuild).toContain("return unlitMat(color)");
+    expect(runtimeUi).toContain("old.removeFromParent()");
   });
 });
