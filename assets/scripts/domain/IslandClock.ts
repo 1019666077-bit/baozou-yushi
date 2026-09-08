@@ -8,7 +8,7 @@ export interface PhaseSnapshot {
   remaining: number;
 }
 
-export const BOSS_SECONDS = 120;
+export const BOSS_SECONDS = 90;
 
 export function wavesTotalSeconds(waves: WaveConfig[]): number {
   return waves.reduce((sum, wave) => sum + wave.durationSeconds, 0);

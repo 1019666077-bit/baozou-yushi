@@ -1,5 +1,5 @@
 import type { RunSummary } from "../data/types";
-import { WechatAdapter } from "./WechatAdapter";
+import { platformAdapter } from "./PlatformRuntime";
 
 export class LeaderboardService {
   static async submit(run: RunSummary): Promise<{
@@ -7,7 +7,13 @@ export class LeaderboardService {
     score?: number;
     reasons?: string[];
   }> {
-    return WechatAdapter.callCloud("submitScore", { run });
+    const leaderboard = platformAdapter().leaderboard;
+    if (!leaderboard) return { ok: false, reasons: ["unsupported"] };
+    return leaderboard.submit(run);
+  }
+
+  static submitStyleScore(score: number): void {
+    platformAdapter().leaderboard?.submitStyleScore(score);
   }
 
   static showFriendRank(openDataContext: {

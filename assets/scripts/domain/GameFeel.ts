@@ -1,5 +1,5 @@
 export function spawnCap(lowPower: boolean): number {
-  return lowPower ? 2 : 3;
+  return lowPower ? 3 : 4;
 }
 
 export function shouldVibrate(

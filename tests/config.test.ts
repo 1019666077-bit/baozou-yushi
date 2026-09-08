@@ -20,14 +20,24 @@ const tools = read<ToolConfig[]>("tools.json");
 const islands = read<IslandConfig[]>("islands.json");
 
 describe("content configuration", () => {
-  it("ships exactly the scoped MVP content", () => {
-    expect(fish.filter((item) => item.tier === "normal")).toHaveLength(6);
-    expect(fish.filter((item) => item.tier === "elite")).toHaveLength(3);
-    expect(fish.filter((item) => item.tier === "boss")).toHaveLength(1);
+  it("keeps asset licensing and honest store capture gates in the repository", () => {
+    const register = path.join(root, "THIRD_PARTY_ASSETS.md");
+    const checklist = path.join(root, "docs", "STORE_ASSET_CHECKLIST.md");
+    expect(fs.existsSync(register)).toBe(true);
+    expect(fs.existsSync(checklist)).toBe(true);
+    expect(fs.readFileSync(register, "utf8")).toContain("当前不包含第三方");
+    expect(fs.readFileSync(register, "utf8")).toContain("完整提示词");
+    expect(fs.readFileSync(checklist, "utf8")).toContain("不是成品截图");
+    expect(fs.readFileSync(checklist, "utf8")).toContain("不得进入 release");
+  });
+
+  it("ships the five-island stage-two content set", () => {
+    expect(fish).toHaveLength(22);
+    expect(fish.filter((item) => item.tier === "normal")).toHaveLength(14);
+    expect(fish.filter((item) => item.tier === "elite")).toHaveLength(5);
+    expect(fish.filter((item) => item.tier === "boss")).toHaveLength(3);
     expect(tools).toHaveLength(3);
-    expect(islands.filter((item) => item.id !== "island_tutorial")).toHaveLength(
-      3,
-    );
+    expect(islands).toHaveLength(5);
   });
 
   it("has no broken fish, island, or tool references", () => {
@@ -51,19 +61,21 @@ describe("content configuration", () => {
       expect(item.basePrice).toBeGreaterThan(0);
     }
     for (const tool of tools) {
-      expect(tool.levels.map((entry) => entry.level)).toEqual([1, 2, 3]);
-      expect(tool.levels[2].power).toBeGreaterThan(tool.levels[0].power);
-      expect(tool.levels[2].cooldownMs).toBeLessThan(
+      expect(tool.levels.map((entry) => entry.level)).toEqual([1, 2, 3, 4, 5]);
+      expect(tool.levels[4].power).toBeGreaterThan(tool.levels[0].power);
+      expect(tool.levels[4].cooldownMs).toBeLessThan(
         tool.levels[0].cooldownMs,
       );
+      expect(tool.levels[3].modifiers).toBeTruthy();
+      expect(tool.levels[4].modifiers).toBeTruthy();
     }
   });
 
-  it("expands island fish pools into string ids, not a Set", () => {
-    const tutorial = islands.find((item) => item.id === "island_tutorial");
-    expect(tutorial).toBeTruthy();
-    const pool = fishIdsForIsland(tutorial!);
-    expect(pool).toEqual(["fish_bayfin"]);
+  it("expands foam bay fish pools into string ids, not a Set", () => {
+    const foamBay = islands.find((item) => item.id === "island_foam_bay");
+    expect(foamBay).toBeTruthy();
+    const pool = fishIdsForIsland(foamBay!);
+    expect(pool).toContain("fish_bayfin");
     expect(pool.every((id) => typeof id === "string")).toBe(true);
   });
 
@@ -78,14 +90,13 @@ describe("content configuration", () => {
       0.33,
     ]);
     expect(boss?.toughness).toBe(420);
-    expect(boss?.escapeSeconds).toBe(120);
+    expect(boss?.escapeSeconds).toBe(90);
   });
 
   it("keeps the three islands in named content packs", () => {
     expect(islandPackName("island_foam_bay")).toBe("island_foam_bay");
     expect(islandPackName("island_prism_reef")).toBe("island_prism_reef");
     expect(islandPackName("island_storm_eye")).toBe("island_storm_eye");
-    expect(islandPackName("island_tutorial")).toBeUndefined();
     for (const id of [
       "island_foam_bay",
       "island_prism_reef",

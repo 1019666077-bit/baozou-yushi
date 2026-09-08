@@ -1,66 +1,182 @@
-declare const wx:
-  | {
-      getSystemInfoSync(): {
-        platform?: string;
-        benchmarkLevel?: number;
-        screenWidth?: number;
-      };
-      vibrateShort(options?: { type?: "light" | "medium" | "heavy" }): void;
-      setStorageSync(key: string, value: unknown): void;
-      getStorageSync(key: string): unknown;
-      removeStorageSync?(key: string): void;
-      login(options: {
-        success: (result: { code: string }) => void;
-        fail: (error: unknown) => void;
-      }): void;
-      cloud?: {
-        init(options?: { traceUser?: boolean; env?: string }): void;
-        callFunction(options: {
-          name: string;
-          data?: unknown;
-          success: (result: { result: unknown }) => void;
-          fail: (error: unknown) => void;
-        }): void;
-      };
-      setUserCloudStorage?(options: {
-        KVDataList: Array<{ key: string; value: string }>;
-        success?: () => void;
-        fail?: (error: unknown) => void;
-      }): void;
-      getOpenDataContext?: () => {
-        canvas?: { width: number; height: number };
-        postMessage(message: unknown): void;
-      };
-    }
-  | undefined;
+import {
+  DisabledMonetization,
+  NoopLifecycle,
+  type PlatformAdapter,
+  type PlatformCapabilities,
+  type PlatformLifecycle,
+} from "./PlatformAdapter";
 
-export class WechatAdapter {
+interface WechatApi {
+  getSystemInfoSync(): { platform?: string; benchmarkLevel?: number; screenWidth?: number };
+  vibrateShort(options?: { type?: "light" | "medium" | "heavy" }): void;
+  setStorageSync(key: string, value: unknown): void;
+  getStorageSync(key: string): unknown;
+  removeStorageSync?(key: string): void;
+  login(options: {
+    success: (result: { code: string }) => void;
+    fail: (error: unknown) => void;
+  }): void;
+  cloud?: {
+    init(options?: { traceUser?: boolean; env?: string }): void;
+    callFunction(options: {
+      name: string;
+      data?: unknown;
+      success: (result: { result: unknown }) => void;
+      fail: (error: unknown) => void;
+    }): void;
+  };
+  setUserCloudStorage?(options: {
+    KVDataList: Array<{ key: string; value: string }>;
+    success?: () => void;
+    fail?: (error: unknown) => void;
+  }): void;
+  getOpenDataContext?: () => {
+    canvas?: { width: number; height: number };
+    postMessage(message: unknown): void;
+  };
+}
+
+interface CloudMutationResult {
+  ok: boolean;
+  error?: string;
+  save?: unknown;
+}
+
+declare const wx: WechatApi | undefined;
+
+const CAPABILITIES: PlatformCapabilities = {
+  localSave: true,
+  dataSave: false,
+  cloudSave: true,
+  analytics: true,
+  leaderboard: true,
+  friendLeaderboard: true,
+  vibration: true,
+  ads: false,
+  billing: false,
+  lifecycle: false,
+};
+
+export function isWechatAvailable(): boolean {
+  return typeof wx !== "undefined";
+}
+
+export class WechatAdapter implements PlatformAdapter {
+  readonly kind = "wechat" as const;
+  readonly capabilities: PlatformCapabilities;
+  readonly monetization = new DisabledMonetization();
+  readonly lifecycle: PlatformLifecycle;
+  readonly localSave = {
+    get: <T>(key: string): T | null =>
+      isWechatAvailable() ? ((wx?.getStorageSync(key) as T) ?? null) : null,
+    set: (key: string, value: unknown): void => wx?.setStorageSync(key, value),
+    remove: (key: string): void => wx?.removeStorageSync?.(key),
+  };
+  readonly cloudSave = {
+    load: async <T>(): Promise<T | null> => {
+      const result = await WechatAdapter.callCloud<{ save: T | null }>("loadSave");
+      return result.save;
+    },
+    save: <T>(save: T): Promise<void> =>
+      WechatAdapter.callCloud<CloudMutationResult>("saveGame", { save }).then(
+        (result) => WechatAdapter.requireCloudMutation(result, "saveGame"),
+      ),
+    delete: (): Promise<void> =>
+      WechatAdapter.callCloud<CloudMutationResult>("deleteSave").then(
+        (result) => WechatAdapter.requireCloudMutation(result, "deleteSave"),
+      ),
+  };
+  readonly analytics = {
+    send: (events: readonly unknown[]): Promise<void> =>
+      WechatAdapter.callCloud("reportEvents", { events }).then(() => undefined),
+  };
+  readonly leaderboard = {
+    submit: <T>(run: T): Promise<{ ok: boolean; score?: number; reasons?: string[] }> =>
+      WechatAdapter.callCloud("submitScore", { run }),
+    submitStyleScore: (score: number): void => WechatAdapter.submitStyleScore(score),
+  };
+  readonly remoteConfig = {
+    load: <T>(): Promise<T> =>
+      WechatAdapter.callCloud<{ config: T }>("getRemoteConfig").then(
+        (result) => result.config,
+      ),
+  };
+  readonly dailyClaims = {
+    serverNow: (): Promise<number> =>
+      WechatAdapter.callCloud<CloudMutationResult & { serverNow: number }>(
+        "claimDailyOrder",
+        { action: "server_time" },
+      ).then((result) => {
+        WechatAdapter.requireCloudMutation(result, "claimDailyOrder.serverTime");
+        return result.serverNow;
+      }),
+    recordRun: (run: unknown, orderIds: readonly string[]): Promise<void> =>
+      WechatAdapter.callCloud<CloudMutationResult>("claimDailyOrder", {
+        action: "record_run",
+        run,
+        orderIds,
+      }).then((result) =>
+        WechatAdapter.requireCloudMutation(result, "claimDailyOrder.recordRun"),
+      ),
+    claim: (orderId: string): Promise<{
+      status: "granted" | "already_claimed";
+      serverNow: number;
+      reward: { kind: "coins" | "cosmeticShards"; amount: number };
+    }> =>
+      WechatAdapter.callCloud<CloudMutationResult & {
+        status: "granted" | "already_claimed";
+        serverNow: number;
+        reward: { kind: "coins" | "cosmeticShards"; amount: number };
+      }>("claimDailyOrder", { action: "claim", orderId }).then((result) => {
+        WechatAdapter.requireCloudMutation(result, "claimDailyOrder.claim");
+        return result;
+      }),
+  };
+
+  constructor(
+    private readonly cloudEnv?: string,
+    lifecycle?: PlatformLifecycle,
+  ) {
+    this.lifecycle = lifecycle ?? new NoopLifecycle();
+    this.capabilities = { ...CAPABILITIES, lifecycle: lifecycle !== undefined };
+  }
+
+  initialize(): Promise<void> {
+    WechatAdapter.initializeCloud(this.cloudEnv);
+    return Promise.resolve();
+  }
+
+  gameplayStart(): void {}
+  gameplayStop(): void {}
+  vibrate(): void {
+    wx?.vibrateShort({ type: "light" });
+  }
+  isLowEndDevice(): boolean {
+    const level = wx?.getSystemInfoSync().benchmarkLevel ?? 30;
+    return level > 0 && level < 15;
+  }
+
   static get available(): boolean {
-    return typeof wx !== "undefined";
+    return isWechatAvailable();
   }
 
   static initializeCloud(env?: string): void {
-    if (!this.available || !wx?.cloud) return;
+    if (!wx?.cloud) return;
     wx.cloud.init({ traceUser: true, ...(env ? { env } : {}) });
   }
 
   static login(): Promise<string | null> {
-    if (!this.available || !wx) return Promise.resolve(null);
+    if (!wx) return Promise.resolve(null);
     return new Promise((resolve, reject) => {
-      wx.login({
-        success: ({ code }) => resolve(code),
-        fail: reject,
-      });
+      wx.login({ success: ({ code }) => resolve(code), fail: reject });
     });
   }
 
   static callCloud<T>(name: string, data?: unknown): Promise<T> {
-    if (!this.available || !wx?.cloud) {
-      return Promise.reject(new Error("WeChat cloud is unavailable"));
-    }
+    if (!wx?.cloud) return Promise.reject(new Error("WeChat cloud is unavailable"));
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("cloud timeout")), 800);
-      wx.cloud!.callFunction({
+      wx.cloud?.callFunction({
         name,
         data,
         success: ({ result }) => {
@@ -75,46 +191,21 @@ export class WechatAdapter {
     });
   }
 
-  static vibrate(): void {
-    if (typeof wx !== "undefined") wx?.vibrateShort({ type: "light" });
-  }
-
-  static isLowEndDevice(): boolean {
-    if (!this.available || !wx) return false;
-    const info = wx.getSystemInfoSync();
-    return (info.benchmarkLevel ?? 30) > 0 && (info.benchmarkLevel ?? 30) < 15;
-  }
-
-  static setLocal(key: string, value: unknown): void {
-    if (this.available && wx) {
-      wx.setStorageSync(key, value);
-      return;
-    }
-    globalThis.localStorage?.setItem(key, JSON.stringify(value));
-  }
-
-  static getLocal<T>(key: string): T | null {
-    if (this.available && wx) {
-      return (wx.getStorageSync(key) as T) ?? null;
-    }
-    const raw = globalThis.localStorage?.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : null;
-  }
-
-  static removeLocal(key: string): void {
-    if (this.available && wx) {
-      wx.removeStorageSync?.(key);
-      return;
-    }
-    globalThis.localStorage?.removeItem(key);
+  private static requireCloudMutation(
+    result: CloudMutationResult,
+    operation: string,
+  ): void {
+    if (result?.ok === true) return;
+    throw new Error(
+      `${operation} rejected: ${result?.error ?? "invalid cloud response"}`,
+    );
   }
 
   static canShowFriendBoard(): boolean {
-    return typeof wx !== "undefined" && !!wx?.getOpenDataContext;
+    return !!wx?.getOpenDataContext;
   }
 
   static friendCanvas(): { width: number; height: number } | null {
-    if (!this.canShowFriendBoard()) return null;
     return wx?.getOpenDataContext?.()?.canvas ?? null;
   }
 
@@ -128,25 +219,18 @@ export class WechatAdapter {
   }
 
   static submitStyleScore(score: number): void {
-    if (!this.available || !wx?.setUserCloudStorage) return;
-    wx.setUserCloudStorage({
-      KVDataList: [
-        {
-          key: "best_style",
-          value: JSON.stringify({
-            wxgame: { score, update_time: Math.floor(Date.now() / 1000) },
-          }),
-        },
-      ],
+    wx?.setUserCloudStorage?.({
+      KVDataList: [{
+        key: "best_style",
+        value: JSON.stringify({
+          wxgame: { score, update_time: Math.floor(Date.now() / 1000) },
+        }),
+      }],
     });
   }
 
   static requestFriendRank(selfScore = 0): void {
-    const open = wx?.getOpenDataContext;
-    if (!open) return;
-    const context = open();
-    if (!context) return;
-    context.postMessage({
+    wx?.getOpenDataContext?.()?.postMessage({
       type: "showFriendRank",
       key: "best_style",
       selfScore,

@@ -17,6 +17,9 @@ export interface StyleRules {
   maxPoints: number;
   minMultiplier: number;
   maxMultiplier: number;
+  firstActionBonus: number;
+  repeatDecay: number;
+  minRepeatFactor: number;
 }
 
 export const DEFAULT_STYLE_RULES: StyleRules = {
@@ -25,6 +28,9 @@ export const DEFAULT_STYLE_RULES: StyleRules = {
   maxPoints: 200,
   minMultiplier: 1,
   maxMultiplier: 3,
+  firstActionBonus: 1.2,
+  repeatDecay: 0.2,
+  minRepeatFactor: 0.5,
 };
 
 export class StyleScoreSystem {
@@ -41,7 +47,10 @@ export class StyleScoreSystem {
     },
   };
 
-  constructor(private readonly rules: StyleRules = DEFAULT_STYLE_RULES) {}
+  constructor(
+    private readonly rules: StyleRules = DEFAULT_STYLE_RULES,
+    private readonly pointScale = 1,
+  ) {}
 
   reset(): void {
     this.snapshot = {
@@ -65,11 +74,21 @@ export class StyleScoreSystem {
       ? Math.min(this.rules.maxCombo, this.snapshot.combo + 1)
       : 1;
     const quality = Math.min(1, Math.max(0.25, event.quality ?? 1));
-    const varietyBonus =
-      this.snapshot.triggered[event.action] === 0 ? 1.2 : 1;
+    const previousUses = this.snapshot.triggered[event.action];
+    const actionFactor =
+      previousUses === 0
+        ? this.rules.firstActionBonus
+        : Math.max(
+            this.rules.minRepeatFactor,
+            1 - previousUses * this.rules.repeatDecay,
+          );
     const comboBonus = 1 + Math.max(0, combo - 1) * 0.06;
     const earned = Math.round(
-      BASE_POINTS[event.action] * quality * varietyBonus * comboBonus,
+      BASE_POINTS[event.action] *
+        quality *
+        actionFactor *
+        comboBonus *
+        Math.min(2, Math.max(0.5, this.pointScale)),
     );
     const points = Math.min(
       this.rules.maxPoints,

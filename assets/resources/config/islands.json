@@ -1,6 +1,200 @@
 [
-  {"id":"island_tutorial","name":"练潮码头","unlockCost":0,"targetSessionSeconds":60,"waves":[{"durationSeconds":50,"fishPool":["fish_bayfin"],"maxAlive":1,"spawnIntervalSeconds":8}]},
-  {"id":"island_foam_bay","name":"泡沫湾","unlockCost":0,"targetSessionSeconds":180,"waves":[{"durationSeconds":55,"fishPool":["fish_bayfin","fish_shellback"],"maxAlive":5,"spawnIntervalSeconds":3.4},{"durationSeconds":45,"fishPool":["fish_bayfin","fish_shellback","elite_prism_sail"],"maxAlive":6,"spawnIntervalSeconds":3}]},
-  {"id":"island_prism_reef","name":"棱光礁","unlockCost":240,"targetSessionSeconds":220,"waves":[{"durationSeconds":65,"fishPool":["fish_silver_ribbon","fish_lantern_pod"],"maxAlive":7,"spawnIntervalSeconds":2.9},{"durationSeconds":55,"fishPool":["fish_silver_ribbon","fish_lantern_pod","elite_iron_jaw"],"maxAlive":7,"spawnIntervalSeconds":2.7}]},
-  {"id":"island_storm_eye","name":"风眼环礁","unlockCost":680,"targetSessionSeconds":300,"waves":[{"durationSeconds":75,"fishPool":["fish_ember_eel","fish_reef_hopper"],"maxAlive":8,"spawnIntervalSeconds":2.6},{"durationSeconds":55,"fishPool":["fish_ember_eel","fish_reef_hopper","elite_tempest_ray"],"maxAlive":8,"spawnIntervalSeconds":2.4}],"bossId":"boss_tide_singer","bossPhases":[{"threshold":1,"behavior":"声浪直线扫射","speedMultiplier":1,"patternIntervalSeconds":4.5},{"threshold":0.66,"behavior":"召唤双旋涡并暴露鳍部弱点","speedMultiplier":1.15,"patternIntervalSeconds":4},{"threshold":0.33,"behavior":"环场冲刺后进入长眩晕","speedMultiplier":1.35,"patternIntervalSeconds":3.4}]}
+  {
+    "id": "island_foam_bay",
+    "name": "泡沫湾",
+    "unlockCost": 0,
+    "targetSessionSeconds": 180,
+    "waves": [
+      {
+        "durationSeconds": 55,
+        "fishPool": [
+          "fish_bayfin",
+          "fish_shellback"
+        ],
+        "maxAlive": 5,
+        "spawnIntervalSeconds": 3.4
+      },
+      {
+        "durationSeconds": 45,
+        "fishPool": [
+          "fish_bayfin",
+          "fish_shellback",
+          "elite_prism_sail"
+        ],
+        "maxAlive": 6,
+        "spawnIntervalSeconds": 3
+      }
+    ]
+  },
+  {
+    "id": "island_prism_reef",
+    "name": "棱光礁",
+    "unlockCost": 240,
+    "targetSessionSeconds": 220,
+    "waves": [
+      {
+        "durationSeconds": 65,
+        "fishPool": [
+          "fish_silver_ribbon",
+          "fish_lantern_pod"
+        ],
+        "maxAlive": 7,
+        "spawnIntervalSeconds": 2.9
+      },
+      {
+        "durationSeconds": 55,
+        "fishPool": [
+          "fish_silver_ribbon",
+          "fish_lantern_pod",
+          "elite_iron_jaw"
+        ],
+        "maxAlive": 7,
+        "spawnIntervalSeconds": 2.7
+      }
+    ]
+  },
+  {
+    "id": "island_storm_eye",
+    "name": "风眼环礁",
+    "unlockCost": 680,
+    "targetSessionSeconds": 300,
+    "waves": [
+      {
+        "durationSeconds": 75,
+        "fishPool": [
+          "fish_ember_eel",
+          "fish_reef_hopper"
+        ],
+        "maxAlive": 8,
+        "spawnIntervalSeconds": 2.6
+      },
+      {
+        "durationSeconds": 55,
+        "fishPool": [
+          "fish_ember_eel",
+          "fish_reef_hopper",
+          "elite_tempest_ray"
+        ],
+        "maxAlive": 8,
+        "spawnIntervalSeconds": 2.4
+      }
+    ],
+    "bossId": "boss_tide_singer",
+    "bossPhases": [
+      {
+        "threshold": 1,
+        "behavior": "声浪直线扫射",
+        "speedMultiplier": 1,
+        "patternIntervalSeconds": 4.5
+      },
+      {
+        "threshold": 0.66,
+        "behavior": "召唤双旋涡并暴露鳍部弱点",
+        "speedMultiplier": 1.15,
+        "patternIntervalSeconds": 4
+      },
+      {
+        "threshold": 0.33,
+        "behavior": "环场冲刺后进入长眩晕",
+        "speedMultiplier": 1.35,
+        "patternIntervalSeconds": 3.4
+      }
+    ]
+  },
+  {
+    "id": "island_mist_bells",
+    "name": "雾钟群岛",
+    "unlockCost": 10000,
+    "targetSessionSeconds": 300,
+    "waves": [
+      {
+        "durationSeconds": 75,
+        "fishPool": [
+          "fish_mist_bell",
+          "fish_clockwork_goby",
+          "fish_echo_pike"
+        ],
+        "maxAlive": 8,
+        "spawnIntervalSeconds": 2.5
+      },
+      {
+        "durationSeconds": 55,
+        "fishPool": [
+          "fish_fog_shell",
+          "elite_belltower_ray"
+        ],
+        "maxAlive": 8,
+        "spawnIntervalSeconds": 2.3
+      }
+    ],
+    "bossId": "boss_fog_chronist",
+    "bossPhases": [
+      {
+        "threshold": 1,
+        "behavior": "钟摆声浪横扫",
+        "speedMultiplier": 1,
+        "patternIntervalSeconds": 4.4
+      },
+      {
+        "threshold": 0.66,
+        "behavior": "雾影分身后露出真核",
+        "speedMultiplier": 1.14,
+        "patternIntervalSeconds": 3.9
+      },
+      {
+        "threshold": 0.33,
+        "behavior": "三次突进后长硬直",
+        "speedMultiplier": 1.3,
+        "patternIntervalSeconds": 3.3
+      }
+    ]
+  },
+  {
+    "id": "island_molten_tide",
+    "name": "熔潮火山",
+    "unlockCost": 28000,
+    "targetSessionSeconds": 300,
+    "waves": [
+      {
+        "durationSeconds": 75,
+        "fishPool": [
+          "fish_cinder_mullet",
+          "fish_lava_drill",
+          "fish_ash_kite"
+        ],
+        "maxAlive": 8,
+        "spawnIntervalSeconds": 2.45
+      },
+      {
+        "durationSeconds": 55,
+        "fishPool": [
+          "fish_basalt_crab",
+          "elite_furnace_fin"
+        ],
+        "maxAlive": 8,
+        "spawnIntervalSeconds": 2.25
+      }
+    ],
+    "bossId": "boss_caldera_warden",
+    "bossPhases": [
+      {
+        "threshold": 1,
+        "behavior": "熔浪直线预警",
+        "speedMultiplier": 1,
+        "patternIntervalSeconds": 4.2
+      },
+      {
+        "threshold": 0.66,
+        "behavior": "双热涡迫使横移",
+        "speedMultiplier": 1.16,
+        "patternIntervalSeconds": 3.8
+      },
+      {
+        "threshold": 0.33,
+        "behavior": "炉心冲锋后过热硬直",
+        "speedMultiplier": 1.32,
+        "patternIntervalSeconds": 3.2
+      }
+    ]
+  }
 ]

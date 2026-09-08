@@ -1,7 +1,33 @@
 import type { BossPhase, FishConfig, ToolKind } from "../data/types";
 
+export function behaviorCue(
+  behavior: FishConfig["behavior"],
+  state: { shieldOpen?: boolean; stunned?: boolean } = {},
+): string {
+  switch (behavior) {
+    case "dash":
+      return state.stunned ? "冲刺鱼·硬直" : "冲刺鱼·跃起后硬直";
+    case "shield":
+      return state.shieldOpen ? "甲壳鱼·缝已开" : "甲壳鱼·等转身开缝";
+    case "split":
+      return "幻影鱼·认准亮弱点真身";
+    case "burrow":
+      return state.stunned ? "潜沙鱼·出沙硬直" : "潜沙鱼·等沙浪后出头";
+    case "school":
+      return "群游鱼·领头转向时弱点亮";
+    case "boss":
+      return state.stunned ? "巨鲲·输出窗口" : "巨鲲·观察招式预警";
+    default:
+      return "巡游鱼·路线平稳";
+  }
+}
+
 export function shieldGapOpen(elapsed: number): boolean {
   return Math.sin(elapsed * 1.35) > 0.32;
+}
+
+export function burrowOpen(elapsed: number): boolean {
+  return elapsed % 3.2 >= 1.35;
 }
 
 export function shieldDamageScale(options: {
@@ -51,10 +77,15 @@ export function poseForBehavior(
   const airborne = leap && (dashing || config.name.includes("跃"));
   const travel = dashing ? 220 : config.behavior === "boss" ? 90 : 150;
   const wave = stunned ? elapsed - (cycle - 0.42) : elapsed;
-  const x = Math.sin(wave * rate * (dashing ? 2.1 : 1)) * travel;
-  const y = airborne
+  const schoolRate = config.behavior === "school" ? 1.45 : 1;
+  const burrowed = config.behavior === "burrow" && !burrowOpen(elapsed);
+  const x = Math.sin(wave * rate * (dashing ? 2.1 : schoolRate)) * travel;
+  const y = burrowed
+    ? -48
+    : airborne
     ? Math.abs(Math.sin(elapsed * (dashing ? 7 : 3.2))) * (dashing ? 96 : 78)
-    : Math.cos(elapsed * rate * 0.7) * (config.behavior === "boss" ? 24 : 36);
+    : Math.cos(elapsed * rate * (config.behavior === "school" ? 1.4 : 0.7)) *
+      (config.behavior === "boss" ? 24 : 36);
   const facing = Math.cos(wave * rate * (dashing ? 2.1 : 1)) >= 0 ? 1 : -1;
   return { x, y, facing, stunned, airborne };
 }

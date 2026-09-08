@@ -31,23 +31,26 @@ import {
   cannonHoldFire,
   harpoonCharge,
   harpoonDashBonus,
+  toolFreshness,
+  toolWeakRadiusScale,
 } from "./domain/ToolFeel";
 import {
   TUTORIAL_FISH_ID,
   TUTORIAL_WEAK_PAUSE_SECONDS,
   advanceTutorial,
   isTutorialRun,
-  shouldAutoReel,
   tutorialPrompt,
   type TutorialStep,
 } from "./domain/TutorialFlow";
+import { freshnessForDeckTime } from "./domain/Freshness";
+import { freshnessHud } from "./domain/Freshness";
 import {
+  behaviorCue,
   bossPhaseIndex,
   decoyOffsets,
 } from "./domain/FishBehavior";
 import {
   comboHud,
-  liveQuote,
   styleCallout,
 } from "./domain/StyleCallout";
 import {
@@ -73,7 +76,9 @@ import {
   type JuiceParticle,
 } from "./domain/HitJuice";
 import { SfxPlayer } from "./platform/SfxPlayer";
-import { WechatAdapter } from "./platform/WechatAdapter";
+import { VISUAL_LIMITS } from "./domain/MarketArtStyle";
+import { ensureCocosPlatform } from "./platform/CocosPlatformBootstrap";
+import { platformAdapter } from "./platform/PlatformRuntime";
 import { playerSave } from "./save/SaveService";
 import {
   drawOcean,
@@ -81,17 +86,36 @@ import {
   drawDock,
   makeButton,
   makeLabel,
+  makePriceTag,
   replacePlayLayer,
 } from "./ui/RuntimeUi";
 import { drawJuice, drawShots } from "./ui/GrayArt";
 import { DeckStage } from "./world/DeckStage";
 import { deckFlag } from "./world/deckFlag";
+import { DesktopBattleInput } from "./input/DesktopBattleInput";
+import { styleGradeFor } from "./domain/StyleGrade";
+import { PriceCalculator } from "./domain/PriceCalculator";
+import {
+  ENDLESS_ROUND_SECONDS,
+  addEndlessEarnings,
+  completeEndlessRound,
+  createEndlessRun,
+  endlessDifficulty,
+  failEndlessRound,
+  withdrawEndless,
+  type EndlessRunState,
+} from "./domain/EndlessTide";
+import { adGrants } from "./monetization/AdGrantService";
+import type { WeeklyRules } from "./domain/WeeklyChallenge";
+import { SeededRandom } from "./domain/SeededRandom";
 
 const { ccclass } = _decorator;
 
 export interface PrototypeLaunch {
   islandId: string;
   toolId: string;
+  challenge?: "weekly" | "endless";
+  weeklyRules?: WeeklyRules;
   onHarbor?: (summary: RunSummary) => void;
 }
 
@@ -103,6 +127,10 @@ export class RuntimePrototype extends Component {
   private multiplier!: Label;
   private coinsLabel!: Label;
   private fishName!: Label;
+  private gradeTag!: Label;
+  private quoteTag!: Label;
+  private freshTag!: Label;
+  private targetTag!: Label;
   private launch: PrototypeLaunch = {
     islandId: "island_foam_bay",
     toolId: "tool_rod",
@@ -127,9 +155,6 @@ export class RuntimePrototype extends Component {
   private moveTarget = new Vec3(-400, -90, 0);
   private tutorial = false;
   private tutorialStep: TutorialStep = "cast";
-  private battleAt = 0;
-  private reelReadyAt = 0;
-  private settleAt = 0;
   private castButton?: Node;
   private reelButton?: Node;
   private guide!: Graphics;
@@ -157,32 +182,71 @@ export class RuntimePrototype extends Component {
   private lowPower = false;
   private vibration = true;
   private deck?: DeckStage;
+  private desktopInput?: DesktopBattleInput;
+  private desktopInputTracked = false;
+  private desktopMoveX: -1 | 0 | 1 = 0;
+  private desktopMoveY: -1 | 0 | 1 = 0;
+  private endlessRound = 1;
+  private endlessState: EndlessRunState = createEndlessRun();
+  private endlessObservedCoins = 0;
+  private weeklyRandom?: SeededRandom;
+  private disposePlatformHidden?: () => void;
+  private disposePlatformShown?: () => void;
+  private runId = "";
+  private bossRevives = 0;
+  private bossReviveOffered = false;
 
   protected onLoad(): void {
     try {
+      ensureCocosPlatform();
       if (!RuntimePrototype.pending) return;
       this.launch = RuntimePrototype.pending;
       RuntimePrototype.pending = undefined;
       ConfigService.ensureBundled();
       playerSave.loadLocal();
-      this.tutorial = false;
       const save = playerSave.get();
+      this.tutorial = isTutorialRun(
+        this.launch.islandId,
+        save.tutorialComplete,
+      );
       this.lowPower = save.settings.lowPower;
       this.vibration = save.settings.vibration;
       SfxPlayer.setEnabled(save.settings.sfx);
       FishController.setLowPower(this.lowPower);
       game.frameRate = this.lowPower ? 30 : 60;
       const toolLevel =
-        save.tools.find((entry) => entry.toolId === this.launch.toolId)
-          ?.level ?? 1;
+        this.launch.challenge === "weekly"
+          ? 1
+          : save.tools.find((entry) => entry.toolId === this.launch.toolId)
+              ?.level ?? 1;
+      this.runId = `run_${Date.now()}`;
       this.session = new RunSession(
-        `run_${Date.now()}`,
+        this.runId,
         this.launch.islandId,
         this.launch.toolId,
         toolLevel,
+        Date.now(),
+        {
+          tutorial: this.tutorial,
+          stylePointScale: ConfigService.remoteConfig().stylePointScale,
+          economyScale: ConfigService.remoteConfig().economyScale,
+        },
       );
-      this.battleAt = Date.now();
+      if (this.launch.weeklyRules) {
+        this.weeklyRandom = new SeededRandom(this.launch.weeklyRules.seed);
+      }
       this.buildView();
+      this.bindDesktopInput();
+      const platform = platformAdapter();
+      this.disposePlatformHidden = platform.lifecycle.onHidden(() => {
+        platform.gameplayStop();
+        this.pauseForBlur();
+        void Analytics.flush();
+      });
+      this.disposePlatformShown = platform.lifecycle.onShown(() => {
+        platform.gameplayStart();
+      });
+      platform.gameplayStart();
       this.tickWave(0);
       this.renderHud();
     } catch (error) {
@@ -197,6 +261,11 @@ export class RuntimePrototype extends Component {
     this.deck?.dispose();
     this.deck = undefined;
     this.unbindPads();
+    this.desktopInput?.unbind();
+    this.desktopInput = undefined;
+    this.disposePlatformHidden?.();
+    this.disposePlatformShown?.();
+    platformAdapter().gameplayStop();
   }
 
   protected update(dt: number): void {
@@ -225,7 +294,6 @@ export class RuntimePrototype extends Component {
     this.drawAim();
     this.tickReel(dt);
     this.tickEscape();
-    this.tickTutorial();
     this.tickWave(dt);
     this.tickBoss(dt);
     this.sortByDepth();
@@ -239,17 +307,31 @@ export class RuntimePrototype extends Component {
     this.layer.layer = this.node.layer;
     let deckOk = false;
     try {
-      this.deck = DeckStage.mount(this.node, this.launch.islandId);
+      this.deck = DeckStage.mount(
+        this.node,
+        this.launch.islandId,
+        playerSave.get().selectedCosmetics.boat,
+      );
       deckOk = true;
     } catch (error) {
       console.error("DeckStage failed, using 2D seascape", error);
     }
     if (!deckOk) {
       drawOcean(this.layer, { islandId: this.launch.islandId });
-      drawDock(this.layer);
+      drawDock(this.layer, playerSave.get().selectedCosmetics.boat);
     }
     const island = ConfigService.islandById(this.launch.islandId);
-    makeLabel(this.layer, `${island.name} · 潮汐猎场`, 32, 0, 318);
+    makeLabel(
+      this.layer,
+      this.launch.challenge === "endless"
+        ? `${island.name} · 无尽潮`
+        : this.launch.challenge === "weekly"
+          ? `${island.name} · 周挑战`
+          : `${island.name} · 潮汐猎场`,
+      32,
+      0,
+      318,
+    );
     this.multiplier = makeLabel(this.layer, "精彩 ×1.00", 22, -470, 318, 280);
     this.coinsLabel = makeLabel(this.layer, "本局 0", 22, 470, 318, 280);
     this.status = makeLabel(
@@ -266,6 +348,10 @@ export class RuntimePrototype extends Component {
     this.callout = makeLabel(this.layer, "", 28, 0, 188, 900);
     this.callout.color = new Color(255, 236, 120, 255);
     this.clockLabel = makeLabel(this.layer, "热身潮 1:40", 20, -470, 268, 280);
+    this.gradeTag = makePriceTag(this.layer, "C级", -490, 220, "level");
+    this.quoteTag = makePriceTag(this.layer, "估价 --", 490, 220, "quote");
+    this.freshTag = makePriceTag(this.layer, "新鲜度 --", 490, 158, "freshness");
+    this.targetTag = makePriceTag(this.layer, "目标：等待鱼群", -490, 158, "target");
     makeLabel(this.layer, "鱼箱", 18, -520, -118, 120);
 
     this.bindPad("MovePad", -320, 0, 640, 420, {
@@ -292,7 +378,7 @@ export class RuntimePrototype extends Component {
     this.player.addComponent(UITransform).setContentSize(90, 46);
     if (!deckFlag.live) {
       const boat = this.player.addComponent(Graphics);
-      drawBoat(boat);
+      drawBoat(boat, playerSave.get().selectedCosmetics.boat);
     }
     this.player.setScale(
       depthScale(this.moveTarget.y),
@@ -329,7 +415,28 @@ export class RuntimePrototype extends Component {
     this.castButton = makeButton(this.layer, "抛竿", -390, -292, () => this.cast());
     this.reelButton = makeButton(this.layer, "捡起", 390, -292, () => this.pickUp());
     makeButton(this.layer, "暂停", -530, 268, () => this.togglePause(), 150, 56, 22);
-    makeButton(this.layer, "回港", 530, 268, () => this.returnHarbor(), 150, 56, 22);
+    makeButton(
+      this.layer,
+      this.launch.challenge === "endless" ? "撤离" : "回港",
+      530,
+      268,
+      () => this.returnHarbor(),
+      150,
+      56,
+      22,
+    );
+    if (this.launch.challenge === "endless") {
+      makeButton(
+        this.layer,
+        "放弃本轮",
+        360,
+        268,
+        () => this.returnHarbor(true),
+        150,
+        56,
+        19,
+      );
+    }
   }
 
   private spawnFish(config: FishConfig, x: number, y: number, decoy = false): void {
@@ -341,7 +448,7 @@ export class RuntimePrototype extends Component {
     const fish = node.addComponent(FishController);
     fish.initialize(config, decoy);
     if (!decoy && config.behavior === "split") {
-      for (const offset of decoyOffsets()) {
+      for (const offset of decoyOffsets(this.lowPower ? 1 : 2)) {
         this.spawnFish(config, x + offset.x, y + offset.y, true);
       }
     }
@@ -390,7 +497,55 @@ export class RuntimePrototype extends Component {
 
   private toLayer(event: EventTouch): Vec3 {
     const loc = event.getUILocation();
-    return new Vec3(loc.x - 640, loc.y - 360, 0);
+    return this.screenToLayer(loc.x, loc.y);
+  }
+
+  private screenToLayer(x: number, y: number): Vec3 {
+    return new Vec3(x - 640, y - 360, 0);
+  }
+
+  private bindDesktopInput(): void {
+    this.desktopInput = new DesktopBattleInput({
+      aim: (x, y) => {
+        this.trackDesktopInput();
+        this.aimTo.set(this.screenToLayer(x, y));
+      },
+      aimStart: (x, y) => {
+        this.trackDesktopInput();
+        if (this.held()) return;
+        this.aiming = true;
+        this.aimStartedAt = Date.now();
+        this.aimFrom.set(this.player.position);
+        this.aimTo.set(this.screenToLayer(x, y));
+      },
+      aimEnd: (x, y) => {
+        this.aimTo.set(this.screenToLayer(x, y));
+        if (!this.aiming) return;
+        this.aiming = false;
+        if (this.currentKind() !== "cannon") this.fire();
+      },
+      cast: () => {
+        this.trackDesktopInput();
+        this.cast();
+      },
+      pickUp: () => {
+        this.trackDesktopInput();
+        this.pickUp();
+      },
+      move: (x, y) => {
+        if (x !== 0 || y !== 0) this.trackDesktopInput();
+        this.desktopMoveX = x;
+        this.desktopMoveY = y;
+      },
+      pauseForBlur: () => this.pauseForBlur(),
+    });
+    this.desktopInput.bind();
+  }
+
+  private trackDesktopInput(): void {
+    if (this.desktopInputTracked) return;
+    this.desktopInputTracked = true;
+    Analytics.track("input_scheme", { scheme: "desktop" });
   }
 
   private onMoveStart(event: EventTouch): void {
@@ -431,6 +586,13 @@ export class RuntimePrototype extends Component {
   }
 
   private movePlayer(dt: number): void {
+    if (!this.held() && (this.desktopMoveX !== 0 || this.desktopMoveY !== 0)) {
+      this.moveTarget.set(
+        Math.min(-180, Math.max(-540, this.moveTarget.x + this.desktopMoveX * 260 * dt)),
+        Math.min(80, Math.max(-70, this.moveTarget.y + this.desktopMoveY * 190 * dt)),
+        0,
+      );
+    }
     const current = this.player.position;
     const x = current.x + (this.moveTarget.x - current.x) * Math.min(1, dt * 8);
     const y = current.y + (this.moveTarget.y - current.y) * Math.min(1, dt * 8);
@@ -456,7 +618,7 @@ export class RuntimePrototype extends Component {
   private drawAim(): void {
     this.aimLine.clear();
     if (deckFlag.live) {
-      drawShots(this.aimLine, this.shots);
+      drawShots(this.aimLine, this.shots, playerSave.get().selectedCosmetics.trail);
       return;
     }
     if (this.hooked?.yanking && this.hooked.node.active) {
@@ -468,7 +630,10 @@ export class RuntimePrototype extends Component {
     }
     if (this.aiming) {
       const kind = this.currentKind();
-      const charge = harpoonCharge(Date.now() - this.aimStartedAt);
+      const charge = harpoonCharge(
+        Date.now() - this.aimStartedAt,
+        this.equippedTool(),
+      );
       this.aimLine.strokeColor =
         kind === "harpoon"
           ? new Color(255, 180, 90, 240)
@@ -480,14 +645,14 @@ export class RuntimePrototype extends Component {
       this.aimLine.lineTo(this.aimTo.x, this.aimTo.y);
       this.aimLine.stroke();
     }
-    drawShots(this.aimLine, this.shots);
+    drawShots(this.aimLine, this.shots, playerSave.get().selectedCosmetics.trail);
   }
 
   private equippedTool(): ToolLevel {
     const save = playerSave.get();
     const owned = save.tools.find((entry) => entry.toolId === this.launch.toolId);
     const tool = ConfigService.toolById(owned?.toolId ?? this.launch.toolId);
-    const level = owned?.level ?? 1;
+    const level = this.launch.challenge === "weekly" ? 1 : owned?.level ?? 1;
     return tool.levels.find((item) => item.level === level) ?? tool.levels[0];
   }
 
@@ -523,6 +688,10 @@ export class RuntimePrototype extends Component {
     this.hooked = target;
     this.hooked.setHooked(true);
     this.hookedAt = Date.now();
+    Analytics.track("cast", {
+      fishId: target.id,
+      input: this.desktopInputTracked ? "desktop" : "touch",
+    });
     this.reelActive = false;
     this.session.resetStyle();
     if (this.tutorial) {
@@ -530,6 +699,7 @@ export class RuntimePrototype extends Component {
         freezeSeconds: TUTORIAL_WEAK_PAUSE_SECONDS,
         forceWeak: true,
         radiusScale: 1.8,
+        damageScale: 1.5,
       });
       this.enterTutorial("hooked");
       return;
@@ -565,7 +735,10 @@ export class RuntimePrototype extends Component {
     const dirX = this.aimTo.x - origin.x;
     const dirY = this.aimTo.y - origin.y;
     const kind = this.currentKind();
-    const charge = kind === "harpoon" ? harpoonCharge(now - this.aimStartedAt) : 1;
+    const charge =
+      kind === "harpoon"
+        ? harpoonCharge(now - this.aimStartedAt, this.equippedTool())
+        : 1;
     const shot = spawnShot(
       origin.x,
       origin.y,
@@ -656,7 +829,7 @@ export class RuntimePrototype extends Component {
       body.distance,
       weakShot.distance,
       this.hooked.bodyRadius() + shot.radius,
-      this.hooked.weakRadius(),
+      this.hooked.weakRadius() * toolWeakRadiusScale(this.equippedTool()),
       this.hooked.weakOpen,
     );
     if (!judged.hit) {
@@ -679,6 +852,7 @@ export class RuntimePrototype extends Component {
           shot.kind,
           airborne,
           this.hooked.stunned,
+          tool,
         ),
       },
     );
@@ -687,8 +861,13 @@ export class RuntimePrototype extends Component {
       atMs: now,
       quality: judged.accuracy,
     });
+    Analytics.track("style_action", {
+      action: judged.weakPoint ? "weakPoint" : "combo",
+      accuracy: judged.accuracy,
+    });
     if (airborne) {
       this.session.addStyle({ action: "airborne", atMs: now });
+      Analytics.track("style_action", { action: "airborne" });
     }
     const snap = this.session.getStyleSnapshot();
     const parts = {
@@ -701,9 +880,10 @@ export class RuntimePrototype extends Component {
     this.burst(juice, tx, ty);
     this.beginHitStop(hitStopSeconds(juice, this.lowPower));
     SfxPlayer.play(judged.weakPoint ? "weak" : "hit");
-    if (shouldVibrate(this.vibration, parts)) WechatAdapter.vibrate();
+    if (shouldVibrate(this.vibration, parts)) platformAdapter().vibrate();
     if (result.readyToReel) {
-      this.setStatus("砸晕了！点捡起，搬去左边鱼箱。");
+      if (this.tutorial && judged.weakPoint) this.enterTutorial("weakHit");
+      else this.setStatus("砸晕了！点捡起，搬去左边鱼箱。");
     } else if (
       this.hooked.fishConfig?.behavior === "shield" &&
       !judged.weakPoint &&
@@ -799,7 +979,8 @@ export class RuntimePrototype extends Component {
     near.startCarry();
     this.carried = near;
     if (this.hooked === near) this.hooked = undefined;
-    this.setStatus("扛上了。搬去左边鱼箱。");
+    if (this.tutorial) this.enterTutorial("pickedUp");
+    else this.setStatus("扛上了。搬去左边鱼箱。");
   }
 
   private stashCarried(): void {
@@ -808,11 +989,22 @@ export class RuntimePrototype extends Component {
     if (!fish || !captured) return;
     const atX = fish.node.position.x;
     const atY = fish.node.position.y;
-    const airborneBag = fish.airborne;
+    const airborneBag = fish.capturedFromAir;
     if (airborneBag) {
       this.session.addStyle({ action: "perfectReel", atMs: Date.now() });
+      Analytics.track("style_action", { action: "perfectReel" });
     }
-    const sold = this.session.capture(captured, 1);
+    const freshness = toolFreshness(
+      freshnessForDeckTime(fish.deckSeconds, captured.escapeSeconds),
+      this.equippedTool(),
+    );
+    const sold = this.session.capture(
+      captured,
+      freshness,
+      Date.now(),
+      ConfigService.remoteConfig().economyScale,
+      { airborneCapture: airborneBag },
+    );
     fish.node.active = false;
     fish.setHooked(false);
     this.carried = undefined;
@@ -822,6 +1014,28 @@ export class RuntimePrototype extends Component {
       fishId: captured.id,
       price: sold.price,
       multiplier: sold.styleMultiplier,
+      stylePoints: sold.stylePoints,
+      styleGrade: sold.styleGrade,
+      captureChain: sold.captureChain,
+      freshness: sold.freshness,
+      deckSeconds: fish.deckSeconds,
+    });
+    Analytics.track("style_grade", {
+      fishId: captured.id,
+      grade: sold.styleGrade,
+      points: sold.stylePoints,
+      multiplier: sold.styleMultiplier,
+    });
+    Analytics.track("capture_chain_update", {
+      grade: sold.styleGrade,
+      chain: sold.captureChain,
+    });
+    Analytics.track("freshness_decision", {
+      fishId: captured.id,
+      band: sold.freshness >= 1 ? "fresh" : sold.freshness >= 0.75 ? "mid" : "urgent",
+      freshness: sold.freshness,
+      deckSeconds: fish.deckSeconds,
+      price: sold.price,
     });
     this.burst(airborneBag ? "perfect" : "catch", atX, atY);
     this.showCallout(
@@ -834,8 +1048,13 @@ export class RuntimePrototype extends Component {
     );
     SfxPlayer.play(airborneBag ? "perfect" : "catch");
     this.setStatus(
-      `${captured.name} ×${sold.styleMultiplier.toFixed(2)} → ${sold.price}金，丢进鱼箱。回港才卖。`,
+      `${captured.name} 鲜度×${sold.freshness.toFixed(2)} · 精彩×${sold.styleMultiplier.toFixed(2)} → ${sold.price}金，回港才卖。`,
     );
+    if (this.tutorial) {
+      this.enterTutorial("stored");
+      this.returnHarbor();
+      return;
+    }
     if (captured.tier === "boss") {
       this.setStatus("巨鲲入箱。收网回港。");
       this.returnHarbor();
@@ -876,6 +1095,16 @@ export class RuntimePrototype extends Component {
     this.setStatus("恢复 3");
   }
 
+  private pauseForBlur(): void {
+    if (this.closing || this.paused || this.resumeLeft > 0) return;
+    this.paused = true;
+    this.pauseStartedAt = Date.now();
+    this.aiming = false;
+    this.moving = false;
+    FishController.setPaused(true);
+    this.setStatus("窗口失焦，已自动暂停。点暂停后3秒继续。");
+  }
+
   private held(): boolean {
     return this.paused || this.resumeLeft > 0 || this.closing || this.hitStopLeft > 0;
   }
@@ -897,8 +1126,6 @@ export class RuntimePrototype extends Component {
     this.hookedAt += ms;
     this.lastFireAt += ms;
     this.aimStartedAt += ms;
-    this.reelReadyAt += ms;
-    this.settleAt += ms;
     this.calloutUntil += ms;
   }
 
@@ -924,6 +1151,22 @@ export class RuntimePrototype extends Component {
   private tickWave(dt: number): void {
     if (this.closing) return;
     const island = ConfigService.islandById(this.launch.islandId);
+    if (this.launch.challenge === "endless") {
+      this.tickEndlessWave(dt, island);
+      return;
+    }
+    if (this.launch.challenge === "weekly") {
+      this.tickWeeklyWave(dt);
+      return;
+    }
+    if (this.tutorial) {
+      this.runElapsed += dt;
+      if (this.clockLabel) this.clockLabel.string = "泡沫湾教学";
+      if (this.liveCount() === 0 && this.tutorialStep !== "complete") {
+        this.spawnFish(ConfigService.fishById(TUTORIAL_FISH_ID), 80, 10);
+      }
+      return;
+    }
     this.runElapsed += dt;
     const snapshot = runPhase(this.runElapsed, island);
     if (this.clockLabel) {
@@ -931,6 +1174,19 @@ export class RuntimePrototype extends Component {
     }
     if (snapshot.phase === "over") {
       if (this.liveBoss()) {
+        if (!this.bossReviveOffered && this.launch.challenge !== "weekly") {
+          this.bossReviveOffered = true;
+          makeButton(
+            this.layer,
+            "看广告延长Boss战",
+            0,
+            -250,
+            () => void this.tryBossRevive(),
+            300,
+            62,
+            21,
+          );
+        }
         this.setStatus(
           this.hooked?.fishConfig?.tier === "boss"
             ? "潮汐将尽，快砸晕入箱。"
@@ -945,6 +1201,7 @@ export class RuntimePrototype extends Component {
     if (snapshot.phase === "boss") {
       if (!this.shownBoss) {
         this.shownBoss = true;
+        SfxPlayer.play("bossWarn");
         this.clearUnhooked();
         if (island.bossId) {
           this.spawnFish(ConfigService.fishById(island.bossId), 50, 18);
@@ -1001,6 +1258,118 @@ export class RuntimePrototype extends Component {
     );
   }
 
+  private async tryBossRevive(): Promise<void> {
+    if (this.closing) return;
+    const granted = await adGrants.reviveBoss(
+      this.runId,
+      this.bossRevives,
+      this.launch.challenge === "weekly",
+    );
+    if (!granted) {
+      this.setStatus("广告未完成，Boss战保持当前状态。");
+      return;
+    }
+    this.bossRevives += 1;
+    this.runElapsed = Math.max(0, this.runElapsed - 30);
+    this.layer.getChildByName("看广告延长Boss战")?.destroy();
+    this.setStatus("Boss战延长30秒。本局不会再次提供复活。");
+  }
+
+  private tickEndlessWave(
+    dt: number,
+    island: ReturnType<typeof ConfigService.islandById>,
+  ): void {
+    this.runElapsed += dt;
+    const roundElapsed = this.runElapsed % ENDLESS_ROUND_SECONDS;
+    const nextRound = Math.floor(this.runElapsed / ENDLESS_ROUND_SECONDS) + 1;
+    if (nextRound > this.endlessRound) {
+      this.captureEndlessEarnings();
+      this.endlessState = completeEndlessRound(this.endlessState);
+      this.endlessRound = nextRound;
+      Analytics.track("endless_round", {
+        round: this.endlessRound - 1,
+        coins: this.session.preview().coins,
+      });
+      this.setStatus(`第${this.endlessRound - 1}轮收益已入箱。可继续或随时撤离。`);
+    }
+    const difficulty = endlessDifficulty(this.endlessRound);
+    if (this.clockLabel) {
+      this.clockLabel.string = `无尽第${this.endlessRound}轮 ${formatClock(
+        ENDLESS_ROUND_SECONDS - roundElapsed,
+      )}`;
+    }
+    const ids = island.waves.flatMap((wave) => wave.fishPool);
+    const pool = Array.from(new Set(ids));
+    this.spawnWait += dt;
+    const interval = 3 * difficulty.spawnIntervalScale;
+    if (
+      pool.length === 0 ||
+      !shouldSpawn(
+        this.liveCount(),
+        8,
+        this.spawnWait,
+        interval,
+        spawnCap(this.lowPower),
+      )
+    ) return;
+    this.spawnWait = 0;
+    const id = pool[Math.floor(Math.random() * pool.length)];
+    const config = ConfigService.fishById(id);
+    this.spawnFish(
+      {
+        ...config,
+        toughness: Math.round(config.toughness * difficulty.toughnessScale),
+        speed: Math.round(config.speed * difficulty.speedScale),
+      },
+      80 + Math.random() * 280,
+      -20 + Math.random() * 90,
+    );
+  }
+
+  private tickWeeklyWave(dt: number): void {
+    const rules = this.launch.weeklyRules;
+    if (!rules || !this.weeklyRandom) {
+      this.setStatus("周挑战规则缺失，已安全退出。");
+      this.returnHarbor();
+      return;
+    }
+    this.runElapsed += dt;
+    const remaining = Math.max(0, rules.durationSeconds - this.runElapsed);
+    if (this.clockLabel) {
+      this.clockLabel.string = `周挑战 ${formatClock(remaining)}`;
+    }
+    if (remaining <= 0) {
+      this.setStatus("周挑战结束，成绩已封存。");
+      this.returnHarbor();
+      return;
+    }
+    this.spawnWait += dt;
+    if (
+      rules.fishPool.length === 0 ||
+      !shouldSpawn(
+        this.liveCount(),
+        7,
+        this.spawnWait,
+        2.8,
+        spawnCap(this.lowPower),
+      )
+    ) return;
+    this.spawnWait = 0;
+    const id = this.weeklyRandom.pick(rules.fishPool);
+    this.spawnFish(
+      ConfigService.fishById(id),
+      80 + this.weeklyRandom.next() * 280,
+      -20 + this.weeklyRandom.next() * 90,
+    );
+  }
+
+  private captureEndlessEarnings(): void {
+    const total = this.session.preview().coins;
+    const delta = Math.max(0, total - this.endlessObservedCoins);
+    this.endlessObservedCoins = total;
+    this.endlessState = addEndlessEarnings(this.endlessState, delta);
+  }
+
   private tickEscape(): void {
     if (this.tutorial) return;
     if (this.carried) return;
@@ -1017,32 +1386,9 @@ export class RuntimePrototype extends Component {
     this.setStatus("鱼挣脱了。再抛竿拽一条。");
   }
 
-  private tickTutorial(): void {
-    if (!this.tutorial || this.tutorialStep === "complete") return;
-    if (this.tutorialStep === "settle" && this.settleAt > 0) {
-      if (Date.now() - this.settleAt >= 1_800) {
-        this.tutorialStep = "complete";
-        this.returnHarbor();
-      }
-      return;
-    }
-    if (
-      this.reelActive &&
-      shouldAutoReel(
-        this.tutorialStep,
-        Date.now() - this.reelReadyAt,
-        Date.now() - this.battleAt,
-      )
-    ) {
-      this.reelMarker = 0.5;
-      this.reel();
-    }
-  }
-
-  private enterTutorial(event: "hooked" | "weakHit" | "reelReady" | "captured"): void {
+  private enterTutorial(event: "hooked" | "weakHit" | "pickedUp" | "stored"): void {
     this.tutorialStep = advanceTutorial(this.tutorialStep, event);
     this.setStatus(tutorialPrompt(this.tutorialStep));
-    if (this.tutorialStep === "settle") this.settleAt = Date.now();
   }
 
   private tickCannon(): void {
@@ -1164,18 +1510,33 @@ export class RuntimePrototype extends Component {
     const target =
       this.tutorialStep === "cast"
         ? this.castButton
-        : this.tutorialStep === "reel"
+        : this.tutorialStep === "pickUp"
           ? this.reelButton
           : undefined;
-    if (!target) return;
     const pulse = 18 + Math.sin(Date.now() / 180) * 8;
     this.guide.strokeColor = new Color(255, 236, 120, 230);
     this.guide.lineWidth = 6;
+    if (this.tutorialStep === "weakPoint" && this.hooked) {
+      const weak = this.hooked.viewOffset();
+      this.guide.circle(
+        this.hooked.node.position.x + weak.x,
+        this.hooked.node.position.y + weak.y,
+        38 + pulse,
+      );
+      this.guide.stroke();
+      return;
+    }
+    if (this.tutorialStep === "crate") {
+      this.guide.circle(-520, -118, 74 + pulse);
+      this.guide.stroke();
+      return;
+    }
+    if (!target) return;
     this.guide.circle(target.position.x, target.position.y, 70 + pulse);
     this.guide.stroke();
   }
 
-  private returnHarbor(): void {
+  private returnHarbor(endlessFailed = false): void {
     if (this.closing) return;
     this.closing = true;
     this.deck?.dispose();
@@ -1183,12 +1544,28 @@ export class RuntimePrototype extends Component {
     this.shots = [];
     this.hitStopLeft = 0;
     this.unbindPads();
+    this.desktopInput?.unbind();
     FishController.setPaused(false);
-    const summary = this.session.finish();
+    let summary = this.session.finish();
+    if (this.launch.challenge === "endless") {
+      this.captureEndlessEarnings();
+      this.endlessState = endlessFailed
+        ? failEndlessRound(this.endlessState)
+        : withdrawEndless(this.endlessState);
+      summary = {
+        ...summary,
+        totalCoins: this.endlessState.bankedCoins,
+        endlessRound: this.endlessState.round,
+        endlessFailed,
+      };
+    }
     Analytics.track("run_finish", {
       coins: summary.totalCoins,
       count: summary.fish.length,
       multiplier: summary.bestMultiplier,
+      bestGrade: summary.bestStyleGrade,
+      bestCaptureChain: summary.bestCaptureChain,
+      input: this.desktopInputTracked ? "desktop" : "touch",
     });
     if (this.launch.onHarbor) {
       this.launch.onHarbor(summary);
@@ -1208,14 +1585,35 @@ export class RuntimePrototype extends Component {
     const preview = this.session.preview();
     const style = this.session.getStyleSnapshot();
     this.coinsLabel.string = `本局 ${preview.coins}`;
-    this.multiplier.string = comboHud(style.multiplier, style.combo);
+    this.multiplier.string = `${styleGradeFor(style.points)}级 · ${comboHud(style.multiplier, style.combo)}${preview.captureChain > 0 ? ` · 高光链${preview.captureChain}` : ""}`;
+    this.gradeTag.string = `${styleGradeFor(style.points)}级`;
     if (this.callout) {
       this.callout.string = Date.now() < this.calloutUntil ? this.callout.string : "";
     }
     if (this.hooked?.fishConfig) {
       const fish = this.hooked.fishConfig;
+      const freshness = freshnessForDeckTime(
+        this.hooked.deckSeconds,
+        fish.escapeSeconds,
+      );
+      const economyScale = ConfigService.remoteConfig().economyScale;
+      const currentPrice = PriceCalculator.calculate(
+        fish,
+        freshness,
+        style.multiplier,
+        economyScale,
+      ).total;
+      const maxFreshPrice = PriceCalculator.calculate(
+        fish,
+        1.2,
+        style.multiplier,
+        economyScale,
+      ).total;
       const bits = [
-        liveQuote(fish, style.multiplier),
+        behaviorCue(fish.behavior, {
+          shieldOpen: this.hooked.shieldOpen,
+          stunned: this.hooked.stunned,
+        }),
         `韧性 ${this.hooked.remainingToughness}`,
         this.hooked.weakOpen ? "弱点亮" : "",
         fish.behavior === "shield"
@@ -1231,13 +1629,31 @@ export class RuntimePrototype extends Component {
           : "",
       ].filter(Boolean);
       this.fishName.string = bits.join(" · ");
+      this.quoteTag.string = `实时估价 ${currentPrice}金`;
+      this.freshTag.string = this.hooked.onDeck || this.hooked.carrying
+        ? freshnessHud(
+            this.hooked.deckSeconds,
+            fish.escapeSeconds,
+            currentPrice,
+            maxFreshPrice,
+          ).split(" · ")[0]
+        : "新鲜度：入甲板后计时";
+      this.targetTag.string = `目标：${fish.name} · 韧性${this.hooked.remainingToughness}`;
     } else {
       this.fishName.string = this.hooked?.decoy ? "影子，换一条" : "等待抛竿";
+      this.quoteTag.string = "实时估价 --";
+      this.freshTag.string = "新鲜度 --";
+      this.targetTag.string = "目标：等待鱼群";
     }
   }
 
   private burst(kind: JuiceKind, x: number, y: number): void {
-    this.juice = this.juice.concat(spawnJuice(kind, x, y, this.lowPower));
+    const cap = this.lowPower
+      ? VISUAL_LIMITS.maxJuiceParticles.lowPower
+      : VISUAL_LIMITS.maxJuiceParticles.standard;
+    this.juice = this.juice
+      .concat(spawnJuice(kind, x, y, this.lowPower))
+      .slice(-cap);
     this.drawJuiceFx();
   }
 
@@ -1248,7 +1664,13 @@ export class RuntimePrototype extends Component {
   }
 
   private drawJuiceFx(): void {
-    if (this.juiceGfx) drawJuice(this.juiceGfx, this.juice);
+    if (this.juiceGfx) {
+      drawJuice(
+        this.juiceGfx,
+        this.juice,
+        playerSave.get().selectedCosmetics.trail,
+      );
+    }
   }
 
   private showCallout(value: string): void {

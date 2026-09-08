@@ -15,6 +15,22 @@ import {
   mergeSaves,
 } from "../assets/scripts/domain/SaveMerge";
 import { StyleScoreSystem } from "../assets/scripts/domain/StyleScoreSystem";
+import {
+  freshnessBand,
+  freshnessForDeckTime,
+  freshnessHud,
+} from "../assets/scripts/domain/Freshness";
+import { styleGradeFor } from "../assets/scripts/domain/StyleGrade";
+import {
+  advanceCaptureChain,
+  createCaptureChain,
+} from "../assets/scripts/domain/CaptureChain";
+import { desktopMoveAxis } from "../assets/scripts/domain/DesktopInputRules";
+import {
+  advanceTutorial,
+  isTutorialRun,
+  tutorialPrompt,
+} from "../assets/scripts/domain/TutorialFlow";
 import { validateRun } from "../cloudfunctions/shared/ScoreValidator";
 import { fishIdsForIsland } from "../assets/scripts/content/IslandFishPool";
 import {
@@ -33,6 +49,7 @@ import {
 import {
   bossPhaseIndex,
   decoyOffsets,
+  behaviorCue,
   poseForBehavior,
   shieldDamageScale,
   shotFromFront,
@@ -45,8 +62,8 @@ import {
 } from "../assets/scripts/domain/BossPattern";
 import { RunSession } from "../assets/scripts/domain/RunSession";
 import {
-  applyRunRewards,
   bookLines,
+  settleRun,
   settleHeadline,
   settleRows,
   settleSlogan,
@@ -55,7 +72,31 @@ import {
   cannonHoldFire,
   harpoonCharge,
   harpoonDashBonus,
+  toolFreshness,
+  toolShieldScale,
+  toolWeakRadiusScale,
 } from "../assets/scripts/domain/ToolFeel";
+import {
+  applyOrderEvent,
+  claimDailyOrder,
+  ensureDailyOrders,
+  generateDailyOrders,
+  localDateKey,
+} from "../assets/scripts/domain/DailyOrders";
+import {
+  canSubmitWeeklyAttempt,
+  generateWeeklyRules,
+  isoWeekKey,
+  recordWeeklyAttempt,
+} from "../assets/scripts/domain/WeeklyChallenge";
+import {
+  addEndlessEarnings,
+  completeEndlessRound,
+  createEndlessRun,
+  endlessDifficulty,
+  failEndlessRound,
+  withdrawEndless,
+} from "../assets/scripts/domain/EndlessTide";
 import {
   spawnJuice,
   tickJuice,
@@ -107,7 +148,8 @@ import {
   wipeCaption,
   wipeDoneNotice,
 } from "../assets/scripts/domain/PrivacyCopy";
-import { sfxTone, shouldPlaySfx } from "../assets/scripts/domain/SfxFeel";
+import { sfxRecipe, sfxTone, shouldPlaySfx } from "../assets/scripts/domain/SfxFeel";
+import { playSynthRecipe } from "../assets/scripts/platform/SfxPlayer";
 import {
   closedIslandCaption,
   cloudStatusLine,
@@ -116,11 +158,21 @@ import {
 } from "../assets/scripts/domain/CloudCopy";
 import {
   allFishSilhouettes,
+  allFishVisualSignatures,
+  deckFishShape,
   fishLook,
   harborIslandIds,
   harborIslandX,
   islandLook,
+  islandRules,
 } from "../assets/scripts/domain/GrayLook";
+import {
+  canSelectCosmetic,
+  cosmeticLook,
+  marketViewport,
+  sanitizeCosmeticSelection,
+  VISUAL_LIMITS,
+} from "../assets/scripts/domain/MarketArtStyle";
 
 const fish: FishConfig = {
   id: "fish_test",
@@ -179,6 +231,104 @@ describe("StyleScoreSystem", () => {
     style.apply({ action: "weakPoint", atMs: 100 });
     const snapshot = style.apply({ action: "combo", atMs: 3_000 });
     expect(snapshot.combo).toBe(1);
+  });
+
+  it("scales earned points from remote config without changing UI constants", () => {
+    const normal = new StyleScoreSystem(undefined, 1);
+    const tuned = new StyleScoreSystem(undefined, 0.5);
+    normal.apply({ action: "weakPoint", atMs: 100 });
+    tuned.apply({ action: "weakPoint", atMs: 100 });
+    expect(tuned.getSnapshot().points).toBeLessThan(normal.getSnapshot().points);
+    expect(tuned.getSnapshot().multiplier).toBeLessThan(
+      normal.getSnapshot().multiplier,
+    );
+  });
+
+  it("gives each first action ×1.2, then decays repeats to ×0.8/×0.6", () => {
+    const style = new StyleScoreSystem();
+    const first = style.apply({ action: "weakPoint", atMs: 0 }).points;
+    const secondTotal = style.apply({ action: "weakPoint", atMs: 3_000 }).points;
+    const thirdTotal = style.apply({ action: "weakPoint", atMs: 6_000 }).points;
+    expect(first).toBe(26);
+    expect(secondTotal - first).toBe(18);
+    expect(thirdTotal - secondTotal).toBe(13);
+    const variedTotal = style.apply({ action: "airborne", atMs: 9_000 }).points;
+    expect(variedTotal - thirdTotal).toBe(22);
+  });
+});
+
+describe("StyleGrade and capture chain", () => {
+  it("maps style points to C/B/A/S at explicit thresholds", () => {
+    expect([0, 40, 80, 130].map(styleGradeFor)).toEqual(["C", "B", "A", "S"]);
+  });
+
+  it("chains A/S captures, while B and timeout interrupt it", () => {
+    let chain = advanceCaptureChain(createCaptureChain(), "A", 1_000);
+    chain = advanceCaptureChain(chain, "S", 9_000);
+    expect(chain.count).toBe(2);
+    expect(chain.best).toBe(2);
+    chain = advanceCaptureChain(chain, "B", 10_000);
+    expect(chain.count).toBe(0);
+    chain = advanceCaptureChain(chain, "A", 11_000);
+    chain = advanceCaptureChain(chain, "A", 22_001);
+    expect(chain.count).toBe(1);
+    expect(chain.best).toBe(2);
+  });
+
+  it("records a cross-fish chain without multiplying either fish price", () => {
+    const session = new RunSession("chain", "island_test", "tool_rod", 1, 0);
+    const addHighGrade = (base: number) => {
+      session.addStyle({ action: "weakPoint", atMs: base });
+      session.addStyle({ action: "airborne", atMs: base + 10 });
+      session.addStyle({ action: "combo", atMs: base + 20 });
+      session.addStyle({ action: "perfectReel", atMs: base + 30 });
+    };
+    addHighGrade(100);
+    const first = session.capture(fish, 1, 1_000);
+    addHighGrade(1_100);
+    const second = session.capture(fish, 1, 2_000);
+    expect(first.styleGrade).toBe("A");
+    expect(second.captureChain).toBe(2);
+    expect(second.price).toBe(first.price);
+    expect(session.finish(20_000).bestCaptureChain).toBe(2);
+  });
+});
+
+describe("TutorialFlow", () => {
+  it("embeds the first tutorial in foam bay", () => {
+    expect(isTutorialRun("island_foam_bay", false)).toBe(true);
+    expect(isTutorialRun("island_foam_bay", true)).toBe(false);
+    expect(isTutorialRun("island_prism_reef", false)).toBe(false);
+  });
+
+  it("guides cast, weak point, pickup, and crate in order", () => {
+    let step = advanceTutorial("cast", "hooked");
+    expect(step).toBe("weakPoint");
+    step = advanceTutorial(step, "weakHit");
+    expect(step).toBe("pickUp");
+    step = advanceTutorial(step, "pickedUp");
+    expect(step).toBe("crate");
+    step = advanceTutorial(step, "stored");
+    expect(step).toBe("complete");
+    expect(tutorialPrompt("crate")).toContain("鱼箱");
+  });
+});
+
+describe("Freshness", () => {
+  it("falls from 1.2 to the 0.5 floor while fish delays on deck", () => {
+    expect(freshnessForDeckTime(0, 14)).toBe(1.2);
+    expect(freshnessForDeckTime(7, 14)).toBeCloseTo(0.85, 2);
+    expect(freshnessForDeckTime(14, 14)).toBe(0.5);
+    expect(freshnessForDeckTime(999, 14)).toBe(0.5);
+  });
+
+  it("provides text bands, countdown, and explicit price tradeoff", () => {
+    expect(freshnessBand(1.1)).toBe("鲜爽");
+    expect(freshnessBand(0.8)).toBe("尚鲜");
+    expect(freshnessBand(0.6)).toBe("将失鲜");
+    expect(freshnessHud(8, 10, 18, 24)).toBe(
+      "将失鲜 2秒 · 鲜度×0.64 · 现价18金（比满鲜少6）",
+    );
   });
 });
 
@@ -308,6 +458,144 @@ describe("save merging", () => {
     delete (legacy as { completedRuns?: number }).completedRuns;
     expect(mergeSaves(legacy, null).completedRuns).toBe(1);
   });
+
+  it("migrates incomplete v1 data to complete schema v3", () => {
+    const migrated = mergeSaves(
+      {
+        schemaVersion: 1,
+        revision: 2,
+        updatedAt: 100,
+        coins: 12,
+        tutorialComplete: false,
+      } as PlayerSave,
+      null,
+    );
+    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.tools).toEqual([{ toolId: "tool_rod", level: 1 }]);
+    expect(migrated.fishMastery).toEqual({});
+    expect(migrated.dailyOrders).toBeNull();
+    expect(migrated.endlessTide.unlocked).toBe(false);
+    expect(migrated.entitlements).toEqual({});
+    expect(migrated.pendingTransactions).toEqual([]);
+  });
+
+  it("removes drifted content and clamps tool levels during migration", () => {
+    const save = createDefaultSave();
+    const migrated = mergeSaves({
+      ...save,
+      unlockedIslands: ["removed_island"],
+      tools: [
+        { toolId: "removed_tool", level: 99 },
+        { toolId: "tool_rod", level: 99 },
+      ],
+      discoveredFish: ["removed_fish", "fish_bayfin"],
+      fishMastery: {
+        removed_fish: {
+          fishId: "removed_fish",
+          captures: 2,
+          bestGrade: "S",
+          mastery: 9,
+        },
+      },
+      entitlements: {
+        remove_ads: {
+          productId: "remove_ads",
+          source: "google-play",
+          verifiedAt: 1,
+          authorityExpiresAt: Date.now() - 1,
+          authorityToken: "expired-authority-token",
+        },
+      },
+    }, null);
+    expect(migrated.unlockedIslands).toEqual(["island_foam_bay"]);
+    expect(migrated.tools).toEqual([{ toolId: "tool_rod", level: 5 }]);
+    expect(migrated.discoveredFish).toEqual(["fish_bayfin"]);
+    expect(migrated.fishMastery).toEqual({});
+    expect(migrated.entitlements).toEqual({});
+  });
+});
+
+describe("DailyOrders", () => {
+  it("generates the same three short goals for a local date", () => {
+    const key = localDateKey(new Date(2026, 8, 8, 12).getTime());
+    expect(generateDailyOrders(key)).toEqual(generateDailyOrders(key));
+    expect(generateDailyOrders(key)).toHaveLength(3);
+  });
+
+  it("tracks qualifying events, claims once, and resists clock rollback", () => {
+    const now = new Date(2026, 8, 8, 12).getTime();
+    const generated = ensureDailyOrders(null, now);
+    const order = {
+      id: `${generated.dateKey}:gradeA`,
+      title: "捕获2条A级以上鱼",
+      metric: "gradeA" as const,
+      target: 2,
+      reward: { kind: "coins" as const, amount: 45 },
+    };
+    let state = {
+      ...generated,
+      orders: [{ id: order.id, current: 0, target: 2, claimed: false }],
+    };
+    state = applyOrderEvent(state, { grade: "A" });
+    state = applyOrderEvent(state, { grade: "S" });
+    let save: PlayerSave = { ...createDefaultSave(now), dailyOrders: state };
+    save = claimDailyOrder(save, order.id);
+    expect(save.coins).toBe(45);
+    expect(() => claimDailyOrder(save, order.id)).toThrow("already claimed");
+    expect(
+      ensureDailyOrders(state, now - 7 * 60 * 60 * 1000).clockTrusted,
+    ).toBe(false);
+    expect(
+      ensureDailyOrders(state, now + 37 * 60 * 60 * 1000).clockTrusted,
+    ).toBe(false);
+  });
+});
+
+describe("WeeklyChallenge", () => {
+  it("uses ISO weeks and stable seeded rules", () => {
+    expect(isoWeekKey(Date.UTC(2026, 0, 1))).toBe("2026-W01");
+    const fishPool = [
+      fish,
+      { ...fish, id: "fish_second" },
+      { ...fish, id: "fish_third" },
+    ];
+    const rules = generateWeeklyRules("2026-W36", fishPool);
+    expect(rules).toEqual(generateWeeklyRules("2026-W36", fishPool));
+    expect(rules.durationSeconds).toBe(180);
+    expect(rules.fishPool.every((id) => fishPool.some((item) => item.id === id))).toBe(true);
+  });
+
+  it("keeps boost-assisted attempts off the weekly board", () => {
+    const state = recordWeeklyAttempt(null, {
+      score: 120,
+      usedAdBoost: true,
+    });
+    expect(state.bestRun).toBe(120);
+    expect(state.leaderboardEligible).toBe(false);
+    expect(canSubmitWeeklyAttempt({ score: 1, usedPaidBoost: true })).toBe(false);
+    expect(canSubmitWeeklyAttempt({ score: 1, cosmeticsUsed: ["boat_ember"] })).toBe(true);
+  });
+});
+
+describe("EndlessTide", () => {
+  it("banks completed rounds, allows withdrawal, and loses only unbanked failure value", () => {
+    let run = addEndlessEarnings(createEndlessRun(), 100);
+    run = completeEndlessRound(run);
+    run = addEndlessEarnings(run, 100);
+    expect(failEndlessRound(run).bankedCoins).toBe(100);
+    expect(failEndlessRound(run).unbankedCoins).toBe(0);
+    expect(withdrawEndless(run).bankedCoins).toBeGreaterThan(100);
+  });
+
+  it("scales difficulty and rewards linearly with a hard cap", () => {
+    expect(endlessDifficulty(10).toughnessScale).toBeLessThan(2);
+    const roundOne = addEndlessEarnings(createEndlessRun(), 100);
+    const late = addEndlessEarnings(
+      { ...createEndlessRun(), round: 30 },
+      100,
+    );
+    expect(late.unbankedCoins).toBeLessThanOrEqual(roundOne.unbankedCoins * 2);
+  });
 });
 
 describe("score validation", () => {
@@ -402,6 +690,12 @@ describe("ShotFlight", () => {
 });
 
 describe("FishBehavior", () => {
+  it("describes behavior and state without relying on color", () => {
+    expect(behaviorCue("dash", { stunned: true })).toContain("硬直");
+    expect(behaviorCue("shield", { shieldOpen: false })).toContain("等转身");
+    expect(behaviorCue("split")).toContain("真身");
+  });
+
   it("cuts front-shield damage unless the gap or weak point is open", () => {
     expect(
       shieldDamageScale({
@@ -469,6 +763,23 @@ describe("ToolFeel", () => {
     expect(harpoonDashBonus("harpoon", true, false)).toBeGreaterThan(1);
     expect(harpoonDashBonus("rod", true, true)).toBe(1);
   });
+
+  it("applies level modifiers as horizontal utility", () => {
+    const level = {
+      level: 5,
+      power: 20,
+      cooldownMs: 600,
+      upgradeCost: 1,
+      modifiers: {
+        weakPointRadiusScale: 1.2,
+        freshnessFloorBonus: 0.12,
+        shieldPierce: 0.3,
+      },
+    };
+    expect(toolWeakRadiusScale(level)).toBe(1.2);
+    expect(toolFreshness(0.5, level)).toBe(0.62);
+    expect(toolShieldScale(0.3, level)).toBeGreaterThan(0.3);
+  });
 });
 
 describe("BossPattern", () => {
@@ -497,6 +808,23 @@ describe("BossPattern", () => {
 });
 
 describe("SettleCopy", () => {
+  it("passes the remote style point scale through RunSession", () => {
+    const normal = new RunSession("normal", "island_foam_bay", "tool_rod", 1, 1);
+    const tuned = new RunSession(
+      "tuned",
+      "island_foam_bay",
+      "tool_rod",
+      1,
+      1,
+      { stylePointScale: 0.5 },
+    );
+    normal.addStyle({ action: "weakPoint", atMs: 10 });
+    tuned.addStyle({ action: "weakPoint", atMs: 10 });
+    expect(tuned.getStyleSnapshot().points).toBeLessThan(
+      normal.getStyleSnapshot().points,
+    );
+  });
+
   it("pays out coins and discovered fish only after the run is applied", () => {
     const save = createDefaultSave(1);
     const session = new RunSession("run_1", "island_foam_bay", "tool_rod", 1, 1);
@@ -506,7 +834,7 @@ describe("SettleCopy", () => {
     expect(settleHeadline(summary)).toContain("本局卖出");
     expect(settleRows(summary, () => "测试鱼")[0]).toContain("测试鱼");
     expect(settleSlogan(summary).length).toBeGreaterThan(0);
-    const next = applyRunRewards(save, summary);
+    const next = settleRun(save, summary);
     expect(next.coins).toBe(save.coins + summary.totalCoins);
     expect(next.discoveredFish).toContain("fish_test");
     expect(next.completedRuns).toBe(1);
@@ -517,8 +845,24 @@ describe("SettleCopy", () => {
     const save = createDefaultSave(1);
     const summary = new RunSession("run_0", "island_foam_bay", "tool_rod", 1, 1).finish(2);
     expect(settleHeadline(summary)).toBe("空手回港");
-    expect(applyRunRewards(save, summary).coins).toBe(0);
+    expect(settleRun(save, summary).coins).toBe(0);
     expect(bookLines([{ id: "fish_test", name: "测试鱼" }], []).join()).toContain("未收");
+  });
+
+  it("marks tutorial complete only through the unified run settlement", () => {
+    const save = createDefaultSave(1);
+    const session = new RunSession(
+      "tutorial_1",
+      "island_foam_bay",
+      "tool_rod",
+      1,
+      1,
+      { tutorial: true },
+    );
+    session.capture(fish, 1.2, 20);
+    const next = settleRun(save, session.finish(30));
+    expect(next.tutorialComplete).toBe(true);
+    expect(next.completedRuns).toBe(1);
   });
 });
 
@@ -550,9 +894,9 @@ describe("IslandClock", () => {
   it("opens the storm-eye boss after both waves", () => {
     expect(runPhase(80, storm).phase).toBe("wave");
     expect(runPhase(131, storm).phase).toBe("boss");
-    expect(runPhase(221, storm).phase).toBe("boss");
-    expect(runPhase(251, storm).phase).toBe("over");
-    expect(BOSS_SECONDS).toBe(120);
+    expect(runPhase(219, storm).phase).toBe("boss");
+    expect(runPhase(221, storm).phase).toBe("over");
+    expect(BOSS_SECONDS).toBe(90);
     expect(waveCaption("boss", 2)).toBe("巨鲲潮");
     expect(formatClock(80)).toBe("1:20");
   });
@@ -587,8 +931,8 @@ describe("StyleCallout", () => {
 
 describe("GameFeel", () => {
   it("caps live fish in low power and keeps vibration off when disabled", () => {
-    expect(spawnCap(true)).toBe(2);
-    expect(spawnCap(false)).toBe(3);
+    expect(spawnCap(true)).toBe(3);
+    expect(spawnCap(false)).toBe(4);
     expect(shouldVibrate(false, { weakPoint: true, airborne: false, combo: 1 })).toBe(
       false,
     );
@@ -603,6 +947,19 @@ describe("GameFeel", () => {
     expect(hitStopSeconds("hit", false)).toBe(0.05);
     expect(hitStopSeconds("weak", true)).toBe(0);
     expect(hitStopSeconds("miss", false)).toBe(0);
+  });
+});
+
+describe("DesktopInputRules", () => {
+  it("combines WASD and arrow keys and cancels opposing directions", () => {
+    expect(desktopMoveAxis(new Set(["KeyW", "ArrowRight"]))).toEqual({
+      x: 1,
+      y: 1,
+    });
+    expect(desktopMoveAxis(new Set(["KeyA", "KeyD", "ArrowDown"]))).toEqual({
+      x: 0,
+      y: -1,
+    });
   });
 });
 
@@ -641,8 +998,40 @@ describe("GrayLook", () => {
       "island_foam_bay",
       "island_prism_reef",
       "island_storm_eye",
+      "island_mist_bells",
+      "island_molten_tide",
     ]);
-    expect(harborIslandX("island_foam_bay")).toBe(-160);
+    expect(harborIslandX("island_foam_bay")).toBe(-500);
+    expect(new Set(allFishVisualSignatures()).size).toBe(22);
+    expect(deckFishShape("boss_tide_singer")).not.toEqual(
+      deckFishShape("boss_fog_chronist"),
+    );
+    expect(islandRules("island_storm_eye").weather).toBe("squall");
+    expect(islandRules("island_mist_bells").fogAlpha).toBeGreaterThan(
+      islandRules("island_foam_bay").fogAlpha,
+    );
+  });
+});
+
+describe("MarketArtStyle", () => {
+  it("only selects owned cosmetics in their declared slot", () => {
+    expect(canSelectCosmetic(["boat_ember"], "boat_ember", "boat")).toBe(true);
+    expect(canSelectCosmetic([], "boat_ember", "boat")).toBe(false);
+    expect(canSelectCosmetic(["boat_ember"], "boat_ember", "trail")).toBe(false);
+    expect(sanitizeCosmeticSelection([], { boat: "boat_ember" })).toEqual({
+      boat: undefined,
+      trail: undefined,
+    });
+    expect(cosmeticLook("trail_prism").hit).not.toEqual(cosmeticLook().hit);
+  });
+
+  it("defines hard caps for standard and low-power effects", () => {
+    expect(VISUAL_LIMITS.maxJuiceParticles.lowPower).toBeLessThan(
+      VISUAL_LIMITS.maxJuiceParticles.standard,
+    );
+    expect(VISUAL_LIMITS.webInitialDownloadBytes).toBe(20 * 1024 * 1024);
+    expect(marketViewport(1920, 1080).hudColumns).toBe(4);
+    expect(marketViewport(844, 390, { left: 47, right: 47 }).safe.left).toBe(47);
   });
 });
 
@@ -667,6 +1056,26 @@ describe("SfxFeel", () => {
     expect(sfxTone("weak").freq).toBeGreaterThan(sfxTone("hit").freq);
     expect(sfxTone("perfect").freq).toBeGreaterThan(sfxTone("catch").freq);
     expect(sfxTone("shot").ms).toBeLessThan(sfxTone("perfect").ms);
+    expect(sfxRecipe("weak")).toHaveLength(2);
+    expect(sfxRecipe("perfect")).toHaveLength(3);
+    expect(sfxRecipe("bossWarn")[0].freq).toBeLessThan(sfxRecipe("purchase")[0].freq);
+  });
+
+  it("does not touch audio while muted and safely absorbs context failures", () => {
+    let creates = 0;
+    const broken = {
+      currentTime: 0,
+      destination: {},
+      createOscillator: () => {
+        creates += 1;
+        throw new Error("AudioContext unavailable");
+      },
+      createGain: () => { throw new Error("unreachable"); },
+    };
+    expect(playSynthRecipe(broken, sfxRecipe("weak"), false)).toBe(false);
+    expect(creates).toBe(0);
+    expect(playSynthRecipe(broken, sfxRecipe("weak"), true)).toBe(false);
+    expect(creates).toBe(1);
   });
 });
 

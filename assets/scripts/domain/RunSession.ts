@@ -7,13 +7,27 @@ import type {
 } from "../data/types";
 import { PriceCalculator } from "./PriceCalculator";
 import { StyleScoreSystem } from "./StyleScoreSystem";
+import {
+  advanceCaptureChain,
+  createCaptureChain,
+  type CaptureChainSnapshot,
+} from "./CaptureChain";
+import { styleGradeFor, type StyleGrade } from "./StyleGrade";
+
+export interface RunSessionOptions {
+  stylePointScale?: number;
+  economyScale?: number;
+  tutorial?: boolean;
+}
 
 export class RunSession {
   private readonly startedAt: number;
-  private readonly style = new StyleScoreSystem();
+  private readonly style: StyleScoreSystem;
   private readonly fish: CapturedFish[] = [];
   private readonly styleEvents: StyleEvent[] = [];
   private bestMultiplier = 1;
+  private bestGrade: StyleGrade = "C";
+  private chain: CaptureChainSnapshot = createCaptureChain();
 
   constructor(
     private readonly runId: string,
@@ -21,8 +35,10 @@ export class RunSession {
     private readonly toolId: string,
     private readonly toolLevel: number,
     now = Date.now(),
+    private readonly options: RunSessionOptions = {},
   ) {
     this.startedAt = now;
+    this.style = new StyleScoreSystem(undefined, options.stylePointScale ?? 1);
   }
 
   addStyle(event: StyleEvent): StyleSnapshot {
@@ -43,11 +59,19 @@ export class RunSession {
     this.style.reset();
   }
 
-  preview(): { coins: number; count: number; bestMultiplier: number } {
+  preview(): {
+    coins: number;
+    count: number;
+    bestMultiplier: number;
+    captureChain: number;
+    bestCaptureChain: number;
+  } {
     return {
       coins: this.fish.reduce((sum, item) => sum + item.price, 0),
       count: this.fish.length,
       bestMultiplier: this.bestMultiplier,
+      captureChain: this.chain.count,
+      bestCaptureChain: this.chain.best,
     };
   }
 
@@ -55,9 +79,16 @@ export class RunSession {
     config: FishConfig,
     freshness: number,
     now = Date.now(),
-    economyScale = 1,
+    economyScale = this.options.economyScale ?? 1,
+    traits: { airborneCapture?: boolean } = {},
   ): CapturedFish {
-    const styleMultiplier = this.style.getSnapshot().multiplier;
+    const styleSnapshot = this.style.getSnapshot();
+    const styleMultiplier = styleSnapshot.multiplier;
+    const styleGrade = styleGradeFor(styleSnapshot.points);
+    this.chain = advanceCaptureChain(this.chain, styleGrade, now);
+    if (gradeRank(styleGrade) > gradeRank(this.bestGrade)) {
+      this.bestGrade = styleGrade;
+    }
     const price = PriceCalculator.calculate(
       config,
       freshness,
@@ -68,6 +99,10 @@ export class RunSession {
       fishId: config.id,
       freshness,
       styleMultiplier,
+      stylePoints: styleSnapshot.points,
+      styleGrade,
+      captureChain: this.chain.count,
+      airborneCapture: traits.airborneCapture,
       price,
       capturedAt: now,
     };
@@ -88,6 +123,13 @@ export class RunSession {
       styleEvents: this.styleEvents.map((event) => ({ ...event })),
       totalCoins: this.fish.reduce((sum, item) => sum + item.price, 0),
       bestMultiplier: this.bestMultiplier,
+      bestStyleGrade: this.bestGrade,
+      bestCaptureChain: this.chain.best,
+      tutorialCompleted: this.options.tutorial || undefined,
     };
   }
+}
+
+function gradeRank(grade: StyleGrade): number {
+  return ["C", "B", "A", "S"].indexOf(grade);
 }

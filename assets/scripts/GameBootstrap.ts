@@ -6,8 +6,10 @@ import { ConfigService } from "./data/ConfigService";
 import type { RemoteConfig, RunSummary } from "./data/types";
 import { IslandRunController } from "./content/IslandRunController";
 import { LeaderboardService } from "./platform/LeaderboardService";
-import { WechatAdapter } from "./platform/WechatAdapter";
+import { ensureCocosPlatform } from "./platform/CocosPlatformBootstrap";
+import { platformAdapter } from "./platform/PlatformRuntime";
 import { playerSave } from "./save/SaveService";
+import { purchaseService } from "./monetization/MonetizationRuntime";
 
 const { ccclass, property } = _decorator;
 
@@ -38,6 +40,7 @@ export class GameBootstrap extends Component {
   private disposeIslandFinished?: () => void;
 
   protected async start(): Promise<void> {
+    ensureCocosPlatform(this.wechatCloudEnv || undefined);
     if (
       !this.fishConfig ||
       !this.toolConfig ||
@@ -52,17 +55,20 @@ export class GameBootstrap extends Component {
       this.islandConfig,
       this.remoteConfig,
     );
-    WechatAdapter.initializeCloud(this.wechatCloudEnv || undefined);
     try {
-      const response = await WechatAdapter.callCloud<{ config: RemoteConfig }>(
-        "getRemoteConfig",
-      );
-      ConfigService.applyRemoteConfig(response.config);
+      const remote = platformAdapter().remoteConfig;
+      if (remote) ConfigService.applyRemoteConfig(await remote.load<RemoteConfig>());
     } catch {
       // Bundled defaults keep the game playable offline.
     }
     const save = await playerSave.load();
-    if (WechatAdapter.isLowEndDevice() && !save.settings.lowPower) {
+    try {
+      await purchaseService().retryPendingFinalizations();
+      await purchaseService().syncRevocations();
+    } catch {
+      // Keep a non-expired authority cache while offline.
+    }
+    if (platformAdapter().isLowEndDevice() && !save.settings.lowPower) {
       await playerSave.save({
         ...save,
         settings: { ...save.settings, lowPower: true },

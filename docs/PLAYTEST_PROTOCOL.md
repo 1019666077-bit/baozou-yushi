@@ -10,13 +10,14 @@
 
 1. 扫体验码，从冷启动开始录制事件日志。
 2. 独立玩完教学及至少三局，测试员不口头指导。
-3. 记录首次捕获耗时、教学是否完成、第三局是否到达、主动触发的精彩动作数。
-4. 游戏后只问四题：
+3. 记录首次捕获耗时、教学是否完成、第三局是否到达、主动触发的精彩动作数和 P0 数量。
+4. 每局额外记录 C/B/A/S 捕获数、最高高光链、鲜度低于0.75的入箱次数、主要输入方式，以及行为提示是否看懂。
+5. 游戏后只问四题：
    - 你觉得怎样能把鱼卖得更贵？
    - 哪个操作最爽、哪个最难？
    - 你愿不愿再玩一局？为什么？
    - 你会不会叫朋友一起来玩？
-5. 对5名流失玩家做10分钟访谈，优先找操作、反馈或目标不清的问题。
+6. 对5名流失玩家做10分钟访谈，优先找操作、反馈或目标不清的问题。
 
 ## 通过门槛
 
@@ -28,6 +29,8 @@
 
 ## 记录表字段
 
-`tester_id, device, player_type, first_capture_seconds, tutorial_finished, reached_run_3, style_actions, understood_value_rule, replay_intent, blocker, notes`
+`tester_id, player_type, device, first_capture_seconds, tutorial_finished, reached_run_3, style_actions, understood_value_rule, replay_intent, blocker, notes, grade_c, grade_b, grade_a, grade_s, best_capture_chain, low_freshness_captures, primary_input, behavior_readable, low_power_fps_issue, p0_count`
 
-真实体验测试必须由实际玩家完成。仓库中的自动50人报告只用于经济曲线预检，不能替代本方案。
+`style_grade`、`capture_chain_update`、`freshness_decision`、`input_scheme` 与 `run_finish.bestGrade/bestCaptureChain` 可辅助核对记录，但主观问题仍以访谈答案为准。
+
+真实体验测试必须由实际玩家完成。空白模板不预填结果；仓库中的自动50人报告只用于经济曲线预检，不能替代本方案。

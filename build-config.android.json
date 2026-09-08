@@ -1,0 +1,36 @@
+{
+  "platform": "android",
+  "debug": false,
+  "buildPath": "project://build",
+  "outputName": "android",
+  "taskName": "android-google-play",
+  "buildMode": "normal",
+  "startScene": "ca2d3b94-865f-449d-845a-07861402b935",
+  "scenes": [
+    {
+      "url": "db://assets/scenes/Boot.scene",
+      "uuid": "ca2d3b94-865f-449d-845a-07861402b935"
+    }
+  ],
+  "useSplashScreen": false,
+  "md5Cache": true,
+  "sourceMaps": false,
+  "packages": {
+    "android": {
+      "packageName": "com.baozouyushi.game",
+      "orientation": "landscape",
+      "appABIs": [
+        "arm64-v8a"
+      ],
+      "androidInstant": false,
+      "remoteUrl": ""
+    }
+  },
+  "platformOptions": {
+    "adapter": "android",
+    "basicLaunch": true,
+    "localSaveOnly": true,
+    "adsEnabled": false,
+    "jsbBridgeGlobal": "__BAOZOU_ANDROID_BRIDGE__"
+  }
+}
