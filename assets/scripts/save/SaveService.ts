@@ -1,11 +1,10 @@
 import type { PlayerSave } from "../data/types";
 import type { CloudKind } from "../domain/CloudCopy";
-import {
-  createDefaultSave,
-  mergeSaves,
-} from "../domain/SaveMerge";
+import { createDefaultSave, mergeSaves } from "../domain/SaveMerge";
+import { persistCloudKind, shouldCallCloud } from "../domain/WechatSession";
 import type { PlatformAdapter } from "../platform/PlatformAdapter";
 import { platformAdapter } from "../platform/PlatformRuntime";
+import { WechatAdapter } from "../platform/WechatAdapter";
 
 const SAVE_KEY = "baozou_yushi_save_v1";
 
@@ -18,6 +17,13 @@ export class SaveService {
   constructor(
     private readonly platform: () => PlatformAdapter = platformAdapter,
   ) {}
+
+  private failedCloudKind(
+    adapter: PlatformAdapter,
+  ): Exclude<CloudKind, "syncing"> {
+    if (!(adapter instanceof WechatAdapter)) return "offline";
+    return persistCloudKind(WechatAdapter.sessionKind(), false);
+  }
 
   loadLocal(): PlayerSave {
     const local = this.platform().localSave.get<PlayerSave>(SAVE_KEY);
@@ -41,10 +47,18 @@ export class SaveService {
 
   private async performLoad(): Promise<PlayerSave> {
     this.loadLocal();
-    const cloud = this.platform().cloudSave;
+    const adapter = this.platform();
+    const cloud = adapter.cloudSave;
     if (!cloud) {
       this.sync = "local";
       this.persistLocal();
+      return this.get();
+    }
+    if (
+      adapter instanceof WechatAdapter &&
+      !shouldCallCloud(WechatAdapter.sessionKind())
+    ) {
+      this.sync = this.failedCloudKind(adapter);
       return this.get();
     }
     try {
@@ -55,7 +69,7 @@ export class SaveService {
       this.persistLocal();
       this.sync = "cloud";
     } catch {
-      this.sync = "offline";
+      this.sync = this.failedCloudKind(adapter);
     }
     return this.get();
   }
@@ -68,16 +82,24 @@ export class SaveService {
       updatedAt: Date.now(),
     };
     this.persistLocal();
-    const cloud = this.platform().cloudSave;
+    const adapter = this.platform();
+    const cloud = adapter.cloudSave;
     if (!cloud) {
       this.sync = "local";
+      return;
+    }
+    if (
+      adapter instanceof WechatAdapter &&
+      !shouldCallCloud(WechatAdapter.sessionKind())
+    ) {
+      this.sync = this.failedCloudKind(adapter);
       return;
     }
     try {
       await cloud.save(this.current);
       this.sync = "cloud";
     } catch {
-      this.sync = "offline";
+      this.sync = this.failedCloudKind(adapter);
     }
   }
 
@@ -93,16 +115,24 @@ export class SaveService {
     this.platform().localSave.remove(SAVE_KEY);
     this.current = createDefaultSave();
     this.persistLocal();
-    const cloud = this.platform().cloudSave;
+    const adapter = this.platform();
+    const cloud = adapter.cloudSave;
     if (!cloud) {
       this.sync = "local";
+      return this.get();
+    }
+    if (
+      adapter instanceof WechatAdapter &&
+      !shouldCallCloud(WechatAdapter.sessionKind())
+    ) {
+      this.sync = this.failedCloudKind(adapter);
       return this.get();
     }
     try {
       await cloud.delete();
       this.sync = "cloud";
     } catch (error) {
-      this.sync = "offline";
+      this.sync = this.failedCloudKind(adapter);
       throw new Error(
         `本机档已清空，但云端删除失败：${
           error instanceof Error ? error.message : "未知错误"

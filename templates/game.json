@@ -1,7 +1,7 @@
 {
   "deviceOrientation": "landscape",
   "showStatusBar": false,
-  "openDataContext": "open-data",
+  "openDataContext": "wechat-open-data",
   "networkTimeout": {
     "request": 10000,
     "connectSocket": 10000,

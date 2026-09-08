@@ -12,3 +12,4 @@ reports/
 .idea/
 .vscode/
 coverage/
+tools/first-run-preview/generated/

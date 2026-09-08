@@ -1,9 +1,10 @@
-export type CloudKind = "local" | "syncing" | "cloud" | "offline";
+export type CloudKind = "local" | "syncing" | "cloud" | "offline" | "unsigned";
 
 export function cloudStatusLine(kind: CloudKind): string {
   if (kind === "syncing") return "正在对云档…";
   if (kind === "cloud") return "云档已同步";
   if (kind === "offline") return "云档未开，进度先记本机";
+  if (kind === "unsigned") return "未登录，进度先记本机";
   return "本机档";
 }
 

@@ -1,13 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AndroidAdapter, type CocosSysLike } from "../assets/scripts/platform/AndroidAdapter";
+import {
+  AndroidAdapter,
+  type CocosSysLike,
+} from "../assets/scripts/platform/AndroidAdapter";
 import { CrazyGamesAdapter } from "../assets/scripts/platform/CrazyGamesAdapter";
 import type {
   PlatformAdapter,
   PlatformCapabilities,
 } from "../assets/scripts/platform/PlatformAdapter";
-import { DisabledMonetization, NoopLifecycle } from "../assets/scripts/platform/PlatformAdapter";
+import {
+  DisabledMonetization,
+  NoopLifecycle,
+} from "../assets/scripts/platform/PlatformAdapter";
 import { createPlatformAdapter } from "../assets/scripts/platform/PlatformFactory";
-import { WebLocalAdapter, type WebStorageLike } from "../assets/scripts/platform/WebLocalAdapter";
+import {
+  WebLocalAdapter,
+  type WebStorageLike,
+} from "../assets/scripts/platform/WebLocalAdapter";
 import { SaveService } from "../assets/scripts/save/SaveService";
 import { createDefaultSave } from "../assets/scripts/domain/SaveMerge";
 import { WechatAdapter } from "../assets/scripts/platform/WechatAdapter";
@@ -42,6 +51,7 @@ afterEach(() => {
   delete globalThis.CrazyGames;
   delete globalThis.__BAOZOU_ANDROID_BRIDGE__;
   delete (globalThis as typeof globalThis & { wx?: unknown }).wx;
+  WechatAdapter.forgetSession();
   vi.useRealTimers();
 });
 
@@ -85,9 +95,10 @@ describe("platform factory and capabilities", () => {
   it("awaits CrazyGames Data before writing a generated default", async () => {
     let resolveRemote!: (value: string | null) => void;
     const getItem = vi.fn(
-      () => new Promise<string | null>((resolve) => {
-        resolveRemote = resolve;
-      }),
+      () =>
+        new Promise<string | null>((resolve) => {
+          resolveRemote = resolve;
+        }),
     );
     const setItem = vi.fn(async () => undefined);
     globalThis.CrazyGames = {
@@ -137,7 +148,9 @@ describe("monetization outcomes", () => {
       status: "completed",
     });
 
-    installAd((callbacks) => callbacks.adError?.({ message: "User cancelled" }));
+    installAd((callbacks) =>
+      callbacks.adError?.({ message: "User cancelled" }),
+    );
     const cancelled = new CrazyGamesAdapter({
       adsEnabled: true,
       storage: new MemoryStorage(),
@@ -163,18 +176,22 @@ describe("monetization outcomes", () => {
 describe("offline save degradation", () => {
   it("treats cloud business rejection as a failed save", async () => {
     (globalThis as typeof globalThis & { wx?: unknown }).wx = {
+      login: (options: { success: (result: { code: string }) => void }) =>
+        options.success({ code: "save-test" }),
       cloud: {
         callFunction: (options: {
           success: (result: { result: unknown }) => void;
-        }) => options.success({
-          result: { ok: false, error: "revision_conflict" },
-        }),
+        }) =>
+          options.success({
+            result: { ok: false, error: "revision_conflict" },
+          }),
       },
     };
+    await WechatAdapter.login();
     const adapter = new WechatAdapter();
-    await expect(
-      adapter.cloudSave.save(createDefaultSave()),
-    ).rejects.toThrow("revision_conflict");
+    await expect(adapter.cloudSave.save(createDefaultSave())).rejects.toThrow(
+      "revision_conflict",
+    );
   });
 
   it("keeps local progress when cloud save fails", async () => {
@@ -201,6 +218,92 @@ describe("offline save degradation", () => {
     await service.save({ ...initial, coins: 321 });
     expect(service.get().coins).toBe(321);
     expect(service.cloudKind()).toBe("offline");
-    expect(local.localSave.get<{ coins: number }>("baozou_yushi_save_v1")?.coins).toBe(321);
+    expect(
+      local.localSave.get<{ coins: number }>("baozou_yushi_save_v1")?.coins,
+    ).toBe(321);
+  });
+});
+
+type WxStub = {
+  login?: (options: {
+    success: (result: { code: string }) => void;
+    fail: (error: unknown) => void;
+  }) => void;
+  cloud?: {
+    init: (options?: { traceUser?: boolean; env?: string }) => void;
+    callFunction: (options: {
+      name: string;
+      data?: unknown;
+      success: (result: { result: unknown }) => void;
+      fail: (error: unknown) => void;
+    }) => void;
+  };
+  getOpenDataContext?: () => { canvas?: { width: number; height: number } };
+};
+
+function setWx(stub?: WxStub): void {
+  const global = globalThis as { wx?: WxStub };
+  if (stub) global.wx = stub;
+  else delete global.wx;
+}
+
+describe("WechatAdapter login", () => {
+  afterEach(() => {
+    WechatAdapter.forgetSession();
+    setWx();
+  });
+
+  it("returns null in the editor without throwing", async () => {
+    setWx();
+    await expect(WechatAdapter.login()).resolves.toBeNull();
+    expect(WechatAdapter.signedIn).toBe(false);
+    expect(WechatAdapter.sessionKind()).toBe("editor");
+    expect(WechatAdapter.canShowFriendBoard()).toBe(false);
+    WechatAdapter.initializeCloud();
+    await expect(WechatAdapter.callCloud("loadSave")).rejects.toThrow(
+      /unavailable/,
+    );
+  });
+
+  it("resolves null when wx.login fails and skips the friend board", async () => {
+    setWx({
+      login: ({ fail }) => fail(new Error("denied")),
+      getOpenDataContext: () => ({}),
+      cloud: {
+        init: () => undefined,
+        callFunction: ({ fail }) => fail(new Error("no")),
+      },
+    });
+    await expect(WechatAdapter.login()).resolves.toBeNull();
+    expect(WechatAdapter.signedIn).toBe(false);
+    expect(WechatAdapter.sessionKind()).toBe("guest");
+    expect(WechatAdapter.canShowFriendBoard()).toBe(false);
+    WechatAdapter.initializeCloud();
+    await expect(WechatAdapter.callCloud("loadSave")).rejects.toThrow(
+      /unavailable/,
+    );
+  });
+
+  it("stores the code when wx.login succeeds", async () => {
+    let inited = false;
+    setWx({
+      login: ({ success }) => success({ code: "mock-code" }),
+      getOpenDataContext: () => ({ canvas: { width: 1, height: 1 } }),
+      cloud: {
+        init: () => {
+          inited = true;
+        },
+        callFunction: ({ success }) => success({ result: { ok: true } }),
+      },
+    });
+    await expect(WechatAdapter.login()).resolves.toBe("mock-code");
+    expect(WechatAdapter.signedIn).toBe(true);
+    expect(WechatAdapter.sessionKind()).toBe("signed");
+    expect(WechatAdapter.canShowFriendBoard()).toBe(true);
+    WechatAdapter.initializeCloud();
+    expect(inited).toBe(true);
+    await expect(
+      WechatAdapter.callCloud<{ ok: boolean }>("loadSave"),
+    ).resolves.toEqual({ ok: true });
   });
 });

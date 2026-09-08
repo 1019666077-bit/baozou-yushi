@@ -1,15 +1,34 @@
-import { _decorator, Component, Label } from "cc";
+import { _decorator, Color, Component, Graphics, Label, Node } from "cc";
 import { fishIdsForIsland } from "./content/IslandFishPool";
 import { ConfigService } from "./data/ConfigService";
 import type { PlayerSave, RemoteConfig, RunSummary } from "./data/types";
 import {
   bookLines,
   settleRun,
+  coinJumpCaption,
+  discoveryToastLine,
+  firstCatchIds,
   settleHeadline,
   settleRows,
   settleSlogan,
 } from "./domain/SettleCopy";
-import { settingCaption } from "./domain/GameFeel";
+import {
+  coinJumpAlpha,
+  coinJumpLiftPx,
+  coinJumpSeconds,
+  discoveryPunchSeconds,
+  sellPunchSeconds,
+  settingCaption,
+} from "./domain/GameFeel";
+import { sellGoalBridge, sellPopup } from "./domain/StyleCallout";
+import {
+  spawnGoldRain,
+  tickJuice,
+  tickJuiceFlash,
+  type JuiceFlash,
+  type JuiceParticle,
+  spawnJuiceFlash,
+} from "./domain/HitJuice";
 import {
   bestStyleLine,
   boardLines,
@@ -18,7 +37,6 @@ import {
 import {
   closedIslandCaption,
   cloudStatusLine,
-  harborNotice,
   islandClosed,
   type CloudKind,
 } from "./domain/CloudCopy";
@@ -32,14 +50,55 @@ import {
   drawOcean,
   makeButton,
   makeLabel,
+  makePlate,
+  makeProgressBar,
   replacePlayLayer,
+  tintGold,
 } from "./ui/RuntimeUi";
+import { drawGuideHole, drawJuice } from "./ui/GrayArt";
 import { harborIslandIds, harborIslandX } from "./domain/GrayLook";
 import { FriendBoardView } from "./ui/FriendBoardView";
 import { ensureIslandPack } from "./content/IslandPackLoader";
-import { harborSailWait } from "./domain/IslandPack";
+import {
+  decideSailAfterPack,
+  harborPackFailCopy,
+  harborSailWait,
+} from "./domain/IslandPack";
 import { canSelectCosmetic, cosmeticSlot } from "./domain/MarketArtStyle";
 import {
+  harborBuildingBack,
+  harborBuildingBody,
+  harborBuildingTitle,
+  harborFlotsamDeliverToast,
+  harborFlotsamHeldLine,
+  harborFlotsamPickCaption,
+  harborFlotsamPickedToast,
+  harborOrderAcceptCaption,
+  harborOrderAcceptHint,
+  harborOrderDeliverCaption,
+  harborOrderDeliverHint,
+  harborOrderName,
+  harborOrderNeedLine,
+  harborOrderBoardLabel,
+  harborPontoonBuiltHint,
+  harborPontoonTierLine,
+  harborPontoonUpgradeCaption,
+  harborPontoonUpgradeLabel,
+  harborPontoonUpgradeToast,
+  harborWorldTitle,
+  type HarborBuildingKind,
+} from "./domain/HarborCopy";
+import {
+  canAcceptOrder,
+  canDeliverOrder,
+  canPickFlotsam,
+  canUpgradePontoon,
+  normalizeStation,
+  stationOrderNeed,
+} from "./domain/StationOps";
+import {
+  healthAdviceLines,
+  healthAdviceTitle,
   privacyBackCaption,
   privacyLines,
   privacyTitle,
@@ -50,6 +109,29 @@ import {
   wipeDoneNotice,
   wipeTitle,
 } from "./domain/PrivacyCopy";
+import {
+  DEFAULT_SAIL_ISLAND_ID,
+  TUTORIAL_ISLAND_ID,
+  harborChipSelected,
+  harborFeatureButtonLabel,
+  harborFeatureLockedHint,
+  harborGoalPrompt,
+  harborHudPhase,
+  harborHudShowDiscovery,
+  harborHudShowMeta,
+  harborHudToastText,
+  harborIslandChipCaption,
+  harborNextCta,
+  harborNextPrompt,
+  harborSailCaption,
+  harborToastHoldSeconds,
+  harborUnlocksForSave,
+  harborUpgradeBarVisible,
+  harborUpgradeCtaLabel,
+  resolveHarborIsland,
+  tutorialGuideRing,
+  upgradeProgressRatio,
+} from "./domain/TutorialFlow";
 import { RuntimePrototype } from "./RuntimePrototype";
 import {
   applyAuthoritativeDailyClaim,
@@ -69,6 +151,7 @@ import {
 } from "./monetization/ProductCatalog";
 import { purchaseService } from "./monetization/MonetizationRuntime";
 import { adGrants } from "./monetization/AdGrantService";
+import { HarborStage } from "./world/HarborStage";
 
 const { ccclass } = _decorator;
 
@@ -76,7 +159,7 @@ const { ccclass } = _decorator;
 export class RuntimeHome extends Component {
   private status!: Label;
   private coinsLabel!: Label;
-  private selectedIslandId = "island_foam_bay";
+  private selectedIslandId = DEFAULT_SAIL_ISLAND_ID;
   private selectedToolId = "tool_rod";
   private lastSummary?: RunSummary;
   private pendingSummary?: RunSummary;
@@ -86,6 +169,8 @@ export class RuntimeHome extends Component {
   private cloudKind: CloudKind = "syncing";
   private statusFlash?: string;
   private bookPage = 0;
+  private toastLabel?: Label;
+  private toastLeft = 0;
   private surface:
     | "harbor"
     | "settings"
@@ -96,8 +181,26 @@ export class RuntimeHome extends Component {
     | "cosmetics"
     | "challenges"
     | "board"
+    | "building"
     | "settle"
     | "sea" = "harbor";
+  private justDiscovered: string[] = [];
+  private coinJumpLabel?: Label;
+  private coinJumpGained = 0;
+  private coinJumpLeft = 0;
+  private coinJumpElapsed = 0;
+  private sellCallout?: Label;
+  private sellPunchLeft = 0;
+  private sellPunchElapsed = 0;
+  private discoveryLabel?: Label;
+  private discoveryPunchLeft = 0;
+  private discoveryPunchElapsed = 0;
+  private gold: JuiceParticle[] = [];
+  private goldFlash?: JuiceFlash;
+  private goldGfx?: Graphics;
+  private settleGuide?: Graphics;
+  private settleGuideAt = { x: 0, y: -230 };
+  private harbor3d?: HarborStage;
 
   protected onLoad(): void {
     try {
@@ -105,9 +208,12 @@ export class RuntimeHome extends Component {
       ConfigService.ensureBundled();
       playerSave.loadLocal();
       const save = playerSave.get();
-      this.selectedIslandId = "island_foam_bay";
+      this.selectedIslandId = resolveHarborIsland(
+        save.tutorialComplete,
+        DEFAULT_SAIL_ISLAND_ID,
+      );
       this.selectedToolId = save.tools[0]?.toolId ?? "tool_rod";
-      console.log("baozou-flop-v28");
+      console.log("baozou-flop-v33");
       SfxPlayer.setEnabled(save.settings.sfx);
       this.showHarbor();
       void this.bootstrapCloud();
@@ -138,10 +244,20 @@ export class RuntimeHome extends Component {
       // A still-valid server authority cache remains usable offline.
     }
     this.cloudKind = playerSave.cloudKind();
+    const save = playerSave.get();
+    this.selectedIslandId = resolveHarborIsland(
+      save.tutorialComplete,
+      this.selectedIslandId,
+    );
     if (this.surface === "harbor") {
       this.showHarbor();
-      if (!playerSave.get().tutorialComplete) void this.sail();
+      if (!save.tutorialComplete) void this.sail();
     }
+  }
+
+  protected onDestroy(): void {
+    HarborStage.drop();
+    this.harbor3d = undefined;
   }
 
   showHarbor(): void {
@@ -149,43 +265,146 @@ export class RuntimeHome extends Component {
     const proto = this.node.getComponent(RuntimePrototype);
     if (proto) proto.destroy();
     const layer = replacePlayLayer(this.node);
-    drawOcean(layer, { harbor: true });
+    this.paintHarborWorld(layer);
 
     const save = playerSave.get();
-    makeLabel(layer, "暴走鱼市 · 潮汐港口 v28", 34, 0, 310);
-    this.coinsLabel = makeLabel(layer, `金币 ${save.coins}`, 24, 470, 310, 280);
-    makeButton(layer, "设置", -530, 310, () => this.showSettings(), 140, 52, 22);
-    makeButton(layer, "商店", 285, 260, () => void this.showStore(), 120, 48, 20);
-    makeButton(layer, "外观", 425, 260, () => this.showCosmetics(), 120, 48, 20);
-    makeLabel(layer, cloudStatusLine(this.cloudKind), 18, 0, 278, 900);
-    this.status = makeLabel(
-      layer,
-      this.statusFlash ??
-        (this.lastSummary
-          ? `${settleHeadline(this.lastSummary)}。${settleSlogan(this.lastSummary)}`
-          : harborNotice(ConfigService.remoteConfig().notice)),
-      20,
-      0,
-      248,
+    this.selectedIslandId = resolveHarborIsland(
+      save.tutorialComplete,
+      this.selectedIslandId,
     );
+    const unlocks = harborUnlocksForSave(save);
+    const island = ConfigService.islandById(this.selectedIslandId);
+    const tool = ConfigService.toolById(this.selectedToolId);
+    const ownedTool = save.tools.find((entry) => entry.toolId === tool.id);
+    const nextLevel = tool.levels.find(
+      (level) => level.level === (ownedTool?.level ?? 0) + 1,
+    );
+    makeLabel(layer, harborWorldTitle(), 36, 0, 310);
+    this.coinsLabel = tintGold(makeLabel(layer, `金币 ${save.coins}`, 26, 470, 310, 280));
+    this.settleGuide = undefined;
+    this.goldGfx = undefined;
+    if (this.coinJumpGained > 0) {
+      this.coinJumpLabel = tintGold(
+        makeLabel(layer, coinJumpCaption(this.coinJumpGained), 28, 470, 274, 280),
+      );
+      const sellLine = nextLevel
+        ? sellGoalBridge(this.coinJumpGained, save.coins, nextLevel.upgradeCost)
+        : sellPopup(this.coinJumpGained);
+      this.sellCallout = tintGold(makeLabel(layer, sellLine, 28, 0, 120, 640));
+      const juiceNode = new Node("GoldRain");
+      juiceNode.layer = layer.layer;
+      juiceNode.parent = layer;
+      this.goldGfx = juiceNode.addComponent(Graphics);
+    } else {
+      this.coinJumpLabel = undefined;
+      this.sellCallout = undefined;
+    }
+    makeButton(layer, "设置", -530, 310, () => this.showSettings(), 140, 52, 22);
+    makeButton(layer, "商店", 260, 270, () => void this.showStore(), 120, 46, 19);
+    makeButton(layer, "外观", 400, 270, () => this.showCosmetics(), 120, 46, 19);
+    const nextCta = harborNextCta({
+      tutorialComplete: save.tutorialComplete,
+      completedRuns: save.completedRuns,
+      pendingSell: false,
+      upgradeUnlocked: unlocks.upgrade,
+      coins: save.coins,
+      nextUpgradeCost: nextLevel?.upgradeCost,
+    });
+    const goal = harborGoalPrompt({
+      tutorialComplete: save.tutorialComplete,
+      completedRuns: save.completedRuns,
+      coins: save.coins,
+      nextUpgradeCost: nextLevel?.upgradeCost,
+      upgradeUnlocked: unlocks.upgrade,
+    });
+    const phase = harborHudPhase({
+      sellJuiceActive: this.coinJumpLeft > 0,
+      toastActive: this.toastLeft > 0 && !!this.statusFlash,
+    });
+    const showMeta = harborHudShowMeta(phase);
+    const discoveryText = discoveryToastLine(
+      this.justDiscovered.map((id) => {
+        try {
+          return ConfigService.fishById(id).name;
+        } catch {
+          return id;
+        }
+      }),
+    );
+    const showDiscovery = harborHudShowDiscovery(phase, !!discoveryText);
+    if (showMeta) {
+      makeLabel(layer, cloudStatusLine(this.cloudKind), 18, 0, 278, 900);
+      makeLabel(
+        layer,
+        healthAdviceLines()[1] ?? healthAdviceLines()[0],
+        16,
+        0,
+        262,
+        1100,
+      );
+    }
+    makePlate(layer, 0, 248, !save.tutorialComplete, 820, 48);
+    this.status = makeLabel(layer, goal, 20, 0, 248);
+    const nextCost = nextLevel?.upgradeCost;
+    if (
+      nextCost != null &&
+      harborUpgradeBarVisible({
+        tutorialComplete: save.tutorialComplete,
+        coins: save.coins,
+        nextUpgradeCost: nextCost,
+      })
+    ) {
+      makeProgressBar(
+        layer,
+        0,
+        214,
+        380,
+        upgradeProgressRatio(save.coins, nextCost),
+      );
+    }
+    this.status.color = new Color(255, 252, 236, 255);
+    const toastText = harborHudToastText({
+      phase,
+      toast: this.statusFlash,
+      discoveryText: discoveryText || undefined,
+    });
+    if (toastText) {
+      this.toastLabel = makeLabel(layer, toastText, 22, 0, 206, 720);
+      if (showDiscovery && toastText === discoveryText) {
+        this.discoveryLabel = tintGold(this.toastLabel);
+      } else {
+        this.discoveryLabel = undefined;
+      }
+    } else {
+      this.toastLabel = undefined;
+      this.discoveryLabel = undefined;
+    }
 
     const islands = harborIslandIds();
     const closedIds = ConfigService.remoteConfig().disabledIslands ?? [];
     islands.forEach((islandId) => {
       const island = ConfigService.islandById(islandId);
       const unlocked = save.unlockedIslands.includes(island.id);
-      const selected = island.id === this.selectedIslandId;
+      const selected = harborChipSelected(
+        island.id,
+        save.tutorialComplete,
+        this.selectedIslandId,
+      );
       const closed = islandClosed(island.id, closedIds);
       const caption = closed
         ? closedIslandCaption(island.name)
-        : unlocked
-          ? `${selected ? "● " : ""}${island.name}`
-          : `${island.name} ${island.unlockCost}`;
+        : harborIslandChipCaption({
+            name: island.name,
+            unlockCost: island.unlockCost,
+            unlocked,
+            selected,
+            tutorialComplete: save.tutorialComplete,
+          });
       makeButton(
         layer,
         caption,
         harborIslandX(island.id),
-        188,
+        164,
         () => void this.onIsland(island.id),
         240,
         56,
@@ -211,12 +430,6 @@ export class RuntimeHome extends Component {
       );
     });
 
-    const island = ConfigService.islandById(this.selectedIslandId);
-    const tool = ConfigService.toolById(this.selectedToolId);
-    const ownedTool = save.tools.find((entry) => entry.toolId === tool.id);
-    const nextLevel = tool.levels.find(
-      (level) => level.level === (ownedTool?.level ?? 0) + 1,
-    );
     makeLabel(
       layer,
       `出航：${island.name} · ${tool.name} Lv${ownedTool?.level ?? 1}${
@@ -235,20 +448,228 @@ export class RuntimeHome extends Component {
       1100,
     );
 
-    makeButton(layer, "出海捕鱼", -120, -230, () => this.sail(), 210, 88, 26);
+    const station = normalizeStation(save.station);
+    if (canPickFlotsam(station)) {
+      makeButton(
+        layer,
+        harborFlotsamPickCaption(),
+        340,
+        -40,
+        () => void this.onPickFlotsam(),
+        180,
+        52,
+        20,
+      );
+    } else if (station.flotsamHeld > 0) {
+      makeLabel(layer, harborFlotsamHeldLine(station.flotsamHeld), 18, 340, -40, 280);
+    }
     makeButton(
       layer,
-      ownedTool && nextLevel ? `升级${tool.name}` : "查看升级",
-      -500,
+      harborOrderBoardLabel(),
+      -340,
+      -140,
+      () => this.showBuilding("orders"),
+      180,
+      52,
+      20,
+    );
+    makeButton(
+      layer,
+      harborPontoonUpgradeLabel(),
+      80,
+      -140,
+      () => this.showBuilding("pontoon"),
+      180,
+      52,
+      20,
+    );
+    makeButton(
+      layer,
+      harborSailCaption(save.tutorialComplete, save.completedRuns),
+      -80,
+      -230,
+      () => this.sail(),
+      230,
+      90,
+      30,
+      nextCta === "sail" ? "primary" : "secondary",
+    );
+    makeButton(
+      layer,
+      harborUpgradeCtaLabel({
+        tutorialComplete: save.tutorialComplete,
+        completedRuns: save.completedRuns,
+        coins: save.coins,
+        nextUpgradeCost: nextLevel?.upgradeCost,
+        toolName: tool.name,
+      }),
+      -470,
       -230,
       () => void this.onUpgrade(),
-      200,
+      nextCta === "upgrade" ? 220 : 200,
+      nextCta === "upgrade" ? 84 : 72,
+      nextCta === "upgrade" ? 26 : 20,
+      nextCta === "upgrade" ? "primary" : "secondary",
+    );
+    makeButton(
+      layer,
+      harborFeatureButtonLabel("book", save),
+      180,
+      -230,
+      () => {
+        if (!unlocks.book) {
+          this.setStatus(harborFeatureLockedHint("book", save));
+          this.showHarbor();
+          return;
+        }
+        this.showBook();
+      },
+      140,
       72,
       20,
     );
-    makeButton(layer, "图鉴", 100, -230, () => this.showBook(), 150, 72, 22);
-    makeButton(layer, "目标", 280, -230, () => this.showChallenges(), 150, 72, 22);
-    makeButton(layer, "榜", 460, -230, () => this.showBoard(), 140, 72, 22);
+    makeButton(layer, "目标", 350, -230, () => this.showChallenges(), 140, 72, 20);
+    makeButton(
+      layer,
+      harborFeatureButtonLabel("board", save),
+      520,
+      -230,
+      () => {
+        if (!unlocks.board) {
+          this.setStatus(harborFeatureLockedHint("board", save));
+          this.showHarbor();
+          return;
+        }
+        this.showBoard();
+      },
+      100,
+      72,
+      19,
+    );
+  }
+
+  private showBuilding(kind: HarborBuildingKind): void {
+    this.surface = "building";
+    const proto = this.node.getComponent(RuntimePrototype);
+    if (proto) proto.destroy();
+    const layer = replacePlayLayer(this.node);
+    this.paintHarborWorld(layer);
+    const station = HarborActions.readStation();
+    makeLabel(layer, harborBuildingTitle(kind), 34, 0, 220);
+    if (kind === "pontoon") {
+      makeLabel(layer, harborPontoonTierLine(station.pontoonTier), 24, 0, 160, 900);
+      makeLabel(layer, harborBuildingBody("pontoon", station.pontoonTier), 22, 0, 90, 980);
+      makeLabel(layer, harborPontoonBuiltHint(), 18, 0, 30, 900);
+      makeButton(
+        layer,
+        harborPontoonUpgradeCaption(station.pontoonTier),
+        0,
+        -140,
+        () => void this.onUpgradePontoon(),
+        260,
+        64,
+        22,
+      );
+    } else {
+      makeLabel(layer, harborOrderName(), 26, 0, 164);
+      makeLabel(layer, harborBuildingBody("orders"), 22, 0, 100, 980);
+      makeLabel(
+        layer,
+        harborOrderNeedLine(station.orderProgress, stationOrderNeed()),
+        22,
+        0,
+        40,
+      );
+      if (station.flotsamHeld > 0) {
+        makeLabel(layer, harborFlotsamHeldLine(station.flotsamHeld), 18, 0, 8, 720);
+      }
+      makeButton(
+        layer,
+        harborOrderAcceptCaption(station.orderAccepted),
+        -180,
+        -140,
+        () => void this.onAcceptOrder(),
+        200,
+        64,
+        22,
+      );
+      makeButton(
+        layer,
+        harborOrderDeliverCaption(station.orderDelivered),
+        180,
+        -140,
+        () => void this.onDeliverOrder(),
+        200,
+        64,
+        22,
+      );
+    }
+    makeButton(
+      layer,
+      harborBuildingBack(),
+      0,
+      -250,
+      () => this.showHarbor(),
+      240,
+      72,
+      24,
+    );
+  }
+
+  private async onAcceptOrder(): Promise<void> {
+    const station = HarborActions.readStation();
+    if (!canAcceptOrder(station)) {
+      this.setStatus(
+        station.orderDelivered
+          ? harborOrderDeliverCaption(true)
+          : harborOrderAcceptCaption(true),
+      );
+      this.showBuilding("orders");
+      return;
+    }
+    const error = await HarborActions.acceptOrder();
+    this.setStatus(error ?? harborOrderAcceptCaption(true));
+    this.showBuilding("orders");
+  }
+
+  private async onDeliverOrder(): Promise<void> {
+    const station = HarborActions.readStation();
+    if (!canDeliverOrder(station)) {
+      this.setStatus(
+        station.orderDelivered
+          ? harborOrderDeliverCaption(true)
+          : station.orderAccepted
+            ? harborOrderDeliverHint()
+            : harborOrderAcceptHint(),
+      );
+      this.showBuilding("orders");
+      return;
+    }
+    const error = await HarborActions.deliverOrder();
+    this.setStatus(error ?? harborFlotsamDeliverToast());
+    this.showBuilding("orders");
+  }
+
+  private async onPickFlotsam(): Promise<void> {
+    const station = HarborActions.readStation();
+    if (!canPickFlotsam(station)) return;
+    const error = await HarborActions.pickFlotsam();
+    this.setStatus(error ?? harborFlotsamPickedToast());
+    this.showHarbor();
+  }
+
+  private async onUpgradePontoon(): Promise<void> {
+    const station = HarborActions.readStation();
+    if (!canUpgradePontoon(station)) {
+      this.setStatus(harborPontoonUpgradeCaption(station.pontoonTier));
+      this.showBuilding("pontoon");
+      return;
+    }
+    const error = await HarborActions.upgradePontoon();
+    HarborStage.drop();
+    this.harbor3d = undefined;
+    this.setStatus(error ?? harborPontoonUpgradeToast());
+    this.showBuilding("pontoon");
   }
 
   private showSettle(
@@ -262,15 +683,35 @@ export class RuntimeHome extends Component {
     const proto = this.node.getComponent(RuntimePrototype);
     if (proto) proto.destroy();
     const layer = replacePlayLayer(this.node);
-    drawOcean(layer, { harbor: true });
+    this.paintHarborWorld(layer);
     makeLabel(layer, "潮汐鱼市结算", 34, 0, 300);
     makeLabel(layer, settleHeadline(summary), 26, 0, 236);
-    settleRows(summary, (id) => ConfigService.fishById(id).name).forEach(
-      (row, index) => {
-        makeLabel(layer, row, 22, 0, 170 - index * 36);
-      },
+    const knownBefore = playerSave.get().discoveredFish;
+    const firstNames = firstCatchIds(
+      summary.fish.map((item) => item.fishId),
+      knownBefore,
+    ).map((id) => ConfigService.fishById(id).name);
+    const toast = discoveryToastLine(firstNames);
+    if (toast) {
+      makePlate(layer, 0, 204, true, 640, 40);
+      tintGold(makeLabel(layer, toast, 24, 0, 204));
+    }
+    settleRows(
+      summary,
+      (id) => ConfigService.fishById(id).name,
+      knownBefore,
+    ).forEach((row, index) => {
+      makeLabel(layer, row, 22, 0, 170 - index * 36);
+    });
+    makeLabel(
+      layer,
+      summary.fish.length > 0
+        ? harborNextPrompt("sell")
+        : settleSlogan(summary),
+      22,
+      0,
+      -80,
     );
-    makeLabel(layer, settleSlogan(summary), 22, 0, -80);
     const caption = summary.fish.length > 0 ? "卖到鱼市" : "回到港口";
     makeButton(
       layer,
@@ -281,6 +722,7 @@ export class RuntimeHome extends Component {
       250,
       88,
       28,
+      "primary",
     );
     if (rewardAllowed && summary.totalCoins > 0) {
       makeButton(
@@ -293,6 +735,15 @@ export class RuntimeHome extends Component {
         88,
         24,
       );
+    }
+    this.settleGuideAt = { x: -170, y: -230 };
+    if (summary.fish.length > 0) {
+      const guideNode = new Node("SellGuide");
+      guideNode.layer = layer.layer;
+      guideNode.parent = layer;
+      this.settleGuide = guideNode.addComponent(Graphics);
+    } else {
+      this.settleGuide = undefined;
     }
   }
 
@@ -395,7 +846,7 @@ export class RuntimeHome extends Component {
   private showBook(): void {
     this.surface = "book";
     const layer = replacePlayLayer(this.node);
-    drawOcean(layer, { harbor: true });
+    this.paintHarborWorld(layer);
     const save = playerSave.get();
     makeLabel(layer, "潮汐图鉴", 34, 0, 300);
     makeLabel(
@@ -614,7 +1065,7 @@ export class RuntimeHome extends Component {
   private showSettings(): void {
     this.surface = "settings";
     const layer = replacePlayLayer(this.node);
-    drawOcean(layer, { harbor: true });
+    this.paintHarborWorld(layer);
     const save = playerSave.get();
     makeLabel(layer, "潮汐设置", 34, 0, 300);
     makeLabel(
@@ -680,10 +1131,14 @@ export class RuntimeHome extends Component {
   private showPrivacy(): void {
     this.surface = "privacy";
     const layer = replacePlayLayer(this.node);
-    drawOcean(layer, { harbor: true });
+    this.paintHarborWorld(layer);
     makeLabel(layer, privacyTitle(), 34, 0, 300);
+    makeLabel(layer, healthAdviceTitle(), 22, 0, 258);
+    healthAdviceLines().forEach((line, index) => {
+      makeLabel(layer, line, 16, 0, 228 - index * 28, 1100);
+    });
     privacyLines().forEach((line, index) => {
-      makeLabel(layer, line, 20, 0, 230 - index * 52, 1080);
+      makeLabel(layer, line, 18, 0, 160 - index * 40, 1080);
     });
     makeButton(
       layer,
@@ -700,7 +1155,7 @@ export class RuntimeHome extends Component {
   private showWipe(): void {
     this.surface = "wipe";
     const layer = replacePlayLayer(this.node);
-    drawOcean(layer, { harbor: true });
+    this.paintHarborWorld(layer);
     makeLabel(layer, wipeTitle(), 34, 0, 220);
     makeLabel(layer, wipeBody(), 22, 0, 120, 980);
     makeButton(
@@ -728,19 +1183,23 @@ export class RuntimeHome extends Component {
   private async confirmWipe(): Promise<void> {
     const error = await HarborActions.clearSave();
     this.cloudKind = playerSave.cloudKind();
-    this.selectedIslandId = "island_foam_bay";
+    this.selectedIslandId = resolveHarborIsland(
+      playerSave.get().tutorialComplete,
+      DEFAULT_SAIL_ISLAND_ID,
+    );
     this.selectedToolId = playerSave.get().tools[0]?.toolId ?? "tool_rod";
     this.lastSummary = undefined;
     this.pendingSummary = undefined;
     SfxPlayer.setEnabled(playerSave.get().settings.sfx);
     this.statusFlash = error ?? wipeDoneNotice();
+    this.toastLeft = harborToastHoldSeconds();
     this.showHarbor();
   }
 
   private showBoard(): void {
     this.surface = "board";
     const layer = replacePlayLayer(this.node);
-    drawOcean(layer, { harbor: true });
+    this.paintHarborWorld(layer);
     const save = playerSave.get();
     makeLabel(layer, "潮汐精彩榜", 34, 0, 300);
     makeLabel(layer, bestStyleLine(save.bestStyleScore), 26, 0, 252);
@@ -764,7 +1223,13 @@ export class RuntimeHome extends Component {
       220,
       save.bestStyleScore,
     );
-    makeLabel(layer, friendBoardHint(openData), 18, 0, openData ? -160 : -80);
+    makeLabel(
+      layer,
+      friendBoardHint(openData, this.cloudKind === "cloud"),
+      18,
+      0,
+      openData ? -160 : -80,
+    );
     makeButton(layer, "返回港口", 0, -250, () => this.showHarbor(), 240, 72, 24);
   }
 
@@ -798,7 +1263,23 @@ export class RuntimeHome extends Component {
     this.settling = true;
     const weekly = this.pendingWeekly;
     try {
-      const next = settleRun(playerSave.get(), run);
+      const before = playerSave.get();
+      const next = settleRun(before, run);
+      this.justDiscovered = firstCatchIds(
+        run.fish.map((item) => item.fishId),
+        before.discoveredFish,
+      );
+      this.coinJumpGained = run.totalCoins;
+      this.coinJumpElapsed = 0;
+      this.coinJumpLeft = run.totalCoins > 0 ? coinJumpSeconds() : 0;
+      this.sellPunchElapsed = 0;
+      this.sellPunchLeft = run.totalCoins > 0 ? sellPunchSeconds(false) : 0;
+      this.discoveryPunchElapsed = 0;
+      this.discoveryPunchLeft =
+        this.justDiscovered.length > 0 ? discoveryPunchSeconds(false) : 0;
+      this.gold = run.totalCoins > 0 ? spawnGoldRain(470, 300, false) : [];
+      this.goldFlash =
+        run.totalCoins > 0 ? spawnJuiceFlash("sell", 470, 300, false) : undefined;
       await playerSave.save(next);
       try {
         await platformAdapter().dailyClaims?.recordRun(
@@ -827,7 +1308,18 @@ export class RuntimeHome extends Component {
       this.lastSummary = run;
       this.pendingSummary = undefined;
       this.pendingWeekly = false;
-      if (!rewardAd) this.statusFlash = undefined;
+      if (!rewardAd) {
+        const toast = discoveryToastLine(
+          this.justDiscovered.map((id) => ConfigService.fishById(id).name),
+        );
+        this.statusFlash = toast || undefined;
+      }
+      this.toastLeft =
+        this.coinJumpLeft > 0 || !this.statusFlash ? 0 : harborToastHoldSeconds();
+      this.selectedIslandId = resolveHarborIsland(
+        next.tutorialComplete,
+        this.selectedIslandId,
+      );
       this.showHarbor();
       void adGrants.showInterstitial(weekly);
     } finally {
@@ -841,6 +1333,11 @@ export class RuntimeHome extends Component {
       return;
     }
     const save = playerSave.get();
+    if (!save.tutorialComplete) {
+      this.setStatus("先完成练潮码头教学，再自由选岛。");
+      this.showHarbor();
+      return;
+    }
     if (!save.unlockedIslands.includes(islandId)) {
       const error = await HarborActions.unlockIsland(islandId);
       this.setStatus(error ?? `已解锁${ConfigService.islandById(islandId).name}`);
@@ -875,6 +1372,11 @@ export class RuntimeHome extends Component {
   }
 
   private async onUpgrade(): Promise<void> {
+    const saveForUpgrade = playerSave.get();
+    if (!harborUnlocksForSave(saveForUpgrade).upgrade) {
+      this.setStatus(harborFeatureLockedHint("upgrade", saveForUpgrade));
+      return;
+    }
     const error = await HarborActions.upgrade(this.selectedToolId);
     this.setStatus(
       error ?? `${ConfigService.toolById(this.selectedToolId).name}升级成功`,
@@ -884,13 +1386,23 @@ export class RuntimeHome extends Component {
 
   private async sail(): Promise<void> {
     const save = playerSave.get();
+    this.selectedIslandId = resolveHarborIsland(
+      save.tutorialComplete,
+      this.selectedIslandId,
+    );
+    if (!save.tutorialComplete) {
+      this.selectedToolId = "tool_rod";
+    }
     if (islandClosed(this.selectedIslandId, ConfigService.remoteConfig().disabledIslands ?? [])) {
       this.setStatus(
         closedIslandCaption(ConfigService.islandById(this.selectedIslandId).name),
       );
       return;
     }
-    if (!save.unlockedIslands.includes(this.selectedIslandId)) {
+    if (
+      this.selectedIslandId !== TUTORIAL_ISLAND_ID &&
+      !save.unlockedIslands.includes(this.selectedIslandId)
+    ) {
       this.setStatus("先解锁这座岛。");
       return;
     }
@@ -905,9 +1417,15 @@ export class RuntimeHome extends Component {
       return;
     }
     this.setStatus(harborSailWait(island.name));
-    await ensureIslandPack(this.selectedIslandId);
+    const packReady = await ensureIslandPack(this.selectedIslandId);
+    if (decideSailAfterPack(packReady) === "stay_harbor") {
+      this.setStatus(harborPackFailCopy(island.name));
+      return;
+    }
     this.statusFlash = undefined;
     this.surface = "sea";
+    HarborStage.drop();
+    this.harbor3d = undefined;
     RuntimePrototype.pending = {
       islandId: this.selectedIslandId,
       toolId: this.selectedToolId,
@@ -920,7 +1438,94 @@ export class RuntimeHome extends Component {
 
   private setStatus(value: string): void {
     this.statusFlash = value;
-    if (this.status) this.status.string = value;
-    if (this.coinsLabel) this.coinsLabel.string = `金币 ${playerSave.get().coins}`;
+    this.toastLeft = harborToastHoldSeconds();
+    if (this.coinsLabel?.isValid) {
+      this.coinsLabel.string = `金币 ${playerSave.get().coins}`;
+      tintGold(this.coinsLabel);
+    }
+  }
+
+  private paintHarborWorld(layer: Node): void {
+    const station = HarborActions.readStation();
+    try {
+      this.harbor3d = HarborStage.ensure(this.node, {
+        pontoonTier: station.pontoonTier,
+        showFlotsam: station.flotsamSpawned,
+      });
+    } catch (error) {
+      console.warn("Harbor 3D unavailable; using 2D fallback", error);
+      this.harbor3d = undefined;
+      drawOcean(layer, {
+        harbor: true,
+        pontoonTier: station.pontoonTier,
+        showFlotsam: station.flotsamSpawned,
+      });
+    }
+  }
+
+  protected update(dt: number): void {
+    this.harbor3d?.tick(dt, playerSave.get().settings.lowPower);
+    if (this.gold.length > 0 || this.goldFlash) {
+      this.gold = tickJuice(this.gold, dt);
+      this.goldFlash = tickJuiceFlash(this.goldFlash, dt);
+      if (this.goldGfx?.isValid) {
+        drawJuice(this.goldGfx, this.gold, this.goldFlash ? [this.goldFlash] : []);
+      }
+    }
+    if (this.coinJumpLabel?.isValid && this.coinJumpLeft > 0) {
+      this.coinJumpElapsed += dt;
+      this.coinJumpLeft = Math.max(0, this.coinJumpLeft - dt);
+      const lift = coinJumpLiftPx(this.coinJumpElapsed);
+      const fade = Math.round(255 * coinJumpAlpha(this.coinJumpElapsed));
+      this.coinJumpLabel.node.setPosition(470, 274 + lift);
+      this.coinJumpLabel.color = new Color(255, 220, 72, fade);
+      if (this.sellCallout?.isValid) {
+        this.sellCallout.node.setPosition(0, 120 + lift * 0.35);
+        this.sellCallout.color = new Color(255, 220, 72, fade);
+      }
+      if (this.coinJumpLeft <= 0) {
+        this.coinJumpGained = 0;
+        this.coinJumpLabel.string = "";
+        if (this.sellCallout) this.sellCallout.string = "";
+        if (this.statusFlash && this.toastLeft <= 0) {
+          this.toastLeft = harborToastHoldSeconds();
+        }
+        if (this.surface === "harbor") this.showHarbor();
+      }
+    }
+    if (this.coinJumpLeft <= 0 && this.toastLeft > 0) {
+      this.toastLeft = Math.max(0, this.toastLeft - dt);
+      if (this.toastLeft <= 0 && this.surface === "harbor") {
+        this.statusFlash = undefined;
+        this.showHarbor();
+      }
+    }
+    if (this.sellCallout?.isValid && this.sellPunchLeft > 0) {
+      this.sellPunchElapsed += dt;
+      this.sellPunchLeft = Math.max(0, this.sellPunchLeft - dt);
+      const peak = 1.18;
+      const t = Math.min(1, this.sellPunchElapsed / 0.22);
+      const env = t < 0.35 ? t / 0.35 : 1 - (t - 0.35) / 0.65;
+      const scale = 1 + (peak - 1) * Math.max(0, env);
+      this.sellCallout.node.setScale(scale, scale, 1);
+    }
+    if (this.discoveryLabel?.isValid && this.discoveryPunchLeft > 0) {
+      this.discoveryPunchElapsed += dt;
+      this.discoveryPunchLeft = Math.max(0, this.discoveryPunchLeft - dt);
+      const peak = 1.14;
+      const t = Math.min(1, this.discoveryPunchElapsed / 0.2);
+      const env = t < 0.35 ? t / 0.35 : 1 - (t - 0.35) / 0.65;
+      const scale = 1 + (peak - 1) * Math.max(0, env);
+      this.discoveryLabel.node.setScale(scale, scale, 1);
+    }
+    if (!this.settleGuide?.isValid || this.surface !== "settle") return;
+    const ring = tutorialGuideRing(Date.now());
+    drawGuideHole(
+      this.settleGuide,
+      this.settleGuideAt.x,
+      this.settleGuideAt.y,
+      92 + ring.pulse * 0.25,
+      ring,
+    );
   }
 }

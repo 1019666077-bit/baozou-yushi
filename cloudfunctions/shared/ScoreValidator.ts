@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import type { FishConfig, RunSummary, ToolConfig } from "../../assets/scripts/data/types";
 
 export interface ValidationResult {
@@ -6,51 +7,20 @@ export interface ValidationResult {
   acceptedScore: number;
 }
 
+const require = createRequire(import.meta.url);
+const impl = require("./scoreValidator.js") as {
+  validateRun: (
+    run: RunSummary,
+    fishConfigs: FishConfig[],
+    toolConfigs: ToolConfig[],
+  ) => ValidationResult;
+};
+
+/** 与 cloudfunctions/shared/scoreValidator.js 同一份实现，供测试与云函数共用。 */
 export function validateRun(
   run: RunSummary,
   fishConfigs: FishConfig[],
   toolConfigs: ToolConfig[],
 ): ValidationResult {
-  const reasons: string[] = [];
-  const duration = run.finishedAt - run.startedAt;
-  if (duration < 15_000 || duration > 15 * 60_000) {
-    reasons.push("invalid_duration");
-  }
-  if (run.bestMultiplier < 1 || run.bestMultiplier > 3) {
-    reasons.push("invalid_multiplier");
-  }
-  if (run.fish.length > Math.ceil(duration / 2_000) + 3) {
-    reasons.push("impossible_capture_rate");
-  }
-  const tool = toolConfigs.find((entry) => entry.id === run.toolId);
-  if (!tool?.levels.some((entry) => entry.level === run.toolLevel)) {
-    reasons.push("invalid_tool");
-  }
-
-  const fishMap = new Map(fishConfigs.map((fish) => [fish.id, fish]));
-  let theoreticalMax = 0;
-  for (const capture of run.fish) {
-    const fish = fishMap.get(capture.fishId);
-    if (!fish) {
-      reasons.push("unknown_fish");
-      continue;
-    }
-    if (capture.styleMultiplier < 1 || capture.styleMultiplier > 3) {
-      reasons.push("invalid_capture_multiplier");
-    }
-    theoreticalMax += Math.ceil(
-      fish.basePrice * fish.rarityMultiplier * 1.2 * 3,
-    );
-  }
-  if (run.totalCoins < 0 || run.totalCoins > theoreticalMax) {
-    reasons.push("impossible_total");
-  }
-  const reportedTotal = run.fish.reduce((sum, fish) => sum + fish.price, 0);
-  if (reportedTotal !== run.totalCoins) reasons.push("total_mismatch");
-
-  return {
-    valid: reasons.length === 0,
-    reasons: [...new Set(reasons)],
-    acceptedScore: reasons.length === 0 ? Math.round(run.bestMultiplier * 100) : 0,
-  };
+  return impl.validateRun(run, fishConfigs, toolConfigs);
 }

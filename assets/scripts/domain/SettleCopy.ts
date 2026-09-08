@@ -1,19 +1,53 @@
 import type { PlayerSave, RunSummary } from "../data/types";
 import { applyOrderEvent, ensureDailyOrders } from "./DailyOrders";
+import { TUTORIAL_ISLAND_ID } from "./TutorialFlow";
 
 export function settleHeadline(summary: RunSummary): string {
   if (summary.fish.length === 0) return "空手回港";
   return `本局卖出${summary.totalCoins}金 · 最高${summary.bestStyleGrade ?? "C"}级 ×${summary.bestMultiplier.toFixed(2)}`;
 }
 
+export function isFirstCatch(fishId: string, knownBefore: string[]): boolean {
+  return !knownBefore.includes(fishId);
+}
+
+export function firstCatchIds(
+  fishIds: string[],
+  knownBefore: string[],
+): string[] {
+  const seen = new Set<string>();
+  const first: string[] = [];
+  for (const id of fishIds) {
+    if (seen.has(id) || !isFirstCatch(id, knownBefore)) continue;
+    seen.add(id);
+    first.push(id);
+  }
+  return first;
+}
+
+export function coinJumpCaption(gained: number): string {
+  return gained > 0 ? `+${gained}金` : "";
+}
+
+export function discoveryToast(name: string): string {
+  return `图鉴新纪录：${name}`;
+}
+
+export function discoveryToastLine(names: string[]): string {
+  if (names.length === 0) return "";
+  if (names.length === 1) return discoveryToast(names[0]);
+  return `图鉴新纪录：${names[0]} 等${names.length}种`;
+}
+
 export function settleRows(
   summary: RunSummary,
   nameOf: (fishId: string) => string,
+  knownBefore: string[] = [],
 ): string[] {
-  const rows = summary.fish.map(
-    (item) =>
-      `${nameOf(item.fishId)} ${item.styleGrade ?? "C"}级 ×${item.styleMultiplier.toFixed(2)} → ${item.price}金`,
-  );
+  const rows = summary.fish.map((item) => {
+    const mark = isFirstCatch(item.fishId, knownBefore) ? "【首次】" : "";
+    return `${mark}${nameOf(item.fishId)} ${item.styleGrade ?? "C"}级 ×${item.styleMultiplier.toFixed(2)} → ${item.price}金`;
+  });
   if (rows.length <= 6) return rows;
   return [...rows.slice(0, 5), `还有${rows.length - 5}条入箱`];
 }
@@ -27,12 +61,15 @@ export function settleSlogan(summary: RunSummary): string {
 export function bookLines(
   all: Array<{ id: string; name: string }>,
   discovered: string[],
-  mastery: PlayerSave["fishMastery"] = {},
+  details: PlayerSave["fishMastery"] | string[] = {},
 ): string[] {
   const known = new Set(discovered);
+  const first = new Set(Array.isArray(details) ? details : []);
   return all.map((fish) => {
     if (!known.has(fish.id)) return `${fish.name} 未收`;
-    const value = mastery[fish.id];
+    if (first.has(fish.id)) return `${fish.name} 首次`;
+    if (Array.isArray(details)) return `${fish.name} 已收`;
+    const value = details[fish.id];
     return `${fish.name} 熟练${value?.mastery ?? 0} · ${value?.captures ?? 0}捕 · 最佳${value?.bestGrade ?? "C"}`;
   });
 }
@@ -87,7 +124,9 @@ export function settleRun(
       Math.round(summary.bestMultiplier * 100),
     ),
     tutorialComplete:
-      save.tutorialComplete || summary.tutorialCompleted === true,
+      save.tutorialComplete ||
+      summary.tutorialCompleted === true ||
+      (summary.islandId === TUTORIAL_ISLAND_ID && summary.fish.length > 0),
     completedRuns: (save.completedRuns ?? 0) + 1,
     recentRuns: [
       {
@@ -104,3 +143,5 @@ export function settleRun(
     },
   };
 }
+
+export const applyRunRewards = settleRun;

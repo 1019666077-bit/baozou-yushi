@@ -439,6 +439,20 @@ export const bundledTools = [
 
 export const bundledIslands = [
   {
+    "id": "island_tutorial",
+    "name": "练潮码头",
+    "unlockCost": 0,
+    "targetSessionSeconds": 60,
+    "waves": [
+      {
+        "durationSeconds": 60,
+        "fishPool": ["fish_bayfin"],
+        "maxAlive": 1,
+        "spawnIntervalSeconds": 8
+      }
+    ]
+  },
+  {
     "id": "island_foam_bay",
     "name": "泡沫湾",
     "unlockCost": 0,

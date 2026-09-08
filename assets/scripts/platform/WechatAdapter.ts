@@ -5,9 +5,18 @@ import {
   type PlatformCapabilities,
   type PlatformLifecycle,
 } from "./PlatformAdapter";
+import {
+  canShowFriendBoardForSession,
+  resolveLoginCode,
+  wechatSessionKind,
+} from "../domain/WechatSession";
 
 interface WechatApi {
-  getSystemInfoSync(): { platform?: string; benchmarkLevel?: number; screenWidth?: number };
+  getSystemInfoSync(): {
+    platform?: string;
+    benchmarkLevel?: number;
+    screenWidth?: number;
+  };
   vibrateShort(options?: { type?: "light" | "medium" | "heavy" }): void;
   setStorageSync(key: string, value: unknown): void;
   getStorageSync(key: string): unknown;
@@ -25,8 +34,18 @@ interface WechatApi {
       fail: (error: unknown) => void;
     }): void;
   };
-  setUserCloudStorage?(options: {
-    KVDataList: Array<{ key: string; value: string }>;
+  getPrivacySetting?(options: {
+    success: (result: {
+      needAuthorization: boolean;
+      privacyContractName?: string;
+    }) => void;
+    fail?: (error: unknown) => void;
+  }): void;
+  requirePrivacyAuthorize?(options: {
+    success?: () => void;
+    fail?: (error: unknown) => void;
+  }): void;
+  openPrivacyContract?(options?: {
     success?: () => void;
     fail?: (error: unknown) => void;
   }): void;
@@ -44,6 +63,18 @@ interface CloudMutationResult {
 
 declare const wx: WechatApi | undefined;
 
+export const CLOUD_CALL_TIMEOUT_MS = 6000;
+
+function wxApi(): WechatApi | undefined {
+  const fromGlobal = (globalThis as { wx?: WechatApi }).wx;
+  if (fromGlobal) return fromGlobal;
+  try {
+    return typeof wx !== "undefined" ? wx : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const CAPABILITIES: PlatformCapabilities = {
   localSave: true,
   dataSave: false,
@@ -58,23 +89,29 @@ const CAPABILITIES: PlatformCapabilities = {
 };
 
 export function isWechatAvailable(): boolean {
-  return typeof wx !== "undefined";
+  return !!wxApi();
 }
 
 export class WechatAdapter implements PlatformAdapter {
+  private static loginCode: string | null = null;
   readonly kind = "wechat" as const;
   readonly capabilities: PlatformCapabilities;
   readonly monetization = new DisabledMonetization();
   readonly lifecycle: PlatformLifecycle;
   readonly localSave = {
     get: <T>(key: string): T | null =>
-      isWechatAvailable() ? ((wx?.getStorageSync(key) as T) ?? null) : null,
-    set: (key: string, value: unknown): void => wx?.setStorageSync(key, value),
-    remove: (key: string): void => wx?.removeStorageSync?.(key),
+      isWechatAvailable()
+        ? ((wxApi()?.getStorageSync(key) as T) ?? null)
+        : null,
+    set: (key: string, value: unknown): void =>
+      wxApi()?.setStorageSync(key, value),
+    remove: (key: string): void => wxApi()?.removeStorageSync?.(key),
   };
   readonly cloudSave = {
     load: async <T>(): Promise<T | null> => {
-      const result = await WechatAdapter.callCloud<{ save: T | null }>("loadSave");
+      const result = await WechatAdapter.callCloud<{ save: T | null }>(
+        "loadSave",
+      );
       return result.save;
     },
     save: <T>(save: T): Promise<void> =>
@@ -91,9 +128,12 @@ export class WechatAdapter implements PlatformAdapter {
       WechatAdapter.callCloud("reportEvents", { events }).then(() => undefined),
   };
   readonly leaderboard = {
-    submit: <T>(run: T): Promise<{ ok: boolean; score?: number; reasons?: string[] }> =>
+    submit: <T>(
+      run: T,
+    ): Promise<{ ok: boolean; score?: number; reasons?: string[] }> =>
       WechatAdapter.callCloud("submitScore", { run }),
-    submitStyleScore: (score: number): void => WechatAdapter.submitStyleScore(score),
+    submitStyleScore: (score: number): void =>
+      WechatAdapter.submitStyleScore(score),
   };
   readonly remoteConfig = {
     load: <T>(): Promise<T> =>
@@ -107,7 +147,10 @@ export class WechatAdapter implements PlatformAdapter {
         "claimDailyOrder",
         { action: "server_time" },
       ).then((result) => {
-        WechatAdapter.requireCloudMutation(result, "claimDailyOrder.serverTime");
+        WechatAdapter.requireCloudMutation(
+          result,
+          "claimDailyOrder.serverTime",
+        );
         return result.serverNow;
       }),
     recordRun: (run: unknown, orderIds: readonly string[]): Promise<void> =>
@@ -118,16 +161,20 @@ export class WechatAdapter implements PlatformAdapter {
       }).then((result) =>
         WechatAdapter.requireCloudMutation(result, "claimDailyOrder.recordRun"),
       ),
-    claim: (orderId: string): Promise<{
+    claim: (
+      orderId: string,
+    ): Promise<{
       status: "granted" | "already_claimed";
       serverNow: number;
       reward: { kind: "coins" | "cosmeticShards"; amount: number };
     }> =>
-      WechatAdapter.callCloud<CloudMutationResult & {
-        status: "granted" | "already_claimed";
-        serverNow: number;
-        reward: { kind: "coins" | "cosmeticShards"; amount: number };
-      }>("claimDailyOrder", { action: "claim", orderId }).then((result) => {
+      WechatAdapter.callCloud<
+        CloudMutationResult & {
+          status: "granted" | "already_claimed";
+          serverNow: number;
+          reward: { kind: "coins" | "cosmeticShards"; amount: number };
+        }
+      >("claimDailyOrder", { action: "claim", orderId }).then((result) => {
         WechatAdapter.requireCloudMutation(result, "claimDailyOrder.claim");
         return result;
       }),
@@ -149,10 +196,10 @@ export class WechatAdapter implements PlatformAdapter {
   gameplayStart(): void {}
   gameplayStop(): void {}
   vibrate(): void {
-    wx?.vibrateShort({ type: "light" });
+    wxApi()?.vibrateShort({ type: "light" });
   }
   isLowEndDevice(): boolean {
-    const level = wx?.getSystemInfoSync().benchmarkLevel ?? 30;
+    const level = wxApi()?.getSystemInfoSync().benchmarkLevel ?? 30;
     return level > 0 && level < 15;
   }
 
@@ -160,23 +207,71 @@ export class WechatAdapter implements PlatformAdapter {
     return isWechatAvailable();
   }
 
+  static get signedIn(): boolean {
+    return !!this.loginCode;
+  }
+
+  static sessionKind() {
+    return wechatSessionKind({
+      wechatAvailable: this.available,
+      loginCode: this.loginCode,
+    });
+  }
+
+  static forgetSession(): void {
+    this.loginCode = null;
+  }
+
   static initializeCloud(env?: string): void {
-    if (!wx?.cloud) return;
-    wx.cloud.init({ traceUser: true, ...(env ? { env } : {}) });
+    const api = wxApi();
+    if (!api?.cloud) return;
+    try {
+      api.cloud.init({ traceUser: true, ...(env ? { env } : {}) });
+    } catch {
+      // Editor previews may expose a partial wx object without cloud support.
+    }
   }
 
   static login(): Promise<string | null> {
-    if (!wx) return Promise.resolve(null);
-    return new Promise((resolve, reject) => {
-      wx.login({ success: ({ code }) => resolve(code), fail: reject });
+    const api = wxApi();
+    if (!api) {
+      this.loginCode = null;
+      return Promise.resolve(null);
+    }
+    return new Promise((resolve) => {
+      try {
+        api.login({
+          success: ({ code }) => {
+            this.loginCode = resolveLoginCode({
+              wechatAvailable: true,
+              code,
+            });
+            resolve(this.loginCode);
+          },
+          fail: () => {
+            this.loginCode = null;
+            resolve(null);
+          },
+        });
+      } catch {
+        this.loginCode = null;
+        resolve(null);
+      }
     });
   }
 
   static callCloud<T>(name: string, data?: unknown): Promise<T> {
-    if (!wx?.cloud) return Promise.reject(new Error("WeChat cloud is unavailable"));
+    const api = wxApi();
+    if (!api?.cloud || !this.signedIn) {
+      return Promise.reject(new Error("WeChat cloud is unavailable"));
+    }
+    const cloud = api.cloud;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("cloud timeout")), 800);
-      wx.cloud?.callFunction({
+      const timer = setTimeout(
+        () => reject(new Error("cloud timeout")),
+        CLOUD_CALL_TIMEOUT_MS,
+      );
+      cloud.callFunction({
         name,
         data,
         success: ({ result }) => {
@@ -201,12 +296,40 @@ export class WechatAdapter implements PlatformAdapter {
     );
   }
 
+  static async ensurePrivacyAuthorized(): Promise<boolean> {
+    const api = wxApi();
+    if (!api?.getPrivacySetting) return true;
+    return new Promise((resolve) => {
+      api.getPrivacySetting!({
+        success: ({ needAuthorization }) => {
+          if (!needAuthorization || !api.requirePrivacyAuthorize) {
+            resolve(true);
+            return;
+          }
+          api.requirePrivacyAuthorize({
+            success: () => resolve(true),
+            fail: () => resolve(false),
+          });
+        },
+        fail: () => resolve(true),
+      });
+    });
+  }
+
+  static openPrivacyContract(): void {
+    wxApi()?.openPrivacyContract?.();
+  }
+
   static canShowFriendBoard(): boolean {
-    return !!wx?.getOpenDataContext;
+    return canShowFriendBoardForSession(
+      this.sessionKind(),
+      !!wxApi()?.getOpenDataContext,
+    );
   }
 
   static friendCanvas(): { width: number; height: number } | null {
-    return wx?.getOpenDataContext?.()?.canvas ?? null;
+    if (!this.canShowFriendBoard()) return null;
+    return wxApi()?.getOpenDataContext?.()?.canvas ?? null;
   }
 
   static prepareFriendCanvas(width: number, height: number): void {
@@ -219,18 +342,13 @@ export class WechatAdapter implements PlatformAdapter {
   }
 
   static submitStyleScore(score: number): void {
-    wx?.setUserCloudStorage?.({
-      KVDataList: [{
-        key: "best_style",
-        value: JSON.stringify({
-          wxgame: { score, update_time: Math.floor(Date.now() / 1000) },
-        }),
-      }],
-    });
+    // Scores are written only by the validated submitScore cloud function.
+    void score;
   }
 
   static requestFriendRank(selfScore = 0): void {
-    wx?.getOpenDataContext?.()?.postMessage({
+    if (!this.signedIn) return;
+    wxApi()?.getOpenDataContext?.()?.postMessage({
       type: "showFriendRank",
       key: "best_style",
       selfScore,

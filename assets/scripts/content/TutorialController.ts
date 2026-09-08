@@ -2,6 +2,7 @@ import { _decorator, Component, Label, Node } from "cc";
 import { gameEvents } from "../core/EventBus";
 import {
   advanceTutorial,
+  tutorialGuideTarget,
   tutorialPrompt,
   type TutorialStep,
 } from "../domain/TutorialFlow";
@@ -46,17 +47,17 @@ export class TutorialController extends Component {
   }
 
   private finish(): void {
-    this.step = advanceTutorial(this.step, "pickedUp");
-    this.step = advanceTutorial(this.step, "stored");
+    this.step = advanceTutorial(this.step, "captured");
     this.render();
   }
 
   private render(): void {
     if (this.prompt) this.prompt.string = tutorialPrompt(this.step);
-    if (this.castHighlight) this.castHighlight.active = this.step === "cast";
+    const focus = tutorialGuideTarget(this.step);
+    if (this.castHighlight) this.castHighlight.active = focus === "cast";
     if (this.weakPointHighlight) {
-      this.weakPointHighlight.active = this.step === "weakPoint";
+      this.weakPointHighlight.active = focus === "weakPoint";
     }
-    if (this.reelHighlight) this.reelHighlight.active = this.step === "pickUp";
+    if (this.reelHighlight) this.reelHighlight.active = focus === "pickUp";
   }
 }
