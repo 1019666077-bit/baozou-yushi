@@ -3,6 +3,7 @@ import { HARBOR_CAM_REST } from "../assets/scripts/domain/CameraFeel";
 import { STAGE_BUDGET, findPart } from "../assets/scripts/domain/ProcGeom";
 import { albedoContrast, paintWaterAlbedo, paintWoodAlbedo } from "../assets/scripts/domain/StageSkin";
 import {
+  HARBOR_HERO,
   TIDE_STATION,
   TIDE_STATION_LAYERS,
   TIDE_STATION_TREE,
@@ -46,6 +47,7 @@ describe("潮退浮站灰盒", () => {
     expect(TIDE_STATION_TREE).toContain("Foundation_ix_iz_P0");
     expect(TIDE_STATION_TREE).toContain("OrderBoard");
     expect(TIDE_STATION_TREE).toContain("Fisherman");
+    expect(TIDE_STATION_TREE).toContain("阿笠");
     expect(TIDE_STATION_TREE).toContain("Base / Wall / Roof");
   });
 
@@ -102,7 +104,7 @@ describe("潮退浮站灰盒", () => {
     expect(wide[0].sz).toBeGreaterThan(tiles[0].sz);
   });
 
-  it("places a framed order board and a standing fisherman with hat, arms, boots, rod", () => {
+  it("places a framed order board and young 阿笠 with douli, mino, teal shirt, rod", () => {
     const board = orderBoardParts();
     expect(findPart(board, "BoardPost")).toBeTruthy();
     expect(findPart(board, "BoardFrame")).toBeTruthy();
@@ -113,9 +115,13 @@ describe("潮退浮站灰盒", () => {
     expect(findPart(board, "BoardFrame")!.sx).toBeGreaterThan(findPart(board, "BoardFace")!.sx);
     const fisher = fishermanParts();
     for (const name of [
-      "FisherHat",
+      "FisherHatCrown",
+      "FisherHatBrim",
       "FisherHead",
       "FisherTorso",
+      "FisherMino",
+      "FisherMinoMid",
+      "FisherMinoHem",
       "FisherArmL",
       "FisherArmR",
       "FisherLegL",
@@ -126,10 +132,24 @@ describe("潮退浮站灰盒", () => {
     ]) {
       expect(findPart(fisher, name)).toBeTruthy();
     }
-    expect(findPart(fisher, "FisherHat")!.y).toBeGreaterThan(findPart(fisher, "FisherHead")!.y);
+    expect(findPart(fisher, "FisherHatBrim")!.sx).toBeGreaterThan(
+      findPart(fisher, "FisherHatCrown")!.sx * 1.8,
+    );
+    expect(findPart(fisher, "FisherMinoHem")!.sx).toBeGreaterThan(findPart(fisher, "FisherMino")!.sx);
+    expect(findPart(fisher, "FisherMinoMid")!.sx).toBeGreaterThan(findPart(fisher, "FisherMino")!.sx);
+    expect(findPart(fisher, "FisherTorso")!.color[1]).toBeGreaterThan(
+      findPart(fisher, "FisherTorso")!.color[0],
+    );
+    expect(findPart(fisher, "FisherHead")!.sx).toBeGreaterThan(0.3);
+    expect(findPart(fisher, "FisherTorso")!.sy).toBeLessThan(0.48);
+    expect(findPart(fisher, "FisherRod")!.sy).toBeGreaterThan(1.2);
+    expect(findPart(fisher, "FisherHatCrown")!.y).toBeGreaterThan(findPart(fisher, "FisherHead")!.y);
     expect(findPart(fisher, "FisherHead")!.y).toBeGreaterThan(findPart(fisher, "FisherTorso")!.y);
     expect(findPart(fisher, "FisherTorso")!.y).toBeGreaterThan(findPart(fisher, "FisherLegL")!.y);
     expect(findPart(fisher, "FisherLegL")!.y).toBeGreaterThan(findPart(fisher, "FisherBootL")!.y);
+    expect(HARBOR_HERO.name).toBe("阿笠");
+    expect(HARBOR_HERO.lock).toBe("年轻版 A");
+    expect(HARBOR_HERO.look).toMatch(/斗笠/);
     expect(TIDE_STATION.fisherman.x).toBeLessThan(2);
     expect(Math.abs(TIDE_STATION.orderBoard.x)).toBeLessThan(2.2);
     expect(flotsamAnchor().y).toBeGreaterThan(0);
@@ -155,7 +175,9 @@ describe("潮退浮站灰盒", () => {
     expect(names).toContain("Foundation_0_0_P0");
     expect(names).toContain("BoardFace");
     expect(names).toContain("FisherTorso");
-    expect(names.join(" ")).not.toMatch(/crazy|waterworld|疯狂水世界/i);
+    expect(names).toContain("FisherHatBrim");
+    expect(names).toContain("FisherMino");
+    expect(names.join(" ")).not.toMatch(/crazy|waterworld|疯狂水世界|拾潮|港仔/i);
   });
 
   it("paints original wood-plank and water-ripple albedos with readable contrast", () => {

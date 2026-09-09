@@ -26,7 +26,7 @@ HarborWorld
 │  │  └─ Foundation_ix_iz_P0…P4     每格 5 条木板，缝是空隙
 │  ├─ Pontoon* / Crate / Stall…
 │  ├─ OrderBoard        Post + Frame + 深色 Face + Header + Bar
-│  └─ Fisherman         帽/头/躯干/双臂/双腿/靴 + 钓竿
+│  └─ Fisherman         阿笠：斗笠冠+宽檐 / 蓑衣三层 / 青绿衣 / 竿
 ├─ HarborBoat
 └─ Tidewood
 ```
@@ -53,7 +53,21 @@ HarborWorld
               HarborCamera ↗ 家门口
 ```
 
-成功标准（代码侧）：海有浪/分层/泡沫环；楼是多件套剪影；人能认出站姿；牌是框+深色面；甲板是木板条不是纯色格。
+成功标准（代码侧）：海有浪/分层/泡沫环；楼是多件套剪影；人是年轻版阿笠剪影；牌是框+深色面；甲板是木板条不是纯色格。
+
+## 主角锁定阿笠
+
+港口灰盒主角锁定为 **年轻版「阿笠」**（斗笠蓑衣清爽钓手）。**锁定年轻版 A。** 不做拾潮、不做港仔。程序低模 primitives，不引竞品资源。
+
+剪影零件（`fishermanParts()`）：
+
+- `FisherHatCrown` + `FisherHatBrim`：宽檐斗笠（帽冠 + 大檐）
+- `FisherMino` / `FisherMinoMid` / `FisherMinoHem`：厚蓑衣肩披，三层梯形盒子，下摆更宽
+- `FisherTorso`：青绿上衣；头身比偏青年（头略大、躯干略短）
+- `FisherArm*` / `FisherLeg*` / `FisherBoot*`：站姿四肢
+- `FisherRod`：清楚的长钓竿轮廓
+
+常量：`HARBOR_HERO.name === "阿笠"`。玩家可见港口标题仍是「潮退浮站 · 浮岛小站」。
 
 顶视布局（**由零件坐标生成，不是 Creator 实拍**，禁止拷进 `creator-shots/`）：
 

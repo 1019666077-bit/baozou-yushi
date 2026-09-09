@@ -15,7 +15,7 @@
 
 | 模块 | 行为 |
 | --- | --- |
-| `HarborStage` | 潮退浮站灰盒：`Ocean`（顶点波+分层水色+泡沫环）、`Horizon`（每座 Base/Wall/Roof）、`RaftRoot`（每格多条木板）、框式 `OrderBoard`、站姿 `Fisherman`（帽/臂/靴/竿）。斜俯视家门口相机。见 `docs/TIDE_STATION_GRAYBOX.md`。 |
+| `HarborStage` | 潮退浮站灰盒：`Ocean`、`Horizon`（Base/Wall/Roof）、`RaftRoot` 木板条、框式 `OrderBoard`、主角 **阿笠**（斗笠宽檐 + 蓑衣三层 + 青绿衣 + 竿）。斜俯视家门口相机。见 `docs/TIDE_STATION_GRAYBOX.md`。 |
 | `DeckStage` | 猎场：低模鱼（身/脸/鳞片色块/尾/弱点），弱点更大并轻脉冲；砸甲板短挤压。 |
 | `CameraFeel` | 抛竿跟线（略低头看海）、命中微震、翻扑抬镜；低配全关。时长 ≤0.15s，不挡点击。 |
 | `ProcGeom` | 零件清单、顶点波公式与包体预算，可单测。 |
