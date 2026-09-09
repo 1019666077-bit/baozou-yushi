@@ -11,8 +11,8 @@ export const STAGE_BUDGET = {
   waterSegZ: 10,
   /** 一条鱼最多 5 个 primitive，共享 sphere/box mesh。 */
   maxFishParts: 5,
-  /** 港口场景网格上限（含水、码头、岛、摊、船），避免微信主包膨胀。 */
-  maxHarborMeshes: 42,
+  /** 港口场景网格上限（含水、地基格、天际环、订单板、渔夫、船），避免微信主包膨胀。 */
+  maxHarborMeshes: 56,
   maxHuntMeshes: 36,
   /** 只一盏平行光；不走实时点光/阴影。 */
   maxLights: 1,

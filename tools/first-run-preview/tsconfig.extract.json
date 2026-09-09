@@ -22,6 +22,7 @@
     "../../assets/scripts/domain/GrayLook.ts",
     "../../assets/scripts/domain/ArtRecipe.ts",
     "../../assets/scripts/domain/CameraFeel.ts",
+    "../../assets/scripts/domain/TideStation.ts",
     "../../assets/scripts/domain/ProcGeom.ts",
     "../../assets/scripts/domain/HitJuice.ts",
     "../../assets/scripts/domain/SfxFeel.ts",

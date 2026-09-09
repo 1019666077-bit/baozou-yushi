@@ -1,15 +1,18 @@
 import { Camera, Color, DirectionalLight, Layers, Node, director } from "cc";
 import { camHarborSway, HARBOR_CAM_REST } from "../domain/CameraFeel";
 import { islandLook } from "../domain/GrayLook";
+import { boatParts, flotsamParts, waterAmp } from "../domain/ProcGeom";
 import { visiblePontoonTier } from "../domain/StationOps";
 import {
-  boatParts,
-  dockParts,
-  flotsamParts,
-  harborExtraParts,
-  waterAmp,
-  waterParts,
-} from "../domain/ProcGeom";
+  TIDE_STATION,
+  fishermanParts,
+  flotsamAnchor,
+  foundationParts,
+  horizonParts,
+  oceanParts,
+  orderBoardParts,
+  raftPropParts,
+} from "../domain/TideStation";
 import { rippleWater, spawnParts } from "./StageBuild";
 
 export type HarborStageOpts = {
@@ -84,23 +87,43 @@ export class HarborStage {
     this.root.parent = scene;
 
     const look = islandLook("island_foam_bay", true);
+    const layer = Layers.Enum.DEFAULT;
     this.buildLight();
     this.buildCamera(look.skyTop);
-    const water = spawnParts(this.root, Layers.Enum.DEFAULT, waterParts(look.near, look.deep));
-    this.water = water[0];
-    spawnParts(this.root, Layers.Enum.DEFAULT, dockParts(pontoonTier));
-    spawnParts(this.root, Layers.Enum.DEFAULT, harborExtraParts(look, pontoonTier));
-    const boat = new Node("HarborBoat");
-    boat.layer = Layers.Enum.DEFAULT;
-    boat.parent = this.root;
-    boat.setPosition(-3.4, 0.38, 0.7);
-    spawnParts(boat, Layers.Enum.DEFAULT, boatParts());
+
+    const ocean = this.group("Ocean");
+    const waters = spawnParts(ocean, layer, oceanParts(look.near, look.deep));
+    this.water = waters.find((node) => node.name === "Water") ?? waters[0];
+
+    spawnParts(this.group("Horizon"), layer, horizonParts(look));
+
+    const raft = this.group("RaftRoot");
+    spawnParts(this.group("Foundation", raft), layer, foundationParts(pontoonTier));
+    spawnParts(raft, layer, raftPropParts(pontoonTier));
+    spawnParts(this.group("OrderBoard", raft), layer, orderBoardParts());
+    spawnParts(this.group("Fisherman", raft), layer, fishermanParts());
+    const fisher = raft.getChildByName("Fisherman");
+    fisher?.setPosition(
+      TIDE_STATION.fisherman.x,
+      TIDE_STATION.fisherman.y,
+      TIDE_STATION.fisherman.z,
+    );
+    const board = raft.getChildByName("OrderBoard");
+    board?.setPosition(
+      TIDE_STATION.orderBoard.x,
+      TIDE_STATION.orderBoard.y,
+      TIDE_STATION.orderBoard.z,
+    );
+
+    const boat = this.group("HarborBoat");
+    boat.setPosition(TIDE_STATION.boat.x, TIDE_STATION.boat.y, TIDE_STATION.boat.z);
+    spawnParts(boat, layer, boatParts());
+
     if (showFlotsam) {
-      const wood = new Node("Tidewood");
-      wood.layer = Layers.Enum.DEFAULT;
-      wood.parent = this.root;
-      wood.setPosition(-0.35, 0.08, 0.9);
-      spawnParts(wood, Layers.Enum.DEFAULT, flotsamParts());
+      const wood = this.group("Tidewood");
+      const anchor = flotsamAnchor();
+      wood.setPosition(anchor.x, anchor.y, anchor.z);
+      spawnParts(wood, layer, flotsamParts());
       this.flotsam = wood;
     }
     this.bindUiCamera();
@@ -110,11 +133,16 @@ export class HarborStage {
     if (!this.root?.isValid) return;
     this.elapsed += dt;
     if (!lowPower && this.water?.isValid) {
-      this.water.setPosition(1.6, -0.02 + Math.sin(this.elapsed * 1.1) * 0.018, 0.1);
+      this.water.setPosition(0, -0.02 + Math.sin(this.elapsed * 1.1) * 0.018, 0);
       rippleWater(this.water, this.elapsed, waterAmp(false));
     }
     if (!lowPower && this.flotsam?.isValid) {
-      this.flotsam.setPosition(-0.35, 0.08 + Math.sin(this.elapsed * 1.4) * 0.03, 0.9);
+      const anchor = flotsamAnchor();
+      this.flotsam.setPosition(
+        anchor.x,
+        anchor.y + Math.sin(this.elapsed * 1.4) * 0.03,
+        anchor.z,
+      );
     }
     if (!this.camNode?.isValid) return;
     const sway = camHarborSway(this.elapsed, lowPower);
@@ -134,6 +162,13 @@ export class HarborStage {
       this.root.removeFromParent();
       this.root.destroy();
     }
+  }
+
+  private group(name: string, parent: Node = this.root): Node {
+    const node = new Node(name);
+    node.layer = Layers.Enum.DEFAULT;
+    node.parent = parent;
+    return node;
   }
 
   private bindUiCamera(): void {
@@ -156,9 +191,9 @@ export class HarborStage {
     this.camNode.setRotationFromEuler(HARBOR_CAM_REST.pitch, HARBOR_CAM_REST.yaw, 0);
     const cam = this.camNode.addComponent(Camera);
     cam.projection = Camera.ProjectionType.PERSPECTIVE;
-    cam.fov = 36;
+    cam.fov = TIDE_STATION.cam.fov;
     cam.near = 0.2;
-    cam.far = 90;
+    cam.far = TIDE_STATION.cam.far;
     cam.priority = 0;
     cam.clearFlags = Camera.ClearFlag.SOLID_COLOR;
     cam.clearColor = new Color(sky[0], sky[1], sky[2], 255);
@@ -169,7 +204,7 @@ export class HarborStage {
     const node = new Node("HarborLight");
     node.layer = Layers.Enum.DEFAULT;
     node.parent = this.root;
-    node.setRotationFromEuler(-36, 52, 0);
+    node.setRotationFromEuler(-42, 48, 0);
     const light = node.addComponent(DirectionalLight);
     light.illuminance = 115000;
   }

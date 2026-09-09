@@ -28,10 +28,12 @@
 
 已落地：
 
-- `HarborStage` / `ProcGeom`：远层半沉楼影、淹没天际、浮木；中层木甲板、浮筒、鱼箱、简易市集棚。
+- `HarborStage` / `TideStation` / `ProcGeom`：分层 `Ocean`（海+顶点波）、`Horizon`（半淹楼影一圈）、`RaftRoot`（3×3 地基格，可扩）、订单板 3D 占位、站姿渔夫灰盒；斜俯视相机。
 - `GrayArt` / `ArtRecipe` 回退同一套远中层（无 Creator 时也能读出洪水浮站）。
 - `RuntimeHome`：标题「潮退浮站 · 浮岛小站」；W1 时订单板 / 浮台升级只开「修建中」占位（W2 已换成真面板）。
 - 第一局体验代理同步标题；主橙 CTA 仍是出海系。
+
+节点与本机 Creator 预览步骤：`docs/TIDE_STATION_GRAYBOX.md`。云端无 Creator，不伪造实拍。
 
 未做（故意，已交 W2）：真订单履约奖励、浮台等级数值、漂物循环、Prototype 手感重调。
 

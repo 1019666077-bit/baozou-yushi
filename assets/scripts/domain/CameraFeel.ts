@@ -2,6 +2,8 @@
  * 2.5D 猎场相机。短、克制，低配关掉跟镜与微震。
  * 不挡下一步点击：跟镜 ≤0.35s 量级，震幅小于 0.12 世界单位。
  */
+import { TIDE_STATION } from "./TideStation";
+
 export interface CamPose {
   x: number;
   y: number;
@@ -19,13 +21,13 @@ export const CAM_REST: CamPose = {
   yaw: 9,
 };
 
-/** 港口日落机位，再近一点看清水域透视和市集层次。 */
+/** 港口斜俯视：与 TIDE_STATION.cam 同源，一眼海环 + 浮台。 */
 export const HARBOR_CAM_REST: CamPose = {
-  x: -0.15,
-  y: 6.85,
-  z: 10.9,
-  pitch: -26,
-  yaw: 13,
+  x: TIDE_STATION.cam.x,
+  y: TIDE_STATION.cam.y,
+  z: TIDE_STATION.cam.z,
+  pitch: TIDE_STATION.cam.pitch,
+  yaw: TIDE_STATION.cam.yaw,
 };
 
 export const CAM_FEEL = {
