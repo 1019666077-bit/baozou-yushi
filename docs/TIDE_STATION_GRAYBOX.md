@@ -54,6 +54,10 @@ HarborWorld
 
 成功标准：Creator 预览里 **不要点出海**，应同时看见海面、浮台木格、站姿渔夫、远处一圈楼影。标题仍是「潮退浮站 · 浮岛小站」。
 
+顶视布局（**由零件坐标生成，不是 Creator 实拍**，禁止拷进 `creator-shots/`）：
+
+![潮退浮站顶视布局示意图](./tide_station_layout_schematic.svg)
+
 ## 扩建地基
 
 默认 `TIDE_STATION.foundationGrid = 3`（9 格）。预留 API：
