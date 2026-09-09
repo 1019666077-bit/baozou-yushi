@@ -12,47 +12,48 @@
 ```
 HarborWorld
 ├─ HarborLight          一盏平行光（关阴影）
-├─ HarborCamera         斜俯视，见 TIDE_STATION.cam
+├─ HarborCamera         斜俯视家门口，见 TIDE_STATION.cam
 ├─ Ocean
-│  ├─ Water             主海面 + 顶点波
+│  ├─ Water             主海面 + 顶点波 + 运行时自绘水纹
 │  ├─ Mid / Deep / FarBand
-│  └─ Foam              浮台水线
+│  └─ FoamN/E/S/W       浮台四周泡沫环（不是整块白板）
 ├─ Horizon              半淹楼影一圈
-│  ├─ Horizon_0 … Horizon_7
+│  ├─ Horizon_i_Base / Wall / Roof   每座三件套
 │  ├─ HorizonHaze / HorizonSun
-│  └─ DriftA / DriftB   水线漂木
-├─ RaftRoot             可扩地基
+│  └─ DriftA / DriftB
+├─ RaftRoot
 │  ├─ Foundation
-│  │  └─ Foundation_0_0 … Foundation_2_2   默认 3×3
-│  ├─ PontoonNW/NE/SW/SE、Crate、Stall…
-│  ├─ OrderBoard        BoardPost / Board / BoardHeader
-│  └─ Fisherman         FisherHead / FisherTorso / FisherLegL / FisherLegR
+│  │  └─ Foundation_ix_iz_P0…P4     每格 5 条木板，缝是空隙
+│  ├─ Pontoon* / Crate / Stall…
+│  ├─ OrderBoard        Post + Frame + 深色 Face + Header + Bar
+│  └─ Fisherman         帽/头/躯干/双臂/双腿/靴 + 钓竿
 ├─ HarborBoat
-└─ Tidewood             订单用潮间漂木（可关）
+└─ Tidewood
 ```
 
-零件清单在 `assets/scripts/domain/TideStation.ts`，实例化在 `assets/scripts/world/HarborStage.ts`。
-猎场 `DeckStage` 仍用原来的 `waterParts` / `dockParts`，本刀不改出海甲板。
+零件：`assets/scripts/domain/TideStation.ts`  
+自绘木纹/水纹：`assets/scripts/domain/StageSkin.ts`（64px，运行时上传，**不进包体**）  
+实例化：`assets/scripts/world/HarborStage.ts` + `StageBuild.ts`  
+猎场 `DeckStage` 仍用 `waterParts` / `dockParts`，本刀不改出海手感。
 
-## 构图（斜俯视，示意）
+## 构图（斜俯视家门口，示意）
 
-相机在浮台南侧抬高，俯角约 −46°，海面铺满一圈，中间是木板格，人站在台上，远景半沉楼影围成环。
+相机在浮台南侧（家门口）抬高，俯角约 −34°：看见海环、木板条甲板、站姿渔夫侧面、半淹楼的墙和屋顶。
 
 ```
-            Horizon_n（半淹楼影）
+            Horizon（基座+墙+屋顶一圈）
+                    ~~~ 分层海 + 浪 ~~~
+              ┌─┬─┬─┬─┬─┐
+              │木板条甲板 │     ← RaftRoot 3×3 × 5 plank
+         海   │人  摊  箱│   海
+              │竿     牌│
+              └─┴─┴─┴─┴─┘
+              渔夫     订单板
                     ~~~
-         ~~~     Foam 水线      ~~~
-              ┌───┬───┬───┐
-              │   │板 │货 │     ← RaftRoot 3×3
-         海   │人 │   │箱 │   海
-              │   │摊 │   │
-              └───┴───┴───┘
-                渔夫   订单板
-                    ~~~
-              HarborCamera ↗
+              HarborCamera ↗ 家门口
 ```
 
-成功标准：Creator 预览里 **不要点出海**，应同时看见海面、浮台木格、站姿渔夫、远处一圈楼影。标题仍是「潮退浮站 · 浮岛小站」。
+成功标准（代码侧）：海有浪/分层/泡沫环；楼是多件套剪影；人能认出站姿；牌是框+深色面；甲板是木板条不是纯色格。
 
 顶视布局（**由零件坐标生成，不是 Creator 实拍**，禁止拷进 `creator-shots/`）：
 
@@ -60,24 +61,29 @@ HarborWorld
 
 ## 扩建地基
 
-默认 `TIDE_STATION.foundationGrid = 3`（9 格）。预留 API：
+默认 `TIDE_STATION.foundationGrid = 3`，每格 `planksPerTile = 5`。
 
-- `foundationCellCenter(ix, iz)` — 格子世界坐标
-- `foundationTileName(ix, iz)` — `Foundation_ix_iz`
-- `expandFoundationGrid(n)` / `foundationParts(tier, n)` — 改 N 即可加圈
-- 浮台 1→2 仍只换皮（格子略放大 + 棚/灯），无箱容/售价加成
+- `foundationCellCenter(ix, iz)` / `foundationPlankName(ix, iz, p)`
+- `expandFoundationGrid(n)` / `foundationParts(tier, n)`
+- 浮台 1→2 仍只换皮（格子略放大 + 棚/灯）
 
-包体：0 贴图、一盏光、关阴影后处理。港口 mesh 上限见 `STAGE_BUDGET.maxHarborMeshes`（现 56）。
+包体：主包 **0 贴图文件**；运行时自绘 2 张 ≤64px。一盏光，关阴影后处理。港口 mesh 上限见 `STAGE_BUDGET.maxHarborMeshes`（现 128）。
 
 ## 本机 Creator 预览（实拍路径）
 
-云端做不到这一步。有 Creator 的人按下面截，才算画面证据：
+**堵点：云端缺 Creator。** 探测命令：
+
+```bash
+node tools/try-web-desktop-build.mjs --probe-only
+```
+
+有 Creator 的人按下面截，才算画面证据：
 
 1. Cocos Creator **3.8.8** 打开本仓库**根目录**（不要只开 `assets/`）。
 2. 资源管理器打开 `assets/scenes/Boot.scene`。
 3. 预览：工具栏播放，或 Windows `Ctrl+P` / macOS `Cmd+P`。
-4. 官方路径：`Boot.scene` → `RuntimeAutoStart` 挂 `RuntimeHome` → `HarborStage.ensure` 生成 `HarborWorld`。
-5. **不要点出海**。在层级面板核对 `Ocean` / `Horizon` / `RaftRoot` / `OrderBoard` / `Fisherman`。
-6. 港湾远景实拍仍丢 `docs/stage3d/creator-shots/01_harbor_wide.png`（现 0/4，未伪造）。清单：`npm run shots:list`。
+4. 路径：`Boot.scene` → `RuntimeAutoStart` → `RuntimeHome` → `HarborStage.ensure`。
+5. **不要点出海**。核 `Ocean` / `Horizon` / `RaftRoot` / `OrderBoard` / `Fisherman`。
+6. 远景实拍丢 `docs/stage3d/creator-shots/01_harbor_wide.png`（现 0/4，未伪造）。清单：`npm run shots:list`。
 
-无 Creator 时只能跑 `npm run validate` 与本页 ASCII。`tools/first-run-preview` 是 2D 代理，**不算** 3D 实机。
+无 Creator 时只能跑 `npm run validate` 与本页示意图。`tools/first-run-preview` 是 2D 代理，**不算** 3D 实机。

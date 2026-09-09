@@ -11,14 +11,17 @@ export const STAGE_BUDGET = {
   waterSegZ: 10,
   /** 一条鱼最多 5 个 primitive，共享 sphere/box mesh。 */
   maxFishParts: 5,
-  /** 港口场景网格上限（含水、地基格、天际环、订单板、渔夫、船），避免微信主包膨胀。 */
-  maxHarborMeshes: 56,
+  /** 港口场景网格上限（含水、木板条、天际楼套件、订单板、渔夫、船）。 */
+  maxHarborMeshes: 128,
   maxHuntMeshes: 36,
   /** 只一盏平行光；不走实时点光/阴影。 */
   maxLights: 1,
-  /** 0 贴图字节：unlit/standard 材质色 + 顶点波，不用 256 法线。 */
+  /** 包体内 0 贴图字节。运行时自绘木纹/水纹见 runtimeTexSize，不进主包。 */
   textureBytes: 0,
-  note: "顶点波水面 + 同色合批；低配关水面分段与相机跟镜",
+  /** 运行时 ImageAsset 边长，木纹与水纹各一张。 */
+  runtimeTexSize: 64,
+  runtimeTexCount: 2,
+  note: "顶点波水面 + 运行时自绘≤64木纹/水纹；低配关水面分段与相机跟镜",
 };
 
 export type StageFinish = "water" | "land" | "wood" | "fish" | "prop";
@@ -41,6 +44,8 @@ export type StagePart = {
   wave?: boolean;
   /** 灯笼 / 弱点 / 太阳：轻微自发光，仍零贴图。 */
   glow?: boolean;
+  /** 运行时自绘 albedo 的 UV 重复（水面大板用）。 */
+  uvTiling?: readonly [number, number];
 };
 
 const WOOD: [number, number, number] = [196, 126, 58];

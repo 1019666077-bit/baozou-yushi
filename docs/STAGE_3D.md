@@ -5,7 +5,7 @@
 **先 2.5D，不上全 3D UI。**
 
 - 世界：透视相机 + 程序低模（顶点波水面、分层码头/市集/岛、船、鱼 5 件套）。
-- 材质：优先 `builtin-standard`（一盏平行光真正塑形），失败回退 `builtin-unlit`。**零贴图**（不用 256 法线，改顶点波）。
+- 材质：优先 `builtin-unlit` + 运行时自绘 ≤64 木纹/水纹（一盏平行光仍在）；失败回退纯色。主包 **零贴图文件**（不用 256 法线，浪靠顶点波）。
 - UI：仍是 Canvas Screen Space（主橙 CTA、教学挖洞、结算）。
 - 领域层 / 教学 / 经济不改。3D 只是表现层；`DeckStage` 失败则回退 2D `GrayArt`。
 
@@ -15,7 +15,7 @@
 
 | 模块 | 行为 |
 | --- | --- |
-| `HarborStage` | 潮退浮站灰盒：`Ocean`（海+顶点波）、`Horizon`（半淹楼影一圈）、`RaftRoot`（N×N 地基格）、`OrderBoard`、站姿 `Fisherman`。斜俯视相机。UI 仍 2D。层级见 `docs/TIDE_STATION_GRAYBOX.md`。 |
+| `HarborStage` | 潮退浮站灰盒：`Ocean`（顶点波+分层水色+泡沫环）、`Horizon`（每座 Base/Wall/Roof）、`RaftRoot`（每格多条木板）、框式 `OrderBoard`、站姿 `Fisherman`（帽/臂/靴/竿）。斜俯视家门口相机。见 `docs/TIDE_STATION_GRAYBOX.md`。 |
 | `DeckStage` | 猎场：低模鱼（身/脸/鳞片色块/尾/弱点），弱点更大并轻脉冲；砸甲板短挤压。 |
 | `CameraFeel` | 抛竿跟线（略低头看海）、命中微震、翻扑抬镜；低配全关。时长 ≤0.15s，不挡点击。 |
 | `ProcGeom` | 零件清单、顶点波公式与包体预算，可单测。 |
@@ -26,15 +26,15 @@
 - 真机上看合批与 45FPS；必要时把 sphere 段数再降。
 - 本机 Creator 打 `web-desktop` 才能当 3D 手感证据。云端**没有** Creator 预览包。
 - `docs/stage3d/creator-shots/` 仍是空占位（**E 准备**：清单 0/4），**未伪造** 4 张 png。必须本机 Creator 3.8.8 打开 Boot.scene 实拍；代理 / `first-run-preview` / expect 示意图一律不算。有 Creator 的人截完才能把估分坐实，现在不要约验。
-- 256 滚动法线仍是备选，本 tip 用顶点波保持 0 贴图。
+- 256 滚动法线仍是备选；港口木纹/水纹用运行时 ≤64px 自绘，主包仍 0 贴图文件。
 
 ## 包体 / 性能
 
 预算见 `STAGE_BUDGET`（`assets/scripts/domain/ProcGeom.ts`）：
 
-- 贴图 **0 字节**。
+- 贴图 **主包 0 字节**（运行时自绘 2 张 ≤64px 木纹/水纹，不进包）。
 - 水面 ≤220 顶点（17×11=187）；低配不位移顶点、不跟镜。
-- 港口（含水+地基格+天际环+订单板+渔夫+船）≤56 mesh；猎场布景+船 ≤36。
+- 港口（含水+木板条+天际楼套件+订单板+渔夫+船）≤128 mesh；猎场布景+船 ≤36。
 - 一盏平行光，**关阴影 / 点光 / 后处理 / 粒子3D**。
 - 同色材质缓存，少 draw call。
 - 预估增量：程序网格数 KB 级，远小于一张 1024 贴图。主包仍走现有 4MiB 源码红线。

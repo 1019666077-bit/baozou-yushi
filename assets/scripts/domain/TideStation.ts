@@ -26,24 +26,28 @@ export const TIDE_STATION = {
   foundationGrid: 3,
   /** 单格边长（世界单位）。tier 2 会略放大。 */
   tileSize: 1.36,
-  tileGap: 0.05,
-  tileThick: 0.18,
-  /** 半淹楼影一圈。 */
+  tileGap: 0.06,
+  tileThick: 0.16,
+  /** 每格纵向木板条，缝是空隙所以能读出甲板而不是纯色块。 */
+  planksPerTile: 5,
+  plankSeam: 0.04,
+  /** 半淹楼影一圈。每座 Base+Wall+Roof。 */
   horizonCount: 8,
-  horizonRadius: 12.4,
-  /** 斜俯视：抬高 + 更俯，一眼海环与浮台。 */
+  horizonRadius: 12.6,
+  horizonKit: ["Base", "Wall", "Roof"] as const,
+  /** 斜俯视家门口：略降低俯角，人/牌侧面可读，仍能看见海环。 */
   cam: {
-    x: 1.05,
-    y: 10.7,
-    z: 12.35,
-    pitch: -46,
-    yaw: 16,
-    fov: 40,
+    x: 0.55,
+    y: 8.45,
+    z: 10.55,
+    pitch: -34,
+    yaw: 20,
+    fov: 42,
     far: 90,
   },
-  fisherman: { x: -0.55, y: 0, z: 0.42 },
-  orderBoard: { x: 1.08, y: 0, z: -0.82 },
-  boat: { x: 2.55, y: 0.34, z: 0.15 },
+  fisherman: { x: -0.62, y: 0, z: 0.55 },
+  orderBoard: { x: 1.05, y: 0, z: -0.72 },
+  boat: { x: 2.62, y: 0.32, z: 0.22 },
 } as const;
 
 export const TIDE_STATION_LAYERS = [
@@ -106,6 +110,14 @@ export function foundationTileName(ix: number, iz: number): string {
   return `Foundation_${ix}_${iz}`;
 }
 
+export function foundationPlankName(ix: number, iz: number, plank: number): string {
+  return `${foundationTileName(ix, iz)}_P${plank}`;
+}
+
+export function horizonKitName(index: number, piece: "Base" | "Wall" | "Roof"): string {
+  return `Horizon_${index}_${piece}`;
+}
+
 export function foundationExtent(
   grid: number = TIDE_STATION.foundationGrid,
   tileSize: number = TIDE_STATION.tileSize,
@@ -131,6 +143,10 @@ export function oceanParts(
 ): StagePart[] {
   const mid = mixRgb(near, deep, 0.48);
   const far = mixRgb(deep, [18, 28, 48], 0.35);
+  const foam = [236, 246, 255] as const;
+  const half = foundationExtent() * 0.5 + 0.42;
+  const foamH = 0.045;
+  const foamW = 0.28;
   return [
     {
       name: "Water",
@@ -138,59 +154,99 @@ export function oceanParts(
       x: 0,
       y: -0.02,
       z: 0,
-      sx: 28,
+      sx: 30,
       sy: 1,
-      sz: 28,
+      sz: 30,
       color: near,
       finish: "water",
       wave: true,
+      uvTiling: [16, 16],
     },
     {
       name: "Mid",
       kind: "plane",
-      x: 0.4,
-      y: -0.05,
-      z: -1.2,
+      x: 0.35,
+      y: -0.055,
+      z: -1.4,
       sx: 22,
       sy: 1,
       sz: 22,
       color: mid,
       finish: "water",
+      uvTiling: [11, 11],
     },
     {
       name: "Deep",
       kind: "plane",
-      x: 0.8,
-      y: -0.08,
-      z: -2.4,
+      x: 0.7,
+      y: -0.09,
+      z: -2.6,
       sx: 16,
       sy: 1,
       sz: 16,
       color: deep,
       finish: "water",
-    },
-    {
-      name: "Foam",
-      kind: "box",
-      x: 0,
-      y: 0.03,
-      z: 0,
-      sx: 5.6,
-      sy: 0.03,
-      sz: 5.6,
-      color: [255, 244, 214],
-      finish: "water",
+      uvTiling: [8, 8],
     },
     {
       name: "FarBand",
       kind: "plane",
       x: 0,
-      y: -0.1,
-      z: -4.2,
-      sx: 30,
+      y: -0.11,
+      z: -5.2,
+      sx: 32,
       sy: 1,
-      sz: 8,
+      sz: 10,
       color: far,
+      finish: "water",
+      uvTiling: [14, 5],
+    },
+    {
+      name: "FoamN",
+      kind: "box",
+      x: 0,
+      y: foamH,
+      z: -half,
+      sx: half * 2 + 0.2,
+      sy: foamH,
+      sz: foamW,
+      color: foam,
+      finish: "water",
+    },
+    {
+      name: "FoamS",
+      kind: "box",
+      x: 0,
+      y: foamH,
+      z: half,
+      sx: half * 2 + 0.2,
+      sy: foamH,
+      sz: foamW,
+      color: foam,
+      finish: "water",
+    },
+    {
+      name: "FoamE",
+      kind: "box",
+      x: half,
+      y: foamH,
+      z: 0,
+      sx: foamW,
+      sy: foamH,
+      sz: half * 2,
+      color: foam,
+      finish: "water",
+    },
+    {
+      name: "FoamW",
+      kind: "box",
+      x: -half,
+      y: foamH,
+      z: 0,
+      sx: foamW,
+      sy: foamH,
+      sz: half * 2,
+      color: foam,
       finish: "water",
     },
   ];
@@ -198,50 +254,83 @@ export function oceanParts(
 
 export function horizonParts(look: TideStationLook): StagePart[] {
   const ruin = mixRgb(look.landDark, [48, 52, 64], 0.62);
-  const ruinWet = mixRgb(look.deep, ruin, 0.45);
+  const ruinWet = mixRgb(look.deep, ruin, 0.5);
+  const roofCol = mixRgb(ruin, [92, 64, 48], 0.4);
   const parts: StagePart[] = [];
   const count = TIDE_STATION.horizonCount;
   const radius = TIDE_STATION.horizonRadius;
   for (let i = 0; i < count; i++) {
-    const turn = (i / count) * Math.PI * 2 + 0.22;
+    const turn = (i / count) * Math.PI * 2 + 0.18;
     const x = Math.sin(turn) * radius;
     const z = -Math.cos(turn) * radius;
-    const tall = 1.15 + (i % 3) * 0.42;
-    const wide = 0.7 + (i % 2) * 0.38;
-    const wet = i % 2 === 1;
-    parts.push({
-      name: `Horizon_${i}`,
-      kind: "box",
-      x,
-      y: tall * 0.22,
-      z,
-      sx: wide,
-      sy: tall,
-      sz: 0.55 + (i % 3) * 0.12,
-      color: wet ? ruinWet : shadeRgb(ruin, 0.88 + (i % 3) * 0.06),
-      rz: i % 2 === 0 ? -8 : 11,
-      finish: "land",
-    });
+    const yaw = (turn * 180) / Math.PI;
+    const wallH = 1.35 + (i % 3) * 0.38;
+    const wide = 0.95 + (i % 2) * 0.28;
+    const deep = 0.72 + (i % 3) * 0.08;
+    const wet = shadeRgb(ruinWet, 0.85 + (i % 3) * 0.05);
+    const wall = shadeRgb(ruin, 0.92 + (i % 2) * 0.08);
+    parts.push(
+      {
+        name: horizonKitName(i, "Base"),
+        kind: "box",
+        x,
+        y: -0.08,
+        z,
+        sx: wide * 1.08,
+        sy: 0.72,
+        sz: deep * 1.1,
+        color: wet,
+        ry: yaw,
+        finish: "land",
+      },
+      {
+        name: horizonKitName(i, "Wall"),
+        kind: "box",
+        x,
+        y: 0.55 + wallH * 0.22,
+        z,
+        sx: wide,
+        sy: wallH,
+        sz: deep,
+        color: wall,
+        ry: yaw,
+        finish: "land",
+      },
+      {
+        name: horizonKitName(i, "Roof"),
+        kind: "box",
+        x,
+        y: 0.55 + wallH * 0.72,
+        z,
+        sx: wide * 1.18,
+        sy: 0.16,
+        sz: deep * 1.22,
+        color: shadeRgb(roofCol, i % 2 === 0 ? 1 : 0.82),
+        ry: yaw,
+        rz: i % 2 === 0 ? -14 : 11,
+        finish: "land",
+      },
+    );
   }
   parts.push(
     {
       name: "HorizonHaze",
       kind: "box",
       x: 0,
-      y: 2.05,
-      z: -radius - 0.6,
-      sx: 22,
-      sy: 1.7,
-      sz: 0.4,
+      y: 2.15,
+      z: -radius - 0.7,
+      sx: 24,
+      sy: 1.8,
+      sz: 0.42,
       color: [255, 176, 108],
       finish: "prop",
     },
     {
       name: "HorizonSun",
       kind: "sphere",
-      x: 8.2,
-      y: 5.4,
-      z: -radius + 0.8,
+      x: 8.4,
+      y: 5.5,
+      z: -radius + 0.6,
       sx: 1.32,
       sy: 1.32,
       sz: 1.32,
@@ -252,10 +341,10 @@ export function horizonParts(look: TideStationLook): StagePart[] {
     {
       name: "DriftA",
       kind: "box",
-      x: 4.2,
+      x: 4.35,
       y: 0.05,
-      z: 3.6,
-      sx: 1.35,
+      z: 3.7,
+      sx: 1.4,
       sy: 0.1,
       sz: 0.2,
       color: WOOD_DARK,
@@ -265,10 +354,10 @@ export function horizonParts(look: TideStationLook): StagePart[] {
     {
       name: "DriftB",
       kind: "box",
-      x: -3.8,
+      x: -3.9,
       y: 0.04,
-      z: 4.4,
-      sx: 0.95,
+      z: 4.5,
+      sx: 1.0,
       sy: 0.1,
       sz: 0.18,
       color: WOOD,
@@ -282,23 +371,29 @@ export function horizonParts(look: TideStationLook): StagePart[] {
 export function foundationParts(tier = 1, grid: number = TIDE_STATION.foundationGrid): StagePart[] {
   const n = Math.max(1, Math.floor(grid));
   const tileSize = tileSizeForTier(tier);
+  const planks = TIDE_STATION.planksPerTile;
+  const seam = TIDE_STATION.plankSeam;
+  const plankW = (tileSize - seam * (planks - 1)) / planks;
   const parts: StagePart[] = [];
   for (let iz = 0; iz < n; iz++) {
     for (let ix = 0; ix < n; ix++) {
       const cell = foundationCellCenter(ix, iz, { grid: n, tileSize });
-      const checker = (ix + iz) % 2 === 0;
-      parts.push({
-        name: foundationTileName(ix, iz),
-        kind: "box",
-        x: cell.x,
-        y: TIDE_STATION.tileThick * 0.5,
-        z: cell.z,
-        sx: tileSize,
-        sy: TIDE_STATION.tileThick,
-        sz: tileSize,
-        color: checker ? WOOD : WOOD_LIGHT,
-        finish: "wood",
-      });
+      const originX = cell.x - tileSize * 0.5 + plankW * 0.5;
+      for (let p = 0; p < planks; p++) {
+        const odd = (ix + iz + p) % 2 === 0;
+        parts.push({
+          name: foundationPlankName(ix, iz, p),
+          kind: "box",
+          x: originX + p * (plankW + seam),
+          y: TIDE_STATION.tileThick * 0.5,
+          z: cell.z,
+          sx: plankW,
+          sy: TIDE_STATION.tileThick,
+          sz: tileSize,
+          color: odd ? WOOD : WOOD_LIGHT,
+          finish: "wood",
+        });
+      }
     }
   }
   return parts;
@@ -489,40 +584,65 @@ export function flotsamAnchor(): { x: number; y: number; z: number } {
 }
 
 export function orderBoardParts(): StagePart[] {
+  const face: [number, number, number] = [46, 40, 36];
   return [
     {
       name: "BoardPost",
       kind: "box",
       x: 0,
-      y: 0.72,
+      y: 0.74,
       z: 0,
       sx: 0.1,
-      sy: 1.28,
+      sy: 1.32,
       sz: 0.1,
       color: WOOD_DARK,
       finish: "wood",
     },
     {
-      name: "Board",
+      name: "BoardFrame",
       kind: "box",
       x: 0,
-      y: 1.22,
-      z: 0.04,
-      sx: 1.18,
-      sy: 0.72,
-      sz: 0.08,
-      color: MARKET,
+      y: 1.28,
+      z: 0.03,
+      sx: 1.28,
+      sy: 0.82,
+      sz: 0.1,
+      color: WOOD,
+      finish: "wood",
+    },
+    {
+      name: "BoardFace",
+      kind: "box",
+      x: 0,
+      y: 1.28,
+      z: 0.08,
+      sx: 1.12,
+      sy: 0.66,
+      sz: 0.04,
+      color: face,
       finish: "prop",
     },
     {
       name: "BoardHeader",
       kind: "box",
       x: 0,
-      y: 1.62,
-      z: 0.05,
-      sx: 1.22,
-      sy: 0.1,
-      sz: 0.09,
+      y: 1.74,
+      z: 0.04,
+      sx: 1.34,
+      sy: 0.12,
+      sz: 0.12,
+      color: WOOD_LIGHT,
+      finish: "wood",
+    },
+    {
+      name: "BoardBar",
+      kind: "box",
+      x: 0,
+      y: 1.58,
+      z: 0.09,
+      sx: 1.16,
+      sy: 0.06,
+      sz: 0.05,
       color: GOLD,
       finish: "prop",
       glow: true,
@@ -530,17 +650,41 @@ export function orderBoardParts(): StagePart[] {
   ];
 }
 
-/** 站姿灰盒：头 + 躯干 + 双腿。原创低模，无竞品轮廓。 */
+/** 站姿低模：帽/头/躯干/双臂/双腿/靴 + 钓竿轮廓。原创，无竞品。 */
 export function fishermanParts(): StagePart[] {
   return [
     {
+      name: "FisherBootL",
+      kind: "box",
+      x: -0.13,
+      y: 0.14,
+      z: 0.02,
+      sx: 0.18,
+      sy: 0.16,
+      sz: 0.22,
+      color: [36, 28, 24],
+      finish: "prop",
+    },
+    {
+      name: "FisherBootR",
+      kind: "box",
+      x: 0.13,
+      y: 0.14,
+      z: 0.02,
+      sx: 0.18,
+      sy: 0.16,
+      sz: 0.22,
+      color: [36, 28, 24],
+      finish: "prop",
+    },
+    {
       name: "FisherLegL",
       kind: "box",
-      x: -0.12,
-      y: 0.42,
-      z: 0,
+      x: -0.13,
+      y: 0.5,
+      z: 0.01,
       sx: 0.16,
-      sy: 0.52,
+      sy: 0.48,
       sz: 0.16,
       color: TROUSER,
       finish: "prop",
@@ -548,11 +692,11 @@ export function fishermanParts(): StagePart[] {
     {
       name: "FisherLegR",
       kind: "box",
-      x: 0.12,
-      y: 0.42,
-      z: 0,
+      x: 0.13,
+      y: 0.5,
+      z: 0.01,
       sx: 0.16,
-      sy: 0.52,
+      sy: 0.48,
       sz: 0.16,
       color: TROUSER,
       finish: "prop",
@@ -561,25 +705,78 @@ export function fishermanParts(): StagePart[] {
       name: "FisherTorso",
       kind: "box",
       x: 0,
-      y: 0.92,
+      y: 0.98,
       z: 0.02,
-      sx: 0.46,
-      sy: 0.58,
+      sx: 0.48,
+      sy: 0.52,
       sz: 0.28,
       color: CLOTH,
+      finish: "prop",
+    },
+    {
+      name: "FisherArmL",
+      kind: "box",
+      x: -0.34,
+      y: 0.96,
+      z: 0.04,
+      sx: 0.12,
+      sy: 0.42,
+      sz: 0.12,
+      color: shadeRgb(CLOTH, 0.85),
+      rz: 16,
+      finish: "prop",
+    },
+    {
+      name: "FisherArmR",
+      kind: "box",
+      x: 0.32,
+      y: 1.0,
+      z: 0.08,
+      sx: 0.12,
+      sy: 0.4,
+      sz: 0.12,
+      color: shadeRgb(CLOTH, 0.85),
+      rz: -28,
+      rx: 12,
       finish: "prop",
     },
     {
       name: "FisherHead",
       kind: "sphere",
       x: 0,
-      y: 1.36,
-      z: 0.02,
-      sx: 0.32,
-      sy: 0.32,
-      sz: 0.32,
+      y: 1.38,
+      z: 0.03,
+      sx: 0.3,
+      sy: 0.3,
+      sz: 0.3,
       color: SKIN,
       finish: "prop",
+    },
+    {
+      name: "FisherHat",
+      kind: "box",
+      x: 0,
+      y: 1.54,
+      z: 0.03,
+      sx: 0.38,
+      sy: 0.1,
+      sz: 0.38,
+      color: WOOD_DARK,
+      finish: "wood",
+    },
+    {
+      name: "FisherRod",
+      kind: "box",
+      x: 0.42,
+      y: 1.28,
+      z: 0.22,
+      sx: 0.05,
+      sy: 1.18,
+      sz: 0.05,
+      color: WOOD_DARK,
+      rx: 22,
+      rz: -18,
+      finish: "wood",
     },
   ];
 }
@@ -626,21 +823,21 @@ export function tideStationWithinBudget(
 export const TIDE_STATION_TREE = `
 HarborWorld
 ├─ HarborLight          一盏平行光，无阴影
-├─ HarborCamera         斜俯视（见 TIDE_STATION.cam / HARBOR_CAM_REST）
+├─ HarborCamera         斜俯视家门口（见 TIDE_STATION.cam）
 ├─ Ocean
-│  ├─ Water             主海面 + 顶点波
+│  ├─ Water             主海面 + 顶点波 + 自绘水纹
 │  ├─ Mid / Deep / FarBand
-│  └─ Foam              浮台水线
+│  └─ FoamN/E/S/W       浮台水线泡沫环（不是整块白板）
 ├─ Horizon              半淹远景一圈
-│  ├─ Horizon_0 … Horizon_7
+│  ├─ Horizon_i_Base / Wall / Roof
 │  ├─ HorizonHaze / HorizonSun
 │  └─ DriftA / DriftB
 ├─ RaftRoot             可扩地基
 │  ├─ Foundation
-│  │  └─ Foundation_0_0 … Foundation_N_N
+│  │  └─ Foundation_ix_iz_P0…P4   每格 5 条木板
 │  ├─ Pontoon* / Crate / Stall…
-│  ├─ OrderBoard        BoardPost / Board / BoardHeader
-│  └─ Fisherman         头 + 躯干 + 双腿
+│  ├─ OrderBoard        Post / Frame / Face / Header / Bar
+│  └─ Fisherman         帽头躯干臂腿靴 + 竿
 ├─ HarborBoat
 └─ Tidewood             可选潮间漂木
 `.trim();

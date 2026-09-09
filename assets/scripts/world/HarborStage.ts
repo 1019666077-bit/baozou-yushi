@@ -133,8 +133,8 @@ export class HarborStage {
     if (!this.root?.isValid) return;
     this.elapsed += dt;
     if (!lowPower && this.water?.isValid) {
-      this.water.setPosition(0, -0.02 + Math.sin(this.elapsed * 1.1) * 0.018, 0);
-      rippleWater(this.water, this.elapsed, waterAmp(false));
+      this.water.setPosition(0, -0.02 + Math.sin(this.elapsed * 1.1) * 0.022, 0);
+      rippleWater(this.water, this.elapsed, waterAmp(false) * 1.35);
     }
     if (!lowPower && this.flotsam?.isValid) {
       const anchor = flotsamAnchor();
