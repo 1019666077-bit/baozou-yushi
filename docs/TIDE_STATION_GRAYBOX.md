@@ -59,6 +59,37 @@ HarborWorld
 
 ![潮退浮站顶视布局示意图](./tide_station_layout_schematic.svg)
 
+## 本机一键预览（必须有 Creator 3.8.8）
+
+云端 / CI **缺 Creator**，这里打不出 `build/web-desktop`，也不假装已出包。有 Creator 的机器用下面两条，浏览器应进港口灰盒：
+
+```bash
+# 1) 命令行出 web-desktop（找不到 Creator 会 exit 2，文案含「缺 Creator」）
+node tools/try-web-desktop-build.mjs
+
+# 2) 本地起静态服
+npx --yes serve build/web-desktop -l 8765
+# 或：npm run serve:web-desktop
+```
+
+浏览器打开 **http://127.0.0.1:8765/** 。路径：Boot.scene → RuntimeHome → HarborStage。**不要点出海。** 应看见海浪/泡沫环、木板条甲板、站姿渔夫、框式订单板、半淹楼三件套一圈。
+
+也可以一行：
+
+```bash
+node tools/try-web-desktop-build.mjs && npx --yes serve build/web-desktop -l 8765
+```
+
+更快、不必出包：Creator 打开仓库根 → `assets/scenes/Boot.scene` → 预览（`Ctrl+P` / `Cmd+P`）。
+
+探测（无 Creator 也只打印「缺 Creator」，不冒充已出包）：
+
+```bash
+node tools/try-web-desktop-build.mjs --probe-only
+```
+
+实拍仍只认 `docs/stage3d/creator-shots/`（现 0/4）。SVG / 代理 / expect **一律不算**。清单：`npm run shots:list`。
+
 ## 扩建地基
 
 默认 `TIDE_STATION.foundationGrid = 3`，每格 `planksPerTile = 5`。
@@ -69,21 +100,4 @@ HarborWorld
 
 包体：主包 **0 贴图文件**；运行时自绘 2 张 ≤64px。一盏光，关阴影后处理。港口 mesh 上限见 `STAGE_BUDGET.maxHarborMeshes`（现 128）。
 
-## 本机 Creator 预览（实拍路径）
-
-**堵点：云端缺 Creator。** 探测命令：
-
-```bash
-node tools/try-web-desktop-build.mjs --probe-only
-```
-
-有 Creator 的人按下面截，才算画面证据：
-
-1. Cocos Creator **3.8.8** 打开本仓库**根目录**（不要只开 `assets/`）。
-2. 资源管理器打开 `assets/scenes/Boot.scene`。
-3. 预览：工具栏播放，或 Windows `Ctrl+P` / macOS `Cmd+P`。
-4. 路径：`Boot.scene` → `RuntimeAutoStart` → `RuntimeHome` → `HarborStage.ensure`。
-5. **不要点出海**。核 `Ocean` / `Horizon` / `RaftRoot` / `OrderBoard` / `Fisherman`。
-6. 远景实拍丢 `docs/stage3d/creator-shots/01_harbor_wide.png`（现 0/4，未伪造）。清单：`npm run shots:list`。
-
-无 Creator 时只能跑 `npm run validate` 与本页示意图。`tools/first-run-preview` 是 2D 代理，**不算** 3D 实机。
+`tools/first-run-preview`（`:8766`）是 2D 代理，**不算** 3D 实机，也不能拷进 `creator-shots/`。

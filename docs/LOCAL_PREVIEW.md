@@ -86,8 +86,9 @@ PLAYTEST_URL=http://127.0.0.1:8765/ node tools/playtest-live.mjs
 # 只探测，不构建（无 Creator 也只打印「缺 Creator」，exit 0）
 node tools/try-web-desktop-build.mjs --probe-only
 
-# 有 Creator 就出包；没有则 exit 2，文案含「缺 Creator」
-COCOS_CREATOR=/path/to/CocosCreator node tools/try-web-desktop-build.mjs
+# 本机一键：出包并起静态服（没有 Creator 则 exit 2，文案含「缺 Creator」）
+node tools/try-web-desktop-build.mjs && npx --yes serve build/web-desktop -l 8765
+# 浏览器 http://127.0.0.1:8765/
 ```
 
 当前云端探测结果：无 Creator 可执行文件，默认模式 exit 2。云端若仍无 Creator，不要假装已出 `build/web-desktop`，自评只报代理分，未真机不出 8.5。

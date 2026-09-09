@@ -91,6 +91,7 @@ describe("Creator preview / shot path", () => {
     }
     expect(local).toContain("build/web-desktop");
     expect(local).toContain("try-web-desktop-build.mjs");
+    expect(local).toMatch(/serve build\/web-desktop/);
     expect(local).toContain("shots:list");
     expect(local).toMatch(/何时截/);
     expect(stage).toMatch(/何时截/);
@@ -130,6 +131,17 @@ describe("Creator preview / shot path", () => {
     });
     expect(result.status).toBe(2);
     expect(`${result.stdout}\n${result.stderr}`).toMatch(/缺 Creator/);
+    expect(result.stdout).toMatch(/serve build\/web-desktop/);
+  });
+
+  it("documents tide-station one-click web-desktop preview without claiming shots", () => {
+    const doc = read("docs/TIDE_STATION_GRAYBOX.md");
+    expect(doc).toContain("try-web-desktop-build.mjs");
+    expect(doc).toMatch(/serve build\/web-desktop/);
+    expect(doc).toContain("127.0.0.1:8765");
+    expect(doc).toContain("缺 Creator");
+    expect(doc).toMatch(/禁止拷进 `creator-shots\/`|不要把示意图拷进/);
+    expect(doc).not.toMatch(/可给用户看/);
   });
 
   it("probe-only stays green and still says 缺 Creator without an editor", () => {
@@ -142,5 +154,6 @@ describe("Creator preview / shot path", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toMatch(/缺 Creator/);
     expect(result.stdout).toMatch(/"ok": false/);
+    expect(result.stdout).toMatch(/serve build\/web-desktop/);
   });
 });
