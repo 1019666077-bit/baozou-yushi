@@ -64,6 +64,16 @@
         position: absolute;
         inset: 0;
       }
+      #fx,
+      #hud {
+        pointer-events: none;
+      }
+      #buttons {
+        pointer-events: none;
+      }
+      #buttons > * {
+        pointer-events: auto;
+      }
       .label {
         position: absolute;
         transform: translate(-50%, -50%);
