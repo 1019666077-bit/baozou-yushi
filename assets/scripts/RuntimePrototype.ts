@@ -91,6 +91,18 @@ import {
   smashWindowOpen,
   airborneStyleQuality,
 } from "./domain/FlopPhysics";
+import { huntFieldCaption } from "./domain/HarborCopy";
+import {
+  hazardDeckPrompt,
+  hazardEscapeSeconds,
+  hazardGoneToast,
+  hazardHuntPrompt,
+  hazardQuote,
+  hazardWinToast,
+  isHazardFish,
+  todaysHazardId,
+} from "./domain/HazardCatch";
+import { localDayKey } from "./domain/MonetizationPolicy";
 import { PLAY_LAYOUT } from "./domain/PlayLayout";
 import {
   castAutoReleaseMs,
@@ -308,6 +320,7 @@ export class RuntimePrototype extends Component {
   private runId = "";
   private bossRevives = 0;
   private bossReviveOffered = false;
+  private hazardFishId = "";
 
   protected onLoad(): void {
     try {
@@ -342,6 +355,12 @@ export class RuntimePrototype extends Component {
           stylePointScale: ConfigService.remoteConfig().stylePointScale,
           economyScale: ConfigService.remoteConfig().economyScale,
         },
+      );
+      const island = ConfigService.islandById(this.launch.islandId);
+      this.hazardFishId = todaysHazardId(
+        island.waves?.[0]?.fishPool ?? [],
+        island.id,
+        localDayKey(Date.now()),
       );
       if (this.launch.weeklyRules) {
         this.weeklyRandom = new SeededRandom(this.launch.weeklyRules.seed);
@@ -437,13 +456,16 @@ export class RuntimePrototype extends Component {
       drawDock(this.layer, playerSave.get().selectedCosmetics.boat);
     }
     const island = ConfigService.islandById(this.launch.islandId);
+    const hazardName = this.hazardFishId
+      ? ConfigService.fishById(this.hazardFishId).name
+      : "";
     makeLabel(
       this.layer,
       this.launch.challenge === "endless"
         ? `${island.name} · 无尽潮`
         : this.launch.challenge === "weekly"
           ? `${island.name} · 周挑战`
-          : `${island.name} · 潮汐猎场`,
+          : `${island.name} · ${huntFieldCaption()}`,
       32,
       0,
       318,
@@ -455,7 +477,9 @@ export class RuntimePrototype extends Component {
       this.layer,
       this.tutorial
         ? tutorialPrompt("cast")
-        : "抛竿拽上岸。在甲板上砸晕，下半屏拖进左边鱼箱。空中砸更值钱。",
+        : hazardName
+          ? hazardHuntPrompt(hazardName)
+          : "抛竿把鱼拽上船。空中砸才卖得贵，跳海就没了。",
       22,
       0,
       268,
@@ -621,6 +645,9 @@ export class RuntimePrototype extends Component {
     node.addComponent(UITransform).setContentSize(130, 70);
     const fish = node.addComponent(FishController);
     fish.initialize(config, decoy);
+    if (!decoy && isHazardFish(config.id, this.hazardFishId)) {
+      fish.setHazard(true);
+    }
     if (!decoy && config.behavior === "split") {
       for (const offset of decoyOffsets(this.lowPower ? 1 : 2)) {
         this.spawnFish(config, x + offset.x, y + offset.y, true);
@@ -1405,12 +1432,16 @@ export class RuntimePrototype extends Component {
     const atX = fish.node.position.x;
     const atY = fish.node.position.y;
     const airborneBag = fish.capturedFromAir;
+    const hazardWin = fish.hazard === true && airborneBag === true;
     if (airborneBag) {
       this.session.addStyle({ action: "perfectReel", atMs: Date.now() });
       Analytics.track("style_action", { action: "perfectReel" });
     }
     const freshness = toolFreshness(
-      freshnessForDeckTime(fish.deckSeconds, captured.escapeSeconds),
+      freshnessForDeckTime(
+        fish.deckSeconds,
+        hazardEscapeSeconds(captured.escapeSeconds, fish.hazard),
+      ),
       this.equippedTool(),
     );
     const sold = this.session.capture(
@@ -1418,7 +1449,7 @@ export class RuntimePrototype extends Component {
       freshness,
       Date.now(),
       ConfigService.remoteConfig().economyScale,
-      { airborneCapture: airborneBag },
+      { airborneCapture: airborneBag, hazardWin },
     );
     fish.node.active = false;
     fish.setHooked(false);
@@ -1457,7 +1488,7 @@ export class RuntimePrototype extends Component {
     const juice: JuiceKind = airborneBag ? "perfect" : "catch";
     this.burst(juice, atX, atY);
     this.beginHitStop(hitStopSeconds(juice, this.lowPower));
-    this.showCallout(inboxPopup(sold.price));
+    this.showCallout(hazardWin ? hazardWinToast(sold.price) : inboxPopup(sold.price));
     this.cratePunchLeft = juicePunchSeconds("catch", this.lowPower);
     SfxPlayer.play(airborneBag ? "perfect" : "catch");
     const first = isFirstCatch(captured.id, playerSave.get().discoveredFish);
@@ -1804,7 +1835,9 @@ export class RuntimePrototype extends Component {
     const hooked = this.hooked;
     if (hooked && !hooked.isHooked && !hooked.pickable) {
       this.hooked = undefined;
-      this.setStatus(escapeCaption("gone"));
+      this.setStatus(
+        hooked.hazard ? hazardGoneToast() : escapeCaption("gone"),
+      );
       this.lastEscapeNote = "gone";
       return;
     }
@@ -2197,15 +2230,16 @@ export class RuntimePrototype extends Component {
       const fish = this.hooked.fishConfig;
       const freshness = freshnessForDeckTime(
         this.hooked.deckSeconds,
-        fish.escapeSeconds,
+        hazardEscapeSeconds(fish.escapeSeconds, this.hooked.hazard),
       );
       const economyScale = ConfigService.remoteConfig().economyScale;
-      const currentPrice = PriceCalculator.calculate(
+      const currentPrice = hazardQuote(
         fish,
         freshness,
         style.multiplier,
+        false,
         economyScale,
-      ).total;
+      );
       const maxFreshPrice = PriceCalculator.calculate(
         fish,
         1.2,
@@ -2233,11 +2267,14 @@ export class RuntimePrototype extends Component {
           : "",
       ].filter(Boolean);
       this.fishName.string = bits.join(" · ");
-      this.quoteTag.string = `实时估价 ${currentPrice}金`;
+      this.quoteTag.string =
+        this.hooked.onDeck || this.hooked.carrying
+          ? hazardDeckPrompt(currentPrice, this.hooked.hazard)
+          : `实时估价 ${currentPrice}金`;
       this.freshTag.string = this.hooked.onDeck || this.hooked.carrying
         ? freshnessHud(
             this.hooked.deckSeconds,
-            fish.escapeSeconds,
+            hazardEscapeSeconds(fish.escapeSeconds, this.hooked.hazard),
             currentPrice,
             maxFreshPrice,
           ).split(" · ")[0]

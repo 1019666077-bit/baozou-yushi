@@ -5,6 +5,7 @@ import type {
   StyleEvent,
   StyleSnapshot,
 } from "../data/types";
+import { hazardStyleMultiplier } from "./HazardCatch";
 import { PriceCalculator } from "./PriceCalculator";
 import { StyleScoreSystem } from "./StyleScoreSystem";
 import {
@@ -80,15 +81,19 @@ export class RunSession {
     freshness: number,
     now = Date.now(),
     economyScale = this.options.economyScale ?? 1,
-    traits: { airborneCapture?: boolean } = {},
+    traits: { airborneCapture?: boolean; hazardWin?: boolean } = {},
   ): CapturedFish {
     const styleSnapshot = this.style.getSnapshot();
-    const styleMultiplier = styleSnapshot.multiplier;
+    const styleMultiplier = hazardStyleMultiplier(
+      styleSnapshot.multiplier,
+      traits.hazardWin === true,
+    );
     const styleGrade = styleGradeFor(styleSnapshot.points);
     this.chain = advanceCaptureChain(this.chain, styleGrade, now);
     if (gradeRank(styleGrade) > gradeRank(this.bestGrade)) {
       this.bestGrade = styleGrade;
     }
+    this.bestMultiplier = Math.max(this.bestMultiplier, styleMultiplier);
     const price = PriceCalculator.calculate(
       config,
       freshness,

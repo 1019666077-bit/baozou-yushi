@@ -23,9 +23,11 @@ const FILES = [
   "GrayLook.ts",
   "ArtRecipe.ts",
   "CameraFeel.ts",
+  "TideStation.ts",
   "ProcGeom.ts",
   "HitJuice.ts",
   "SfxFeel.ts",
+  "HazardCatch.ts",
   "IslandClock.ts",
   "PriceCalculator.ts",
   "StyleScoreSystem.ts",
@@ -77,6 +79,7 @@ function snapshot() {
   const SaveMerge = load("SaveMerge");
   const HitJuice = load("HitJuice");
   const SfxFeel = load("SfxFeel");
+  const HazardCatch = load("HazardCatch");
   const PriceCalculator = load("PriceCalculator");
   const { RunSession } = load("RunSession");
 
@@ -109,9 +112,19 @@ function snapshot() {
 
   const data = {
     proxy: true,
-    disclaimer: `非 Cocos 实机，仅 2D 辅助体验代理。2D/辅助 ≠ Creator 3D · 不是港湾真机画面 · 可浏览器代验玩法/画面 · ${SfxFeel.sfxPlaceholderNote()} · 真机 4 张只认 docs/stage3d/creator-shots/`,
+    disclaimer: `非 Cocos 实机，仅 2D 辅助体验代理。2D/辅助 ≠ Creator 3D · 港口挂潮退浮站浏览器 3D 灰盒 · 不是港湾真机画面 · 可浏览器代验玩法/画面 · ${SfxFeel.sfxPlaceholderNote()} · 真机 4 张只认 docs/stage3d/creator-shots/`,
     sourceStamp: "baozou-flop-v37",
     harborTitle: HarborCopy.harborWorldTitle(),
+    harborPlayPrompt: HazardCatch.harborPlayPrompt(),
+    hazardHunt: HazardCatch.hazardHuntPrompt(bayfin.name),
+    hazardDeck: HazardCatch.hazardDeckPrompt(sold.price, true),
+    hazardGone: HazardCatch.hazardGoneToast(),
+    hazardWin: HazardCatch.hazardWinToast(sold.price),
+    harborTitleY: HarborCopy.HARBOR_TITLE_Y,
+    harborPromptY: HarborCopy.HARBOR_PROMPT_Y,
+    harborFirstScreenNew: HarborCopy.harborFirstScreen(false),
+    harborStationVisibleNew: HarborCopy.harborSideSystemsVisible(false),
+    harborStationVisibleAfter: HarborCopy.harborSideSystemsVisible(true),
     harborOrderBoard: HarborCopy.harborOrderBoardLabel(),
     harborPontoonUpgrade: HarborCopy.harborPontoonUpgradeLabel(),
     harborBuildingTitle: HarborCopy.harborBuildingTitle("orders"),
@@ -143,7 +156,7 @@ function snapshot() {
     artPontoon2: ArtRecipe.pontoonUpgradeOps(2),
     artFlotsam: ArtRecipe.flotsamPickupOps(),
     castRelease: "甩出",
-    huntSuffix: "潮汐猎场",
+    huntSuffix: HarborCopy.huntFieldCaption(),
     castButton: "抛竿",
     pickButton: "捡起",
     pauseButton: "暂停",
@@ -179,17 +192,35 @@ function snapshot() {
       settle: TutorialFlow.tutorialPrompt("settle"),
     },
     harborPrompts: {
-      newSail: TutorialFlow.harborNextPrompt("sail", false),
+      newSail: TutorialFlow.harborNextPrompt("sail", true),
       sell: TutorialFlow.harborNextPrompt("sell"),
       upgrade: TutorialFlow.harborNextPrompt("upgrade"),
       freeSail: TutorialFlow.harborNextPrompt("sail", true),
     },
     sailCaptionNew: TutorialFlow.harborSailCaption(false),
+    sailCaptionPlay: TutorialFlow.harborSailCaption(true, 0),
     sailCaptionAfter: TutorialFlow.harborSailCaption(true, after.completedRuns),
     featureLabelsNew: {
       upgrade: TutorialFlow.harborFeatureButtonLabel("upgrade", newSave),
       book: TutorialFlow.harborFeatureButtonLabel("book", newSave),
       board: TutorialFlow.harborFeatureButtonLabel("board", newSave),
+    },
+    featureLabelsPlay: {
+      upgrade: TutorialFlow.harborUpgradeCtaLabel({
+        tutorialComplete: true,
+        completedRuns: 0,
+        coins: 0,
+        nextUpgradeCost: nextRod?.upgradeCost,
+        toolName: rod.name,
+      }),
+      book: TutorialFlow.harborFeatureButtonLabel("book", {
+        tutorialComplete: true,
+        completedRuns: 0,
+      }),
+      board: TutorialFlow.harborFeatureButtonLabel("board", {
+        tutorialComplete: true,
+        completedRuns: 0,
+      }),
     },
     featureLabelsAfter: {
       upgrade: TutorialFlow.harborUpgradeCtaLabel({

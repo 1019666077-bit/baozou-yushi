@@ -29,6 +29,7 @@ import {
   type KnockKind,
   type SmashGrade,
 } from "../domain/FlopPhysics";
+import { HAZARD_UNATTENDED_SCALE } from "../domain/HazardCatch";
 import { toolShieldScale } from "../domain/ToolFeel";
 
 const { ccclass } = _decorator;
@@ -80,6 +81,7 @@ export class FishController extends Component {
   private escapeNow: EscapePhase = "idle";
   private smashNow: SmashGrade = "none";
   decoy = false;
+  hazard = false;
 
   initialize(config: FishConfig, decoy = false): void {
     this.config = config;
@@ -87,6 +89,7 @@ export class FishController extends Component {
     this.elapsed = 0;
     this.hooked = false;
     this.decoy = decoy;
+    this.hazard = false;
     this.patternStun = 0;
     this.airborneHit = false;
     this.mode = "swim";
@@ -112,6 +115,10 @@ export class FishController extends Component {
     this.view.render(config);
     this.node.setScale(this.facing * this.depth(), this.depth(), 1);
     this.present();
+  }
+
+  setHazard(value: boolean): void {
+    this.hazard = value === true;
   }
 
   setHooked(value: boolean): void {
@@ -435,7 +442,7 @@ export class FishController extends Component {
       if (this.escapeLocked || this.airborneNow) {
         if (this.airborneNow) this.unattended = 0;
       } else {
-        this.unattended += dt;
+        this.unattended += dt * (this.hazard ? HAZARD_UNATTENDED_SCALE : 1);
       }
       if (inWater(this.body)) this.waterTime += dt;
       else this.waterTime = 0;

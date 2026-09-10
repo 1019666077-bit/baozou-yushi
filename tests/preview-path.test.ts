@@ -79,6 +79,26 @@ describe("Creator preview / shot path", () => {
     expect(read("tools/first-run-preview/shots/README.md")).toMatch(/2D\/辅助 ≠ Creator 3D/);
   });
 
+  it("wires the tide-station graybox into the playable first-run harbor", () => {
+    const html = read("tools/first-run-preview/index.html");
+    expect(html).toContain('id="world3d"');
+    expect(html).toContain("/tide-station/vendor/three.module.min.js");
+    const preview = read("tools/first-run-preview/preview.js");
+    expect(preview).toContain("mountTideStation");
+    expect(preview).toContain("/tide-station/scene.js");
+    expect(preview).toContain("/tide-station/generated/layout.json");
+    const serve = read("tools/first-run-preview/serve.mjs");
+    expect(serve).toContain("dumpLayout");
+    expect(serve).toContain("/tide-station/");
+    expect(serve).toContain("skipExtract");
+    const scene = read("tools/tide-station-preview/scene.js");
+    expect(scene).toContain("export async function mountTideStation");
+    const tideHtml = read("tools/tide-station-preview/index.html");
+    expect(tideHtml).toContain('id="view"');
+    const doc = read("docs/TIDE_STATION_GRAYBOX.md");
+    expect(doc).toMatch(/8766.*3D 灰盒|港口画面挂同一套浏览器 3D 灰盒/);
+  });
+
   it("documents the shortest Creator preview to four shots", () => {
     const local = read("docs/LOCAL_PREVIEW.md");
     const stage = read("docs/STAGE_3D.md");
@@ -91,6 +111,7 @@ describe("Creator preview / shot path", () => {
     }
     expect(local).toContain("build/web-desktop");
     expect(local).toContain("try-web-desktop-build.mjs");
+    expect(local).toMatch(/serve build\/web-desktop/);
     expect(local).toContain("shots:list");
     expect(local).toMatch(/何时截/);
     expect(stage).toMatch(/何时截/);
@@ -130,6 +151,17 @@ describe("Creator preview / shot path", () => {
     });
     expect(result.status).toBe(2);
     expect(`${result.stdout}\n${result.stderr}`).toMatch(/缺 Creator/);
+    expect(result.stdout).toMatch(/serve build\/web-desktop/);
+  });
+
+  it("documents tide-station one-click web-desktop preview without claiming shots", () => {
+    const doc = read("docs/TIDE_STATION_GRAYBOX.md");
+    expect(doc).toContain("try-web-desktop-build.mjs");
+    expect(doc).toMatch(/serve build\/web-desktop/);
+    expect(doc).toContain("127.0.0.1:8765");
+    expect(doc).toContain("缺 Creator");
+    expect(doc).toMatch(/禁止拷进 `creator-shots\/`|不要把示意图拷进/);
+    expect(doc).not.toMatch(/可给用户看/);
   });
 
   it("probe-only stays green and still says 缺 Creator without an editor", () => {
@@ -142,5 +174,6 @@ describe("Creator preview / shot path", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toMatch(/缺 Creator/);
     expect(result.stdout).toMatch(/"ok": false/);
+    expect(result.stdout).toMatch(/serve build\/web-desktop/);
   });
 });

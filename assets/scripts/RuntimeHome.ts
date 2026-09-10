@@ -85,7 +85,12 @@ import {
   harborPontoonUpgradeCaption,
   harborPontoonUpgradeLabel,
   harborPontoonUpgradeToast,
+  harborSideSystemsVisible,
+  harborBrowseChromeVisible,
+  harborFirstScreen,
   harborWorldTitle,
+  HARBOR_PROMPT_Y,
+  HARBOR_TITLE_Y,
   type HarborBuildingKind,
 } from "./domain/HarborCopy";
 import {
@@ -251,7 +256,6 @@ export class RuntimeHome extends Component {
     );
     if (this.surface === "harbor") {
       this.showHarbor();
-      if (!save.tutorialComplete) void this.sail();
     }
   }
 
@@ -279,8 +283,8 @@ export class RuntimeHome extends Component {
     const nextLevel = tool.levels.find(
       (level) => level.level === (ownedTool?.level ?? 0) + 1,
     );
-    makeLabel(layer, harborWorldTitle(), 36, 0, 310);
-    this.coinsLabel = tintGold(makeLabel(layer, `金币 ${save.coins}`, 26, 470, 310, 280));
+    makeLabel(layer, harborWorldTitle(), 36, 0, HARBOR_TITLE_Y);
+    this.coinsLabel = tintGold(makeLabel(layer, `金币 ${save.coins}`, 26, 470, HARBOR_TITLE_Y, 280));
     this.settleGuide = undefined;
     this.goldGfx = undefined;
     if (this.coinJumpGained > 0) {
@@ -299,9 +303,14 @@ export class RuntimeHome extends Component {
       this.coinJumpLabel = undefined;
       this.sellCallout = undefined;
     }
-    makeButton(layer, "设置", -530, 310, () => this.showSettings(), 140, 52, 22);
-    makeButton(layer, "商店", 260, 270, () => void this.showStore(), 120, 46, 19);
-    makeButton(layer, "外观", 400, 270, () => this.showCosmetics(), 120, 46, 19);
+    makeButton(layer, "设置", -530, HARBOR_TITLE_Y, () => this.showSettings(), 140, 52, 22);
+    const firstScreen = harborFirstScreen(save.tutorialComplete);
+    const sideOpen = harborSideSystemsVisible(save.tutorialComplete);
+    const browseOpen = harborBrowseChromeVisible(save.tutorialComplete);
+    if (sideOpen) {
+      makeButton(layer, "商店", 260, 270, () => void this.showStore(), 120, 46, 19);
+      makeButton(layer, "外观", 400, 270, () => this.showCosmetics(), 120, 46, 19);
+    }
     const nextCta = harborNextCta({
       tutorialComplete: save.tutorialComplete,
       completedRuns: save.completedRuns,
@@ -321,7 +330,7 @@ export class RuntimeHome extends Component {
       sellJuiceActive: this.coinJumpLeft > 0,
       toastActive: this.toastLeft > 0 && !!this.statusFlash,
     });
-    const showMeta = harborHudShowMeta(phase);
+    const showMeta = harborHudShowMeta(phase, save.tutorialComplete);
     const discoveryText = discoveryToastLine(
       this.justDiscovered.map((id) => {
         try {
@@ -343,8 +352,8 @@ export class RuntimeHome extends Component {
         1100,
       );
     }
-    makePlate(layer, 0, 248, !save.tutorialComplete, 820, 48);
-    this.status = makeLabel(layer, goal, 20, 0, 248);
+    makePlate(layer, 0, HARBOR_PROMPT_Y, firstScreen, 820, 48);
+    this.status = makeLabel(layer, goal, 20, 0, HARBOR_PROMPT_Y);
     const nextCost = nextLevel?.upgradeCost;
     if (
       nextCost != null &&
@@ -382,107 +391,125 @@ export class RuntimeHome extends Component {
 
     const islands = harborIslandIds();
     const closedIds = ConfigService.remoteConfig().disabledIslands ?? [];
-    islands.forEach((islandId) => {
-      const island = ConfigService.islandById(islandId);
-      const unlocked = save.unlockedIslands.includes(island.id);
-      const selected = harborChipSelected(
-        island.id,
-        save.tutorialComplete,
-        this.selectedIslandId,
-      );
-      const closed = islandClosed(island.id, closedIds);
-      const caption = closed
-        ? closedIslandCaption(island.name)
-        : harborIslandChipCaption({
-            name: island.name,
-            unlockCost: island.unlockCost,
-            unlocked,
-            selected,
-            tutorialComplete: save.tutorialComplete,
-          });
-      makeButton(
-        layer,
-        caption,
-        harborIslandX(island.id),
-        164,
-        () => void this.onIsland(island.id),
-        240,
-        56,
-        22,
-      );
-    });
+    if (browseOpen) {
+      islands.forEach((islandId) => {
+        const island = ConfigService.islandById(islandId);
+        const unlocked = save.unlockedIslands.includes(island.id);
+        const selected = harborChipSelected(
+          island.id,
+          save.tutorialComplete,
+          this.selectedIslandId,
+        );
+        const closed = islandClosed(island.id, closedIds);
+        const caption = closed
+          ? closedIslandCaption(island.name)
+          : harborIslandChipCaption({
+              name: island.name,
+              unlockCost: island.unlockCost,
+              unlocked,
+              selected,
+              tutorialComplete: save.tutorialComplete,
+            });
+        makeButton(
+          layer,
+          caption,
+          harborIslandX(island.id),
+          164,
+          () => void this.onIsland(island.id),
+          240,
+          56,
+          22,
+        );
+      });
 
-    ConfigService.allTools().forEach((tool, index) => {
-      const owned = save.tools.find((entry) => entry.toolId === tool.id);
-      const selected = tool.id === this.selectedToolId;
-      const caption = owned
-        ? `${selected ? "● " : ""}${tool.name} Lv${owned.level}`
-        : `买${tool.name}`;
-      makeButton(
-        layer,
-        caption,
-        -340 + index * 340,
-        40,
-        () => void this.onTool(tool.id),
-        300,
-        72,
-        22,
-      );
-    });
+      ConfigService.allTools().forEach((tool, index) => {
+        const owned = save.tools.find((entry) => entry.toolId === tool.id);
+        const selected = tool.id === this.selectedToolId;
+        const caption = owned
+          ? `${selected ? "● " : ""}${tool.name} Lv${owned.level}`
+          : `买${tool.name}`;
+        makeButton(
+          layer,
+          caption,
+          -340 + index * 340,
+          40,
+          () => void this.onTool(tool.id),
+          300,
+          72,
+          22,
+        );
+      });
 
-    makeLabel(
-      layer,
-      `出航：${island.name} · ${tool.name} Lv${ownedTool?.level ?? 1}${
-        nextLevel ? ` · 下级${nextLevel.upgradeCost}金` : " · 满级"
-      }`,
-      22,
-      0,
-      -40,
-    );
-    makeLabel(
-      layer,
-      `图鉴 ${save.discoveredFish.length}/${ConfigService.allFish().length}`,
-      20,
-      0,
-      -90,
-      1100,
-    );
+      makeLabel(
+        layer,
+        `出航：${island.name} · ${tool.name} Lv${ownedTool?.level ?? 1}${
+          nextLevel ? ` · 下级${nextLevel.upgradeCost}金` : " · 满级"
+        }`,
+        22,
+        0,
+        -40,
+      );
+      makeLabel(
+        layer,
+        `图鉴 ${save.discoveredFish.length}/${ConfigService.allFish().length}`,
+        20,
+        0,
+        -90,
+        1100,
+      );
+    }
 
     const station = normalizeStation(save.station);
-    if (canPickFlotsam(station)) {
+    if (sideOpen) {
+      if (canPickFlotsam(station)) {
+        makeButton(
+          layer,
+          harborFlotsamPickCaption(),
+          340,
+          -40,
+          () => void this.onPickFlotsam(),
+          180,
+          52,
+          20,
+        );
+      } else if (station.flotsamHeld > 0) {
+        makeLabel(layer, harborFlotsamHeldLine(station.flotsamHeld), 18, 340, -40, 280);
+      }
       makeButton(
         layer,
-        harborFlotsamPickCaption(),
-        340,
-        -40,
-        () => void this.onPickFlotsam(),
+        harborOrderBoardLabel(),
+        -340,
+        -140,
+        () => this.showBuilding("orders"),
         180,
         52,
         20,
       );
-    } else if (station.flotsamHeld > 0) {
-      makeLabel(layer, harborFlotsamHeldLine(station.flotsamHeld), 18, 340, -40, 280);
+      makeButton(
+        layer,
+        harborPontoonUpgradeLabel(),
+        80,
+        -140,
+        () => this.showBuilding("pontoon"),
+        180,
+        52,
+        20,
+      );
     }
-    makeButton(
-      layer,
-      harborOrderBoardLabel(),
-      -340,
-      -140,
-      () => this.showBuilding("orders"),
-      180,
-      52,
-      20,
-    );
-    makeButton(
-      layer,
-      harborPontoonUpgradeLabel(),
-      80,
-      -140,
-      () => this.showBuilding("pontoon"),
-      180,
-      52,
-      20,
-    );
+    if (firstScreen) {
+      makeButton(
+        layer,
+        harborSailCaption(false),
+        0,
+        -220,
+        () => this.sail(),
+        300,
+        96,
+        32,
+        "primary",
+      );
+      return;
+    }
     makeButton(
       layer,
       harborSailCaption(save.tutorialComplete, save.completedRuns),
@@ -528,7 +555,9 @@ export class RuntimeHome extends Component {
       72,
       20,
     );
-    makeButton(layer, "目标", 350, -230, () => this.showChallenges(), 140, 72, 20);
+    if (sideOpen) {
+      makeButton(layer, "目标", 350, -230, () => this.showChallenges(), 140, 72, 20);
+    }
     makeButton(
       layer,
       harborFeatureButtonLabel("board", save),
