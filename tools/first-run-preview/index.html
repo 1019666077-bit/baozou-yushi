@@ -51,7 +51,7 @@
           inset 0 -22px 48px rgba(8, 28, 36, 0.22);
         background: #083044;
       }
-      canvas {
+      .stage canvas {
         position: absolute;
         inset: 0;
         width: 100%;
@@ -212,9 +212,11 @@
         text-align: left;
       }
       button.look-chip canvas {
+        position: static;
         display: block;
         width: 100%;
         height: auto;
+        aspect-ratio: 16 / 9;
         border-radius: 8px;
         margin-bottom: 6px;
       }
