@@ -88,26 +88,23 @@ try {
 
   const harborText = await page.evaluate(() => document.body.innerText);
   note(harborText.includes("海边鱼市"), "新档标题海边鱼市");
-  note(harborText.includes("开始教学"), "new-save CTA 开始教学");
-  note(harborText.includes("拽上船"), "第一屏旁白说拽上船");
-  note(!harborText.includes("教学后图鉴"), "第一屏不露图鉴钮");
-  note(!harborText.includes("泡沫湾"), "第一屏不露选岛");
-  note(!harborText.includes("码头差事"), "第一屏不露码头差事");
-  note(!harborText.includes("适度游戏"), "第一屏不叠健康忠告");
-
-  note(await tap(page, "开始教学"), "开始教学");
+  note(harborText.includes("出海捕鱼"), "new-save CTA 出海捕鱼");
+  note(harborText.includes("空中砸") || harborText.includes("跳海"), "第一屏旁白说搏货");
+  note(!harborText.includes("开始教学"), "新档不再走教学闸门");
+  note(await tap(page, "出海捕鱼"), "出海捕鱼");
   await wait(250);
   await shot(page, "02-tutorial-cast");
   const castText = await page.evaluate(() => document.body.innerText);
-  note(castText.includes("练潮码头") && castText.includes("渔场"), "教学猎场标题");
+  note(castText.includes("泡沫湾") && castText.includes("渔场"), "猎场标题");
   note(castText.includes("抛竿") && castText.includes("捡起"), "抛竿/捡起按钮");
   const castState = await page.evaluate(() => window.proxyState());
   note(
-    castState.status.includes("抛竿") && !castState.status.includes("热身潮"),
-    "教学旁白不被潮汐句覆盖",
+    (castState.status.includes("险货") || castState.status.includes("空中砸")) &&
+      !castState.status.includes("热身潮"),
+    "开局旁白是搏货",
   );
 
-  note(await tap(page, "回港"), "教学中点回港");
+  note(await tap(page, "回港"), "未入箱点回港");
   await wait(150);
   note(
     (await page.evaluate(() => document.body.innerText)).includes("先抛竿、打中、入箱"),
@@ -118,7 +115,8 @@ try {
   await wait(280);
   await shot(page, "02b-charge");
   const chargeState = await page.evaluate(() => window.proxyState());
-  note(chargeState.charging === true || chargeState.charge > 0 || chargeState.surface === "sea", "教学蓄力条可见");
+  note(chargeState.charging === true || chargeState.charge > 0 || chargeState.surface === "sea", "蓄力条可见");
+  note((await tap(page, "甩出")) || chargeState.charging === true, "甩出");
   await wait(400);
   await shot(page, "03-tutorial-weak");
   const weakText = await page.evaluate(() => document.body.innerText);

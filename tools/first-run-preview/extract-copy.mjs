@@ -27,6 +27,7 @@ const FILES = [
   "ProcGeom.ts",
   "HitJuice.ts",
   "SfxFeel.ts",
+  "HazardCatch.ts",
   "IslandClock.ts",
   "PriceCalculator.ts",
   "StyleScoreSystem.ts",
@@ -78,6 +79,7 @@ function snapshot() {
   const SaveMerge = load("SaveMerge");
   const HitJuice = load("HitJuice");
   const SfxFeel = load("SfxFeel");
+  const HazardCatch = load("HazardCatch");
   const PriceCalculator = load("PriceCalculator");
   const { RunSession } = load("RunSession");
 
@@ -113,6 +115,11 @@ function snapshot() {
     disclaimer: `非 Cocos 实机，仅 2D 辅助体验代理。2D/辅助 ≠ Creator 3D · 不是港湾真机画面 · 可浏览器代验玩法/画面 · ${SfxFeel.sfxPlaceholderNote()} · 真机 4 张只认 docs/stage3d/creator-shots/`,
     sourceStamp: "baozou-flop-v37",
     harborTitle: HarborCopy.harborWorldTitle(),
+    harborPlayPrompt: HazardCatch.harborPlayPrompt(),
+    hazardHunt: HazardCatch.hazardHuntPrompt(bayfin.name),
+    hazardDeck: HazardCatch.hazardDeckPrompt(sold.price, true),
+    hazardGone: HazardCatch.hazardGoneToast(),
+    hazardWin: HazardCatch.hazardWinToast(sold.price),
     harborTitleY: HarborCopy.HARBOR_TITLE_Y,
     harborPromptY: HarborCopy.HARBOR_PROMPT_Y,
     harborFirstScreenNew: HarborCopy.harborFirstScreen(false),
@@ -185,7 +192,7 @@ function snapshot() {
       settle: TutorialFlow.tutorialPrompt("settle"),
     },
     harborPrompts: {
-      newSail: TutorialFlow.harborNextPrompt("sail", false),
+      newSail: TutorialFlow.harborNextPrompt("sail", true),
       sell: TutorialFlow.harborNextPrompt("sell"),
       upgrade: TutorialFlow.harborNextPrompt("upgrade"),
       freeSail: TutorialFlow.harborNextPrompt("sail", true),

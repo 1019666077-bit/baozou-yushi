@@ -256,7 +256,6 @@ export class RuntimeHome extends Component {
     );
     if (this.surface === "harbor") {
       this.showHarbor();
-      if (!save.tutorialComplete) void this.sail();
     }
   }
 

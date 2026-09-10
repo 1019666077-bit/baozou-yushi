@@ -1,5 +1,6 @@
 import type { ButtonTone } from "./GameFeel";
 import { CRATE_X, CRATE_Y } from "./FlopPhysics";
+import { harborPlayPrompt } from "./HazardCatch";
 import {
   FIRST_ROD_UPGRADE_COST,
   upgradeGapRemaining,
@@ -32,11 +33,14 @@ export const TUTORIAL_FISH_ID = "fish_bayfin";
 export const TUTORIAL_WEAK_PAUSE_SECONDS = 0.6;
 export const TUTORIAL_ISLAND_ID = "island_tutorial";
 export const DEFAULT_SAIL_ISLAND_ID = "island_foam_bay";
+/** 先把局做可玩。教学闸门关掉；旧档未完成教学也不再进练潮码头。 */
+export const TUTORIAL_GATE = false;
 
 export function isTutorialRun(
   islandId: string,
   tutorialComplete: boolean,
 ): boolean {
+  if (!TUTORIAL_GATE) return false;
   return !tutorialComplete && islandId === TUTORIAL_ISLAND_ID;
 }
 
@@ -231,7 +235,7 @@ export function harborNextPrompt(
   if (cta === "sell") return "点「卖到鱼市」，换成金币。";
   if (cta === "upgrade") return "点升级，卖掉的鱼换成更好的竿。";
   if (!tutorialComplete) return "点「开始教学」，把鱼拽上船、砸晕、卖掉。";
-  return "点「出海捕鱼」，再甩一竿。";
+  return harborPlayPrompt();
 }
 
 /** 主目标一句：攒够升级价，带进度，不灌金币。 */
@@ -471,6 +475,7 @@ export function harborUnlocksForSave(save: {
 }
 
 export function nextSailIsland(tutorialComplete: boolean): string {
+  if (!TUTORIAL_GATE) return DEFAULT_SAIL_ISLAND_ID;
   return tutorialComplete ? DEFAULT_SAIL_ISLAND_ID : TUTORIAL_ISLAND_ID;
 }
 
