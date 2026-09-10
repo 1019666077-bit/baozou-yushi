@@ -1331,24 +1331,26 @@ function renderHarbor() {
     setStatus(complete ? COPY.boardLockAfter : COPY.boardLockNew);
     render();
   });
-  if (station.flotsamSpawned) {
-    cta(COPY.harborFlotsamPick ?? "捞起漂木", 340, -40, 180, 52, 20, "secondary", () => {
-      station.flotsamSpawned = false;
-      station.flotsamHeld = 1;
-      setStatus(COPY.harborFlotsamPicked ?? "捞到一块潮间漂木。带回订单板交给小站。");
+  if (complete && (COPY.harborStationVisibleAfter ?? true)) {
+    if (station.flotsamSpawned) {
+      cta(COPY.harborFlotsamPick ?? "捞木头", 340, -40, 180, 52, 20, "secondary", () => {
+        station.flotsamSpawned = false;
+        station.flotsamHeld = 1;
+        setStatus(COPY.harborFlotsamPicked ?? "捞到一块木头。去码头差事交回去。");
+        render();
+      });
+    } else if (station.flotsamHeld > 0) {
+      label(COPY.harborFlotsamHeld ?? "手里有一块木头", 18, 340, -40, 280);
+    }
+    cta(COPY.harborOrderBoard ?? "码头差事", -340, -140, 180, 52, 20, "secondary", () => {
+      surface = "orders";
       render();
     });
-  } else if (station.flotsamHeld > 0) {
-    label(COPY.harborFlotsamHeld ?? "手里有一块潮间漂木", 18, 340, -40, 280);
+    cta(COPY.harborPontoonUpgrade ?? "加宽码头", 80, -140, 180, 52, 20, "secondary", () => {
+      surface = "pontoon";
+      render();
+    });
   }
-  cta(COPY.harborOrderBoard ?? "订单板", -340, -140, 180, 52, 20, "secondary", () => {
-    surface = "orders";
-    render();
-  });
-  cta(COPY.harborPontoonUpgrade ?? "浮台升级", 80, -140, 180, 52, 20, "secondary", () => {
-    surface = "pontoon";
-    render();
-  });
   cta(COPY.settingsButton, -530, 310, COPY.button.mini.width, COPY.button.mini.height, COPY.button.mini.fontSize, "secondary", () => {
     setStatus("代理预览不包含设置页。");
     render();
@@ -1478,8 +1480,8 @@ function renderOrderBoard() {
   paintSea(ctx, COPY.looks.harbor, true);
   hud.innerHTML = "";
   buttons.innerHTML = "";
-  label(COPY.harborOrderBoard ?? "订单板", 34, 0, 220);
-  label(COPY.harborOrderName ?? "潮间补货", 26, 0, 164);
+  label(COPY.harborOrderBoard ?? "码头差事", 34, 0, 220);
+  label(COPY.harborOrderName ?? "钉块木板", 26, 0, 164);
   label(COPY.harborBuildingOrders ?? "", 22, 0, 100, 980);
   label(
     station.orderDelivered ? COPY.harborOrderNeedDone : COPY.harborOrderNeedIdle,
@@ -1488,7 +1490,7 @@ function renderOrderBoard() {
     40,
   );
   if (station.flotsamHeld > 0) {
-    label(COPY.harborFlotsamHeld ?? "手里有一块潮间漂木", 18, 0, 8, 720);
+    label(COPY.harborFlotsamHeld ?? "手里有一块木头", 18, 0, 8, 720);
   }
   cta(
     station.orderAccepted ? COPY.harborOrderAccepted : COPY.harborOrderAccept,
@@ -1518,21 +1520,21 @@ function renderOrderBoard() {
     "secondary",
     () => {
       if (station.orderDelivered) {
-        setStatus(COPY.harborOrderDelivered ?? "已送到小站");
+        setStatus(COPY.harborOrderDelivered ?? "木头已交");
       } else if (!station.orderAccepted) {
-        setStatus(COPY.harborOrderAcceptHint ?? "先记下需求，再把潮间漂木交到浮站。");
+        setStatus(COPY.harborOrderAcceptHint ?? "先接差事，再把岸边木头交回码头。");
       } else if (station.flotsamHeld <= 0) {
-        setStatus(COPY.harborOrderDeliverHint ?? "先捞起近岸的潮间漂木。");
+        setStatus(COPY.harborOrderDeliverHint ?? "先捞起岸边那块木头。");
       } else {
         station.flotsamHeld = 0;
         station.orderProgress = 1;
         station.orderDelivered = true;
-        setStatus(COPY.harborFlotsamDelivered ?? "潮间漂木已钉到棚角。小站记下了。");
+        setStatus(COPY.harborFlotsamDelivered ?? "木头钉上棚角了。卖价没变。");
       }
       render();
     },
   );
-  cta(COPY.harborBuildingBack ?? "回到浮站", 0, -250, 240, 72, 24, "secondary", () => {
+  cta(COPY.harborBuildingBack ?? "回港口", 0, -250, 240, 72, 24, "secondary", () => {
     surface = "harbor";
     render();
   });
@@ -1543,7 +1545,7 @@ function renderPontoon() {
   paintSea(ctx, COPY.looks.harbor, true);
   hud.innerHTML = "";
   buttons.innerHTML = "";
-  label(COPY.harborPontoonUpgrade ?? "浮台升级", 34, 0, 220);
+  label(COPY.harborPontoonUpgrade ?? "加宽码头", 34, 0, 220);
   label(station.pontoonTier >= 2 ? COPY.harborPontoonTier2 : COPY.harborPontoonTier1, 24, 0, 160, 900);
   label(
     station.pontoonTier >= 2
@@ -1573,7 +1575,7 @@ function renderPontoon() {
       render();
     },
   );
-  cta(COPY.harborBuildingBack ?? "回到浮站", 0, -250, 240, 72, 24, "secondary", () => {
+  cta(COPY.harborBuildingBack ?? "回港口", 0, -250, 240, 72, 24, "secondary", () => {
     surface = "harbor";
     render();
   });

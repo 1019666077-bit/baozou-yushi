@@ -85,6 +85,7 @@ import {
   harborPontoonUpgradeCaption,
   harborPontoonUpgradeLabel,
   harborPontoonUpgradeToast,
+  harborSideSystemsVisible,
   harborWorldTitle,
   type HarborBuildingKind,
 } from "./domain/HarborCopy";
@@ -300,8 +301,11 @@ export class RuntimeHome extends Component {
       this.sellCallout = undefined;
     }
     makeButton(layer, "设置", -530, 310, () => this.showSettings(), 140, 52, 22);
-    makeButton(layer, "商店", 260, 270, () => void this.showStore(), 120, 46, 19);
-    makeButton(layer, "外观", 400, 270, () => this.showCosmetics(), 120, 46, 19);
+    const sideOpen = harborSideSystemsVisible(save.tutorialComplete);
+    if (sideOpen) {
+      makeButton(layer, "商店", 260, 270, () => void this.showStore(), 120, 46, 19);
+      makeButton(layer, "外观", 400, 270, () => this.showCosmetics(), 120, 46, 19);
+    }
     const nextCta = harborNextCta({
       tutorialComplete: save.tutorialComplete,
       completedRuns: save.completedRuns,
@@ -449,40 +453,42 @@ export class RuntimeHome extends Component {
     );
 
     const station = normalizeStation(save.station);
-    if (canPickFlotsam(station)) {
+    if (sideOpen) {
+      if (canPickFlotsam(station)) {
+        makeButton(
+          layer,
+          harborFlotsamPickCaption(),
+          340,
+          -40,
+          () => void this.onPickFlotsam(),
+          180,
+          52,
+          20,
+        );
+      } else if (station.flotsamHeld > 0) {
+        makeLabel(layer, harborFlotsamHeldLine(station.flotsamHeld), 18, 340, -40, 280);
+      }
       makeButton(
         layer,
-        harborFlotsamPickCaption(),
-        340,
-        -40,
-        () => void this.onPickFlotsam(),
+        harborOrderBoardLabel(),
+        -340,
+        -140,
+        () => this.showBuilding("orders"),
         180,
         52,
         20,
       );
-    } else if (station.flotsamHeld > 0) {
-      makeLabel(layer, harborFlotsamHeldLine(station.flotsamHeld), 18, 340, -40, 280);
+      makeButton(
+        layer,
+        harborPontoonUpgradeLabel(),
+        80,
+        -140,
+        () => this.showBuilding("pontoon"),
+        180,
+        52,
+        20,
+      );
     }
-    makeButton(
-      layer,
-      harborOrderBoardLabel(),
-      -340,
-      -140,
-      () => this.showBuilding("orders"),
-      180,
-      52,
-      20,
-    );
-    makeButton(
-      layer,
-      harborPontoonUpgradeLabel(),
-      80,
-      -140,
-      () => this.showBuilding("pontoon"),
-      180,
-      52,
-      20,
-    );
     makeButton(
       layer,
       harborSailCaption(save.tutorialComplete, save.completedRuns),
@@ -528,7 +534,9 @@ export class RuntimeHome extends Component {
       72,
       20,
     );
-    makeButton(layer, "目标", 350, -230, () => this.showChallenges(), 140, 72, 20);
+    if (sideOpen) {
+      makeButton(layer, "目标", 350, -230, () => this.showChallenges(), 140, 72, 20);
+    }
     makeButton(
       layer,
       harborFeatureButtonLabel("board", save),

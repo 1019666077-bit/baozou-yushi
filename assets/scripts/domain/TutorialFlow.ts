@@ -44,8 +44,8 @@ export function tutorialPrompt(
   step: TutorialStep,
   extras: { carrying?: boolean } = {},
 ): string {
-  if (step === "cast") return "点「抛竿」，锁定湾鳍鱼。";
-  if (step === "weakPoint") return "点右下半屏发光鳍，打弱点。";
+  if (step === "cast") return "点「抛竿」，把湾鳍鱼拽上船。";
+  if (step === "weakPoint") return "点右下半屏发光鳍，砸到弱点。";
   if (step === "reel") {
     if (extras.carrying) return "下半屏拖到左边鱼箱，松手入箱。";
     return "点「捡起」，搬进左边鱼箱。";
@@ -230,7 +230,7 @@ export function harborNextPrompt(
 ): string {
   if (cta === "sell") return "点「卖到鱼市」，换成金币。";
   if (cta === "upgrade") return "点升级，卖掉的鱼换成更好的竿。";
-  if (!tutorialComplete) return "点「开始教学」，甩钩打中再入箱。";
+  if (!tutorialComplete) return "点「开始教学」，把鱼拽上船、砸晕、卖掉。";
   return "点「出海捕鱼」，再甩一竿。";
 }
 

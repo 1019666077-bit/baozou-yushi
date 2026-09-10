@@ -23,7 +23,9 @@ import {
   harborPontoonTierLine,
   harborPontoonUpgradeCaption,
   harborPontoonUpgradeLabel,
+  harborSideSystemsVisible,
   harborWorldTitle,
+  huntFieldCaption,
 } from "../assets/scripts/domain/HarborCopy";
 import {
   STATION_ORDER_NEED,
@@ -650,28 +652,31 @@ describe("ProgressionSystem", () => {
     );
   });
 
-  it("keeps flood-island harbor copy original and station-light", () => {
-    expect(harborWorldTitle()).toContain("潮退浮站");
-    expect(harborWorldTitle()).toContain("浮岛小站");
-    expect(harborOrderBoardLabel()).toBe("订单板");
-    expect(harborPontoonUpgradeLabel()).toBe("浮台升级");
-    expect(harborBuildingTitle("orders")).toBe("订单板");
-    expect(harborBuildingTitle("pontoon")).toBe("浮台升级");
-    expect(harborOrderName()).toBe("潮间补货");
-    expect(harborOrderNeedLine(0, 1)).toBe("需要：潮间漂木 0/1");
-    expect(harborOrderAcceptCaption(false)).toBe("记下需求");
-    expect(harborFlotsamLabel()).toBe("潮间漂木");
-    expect(harborFlotsamPickCaption()).toBe("捞起漂木");
-    expect(harborPontoonTierLine(1)).toContain("窄板浮台");
-    expect(harborPontoonUpgradeCaption(1)).toBe("钉宽甲板");
-    expect(harborPontoonBuiltHint()).toContain("修建中");
-    expect(harborBuildingBody("orders")).toContain("潮间漂木");
-    expect(harborBuildingBody("pontoon")).toContain("售价");
+  it("keeps first-run harbor copy as a fish market, not a flood station", () => {
+    expect(harborWorldTitle()).toBe("海边鱼市");
+    expect(huntFieldCaption()).toBe("渔场");
+    expect(harborSideSystemsVisible(false)).toBe(false);
+    expect(harborSideSystemsVisible(true)).toBe(true);
+    expect(harborOrderBoardLabel()).toBe("码头差事");
+    expect(harborPontoonUpgradeLabel()).toBe("加宽码头");
+    expect(harborBuildingTitle("orders")).toBe("码头差事");
+    expect(harborBuildingTitle("pontoon")).toBe("加宽码头");
+    expect(harborOrderName()).toBe("钉块木板");
+    expect(harborOrderNeedLine(0, 1)).toBe("需要：岸边木头 0/1");
+    expect(harborOrderAcceptCaption(false)).toBe("接差事");
+    expect(harborFlotsamLabel()).toBe("岸边木头");
+    expect(harborFlotsamPickCaption()).toBe("捞木头");
+    expect(harborPontoonTierLine(1)).toContain("窄板码头");
+    expect(harborPontoonUpgradeCaption(1)).toBe("钉宽码头");
+    expect(harborPontoonBuiltHint()).toContain("图纸");
+    expect(harborBuildingBody("orders")).toContain("木头");
+    expect(harborBuildingBody("pontoon")).toContain("卖价");
     expect(harborBuildingBody("pontoon", 1)).toContain("钉宽");
     expect(harborBuildingBody("pontoon", 2)).toContain("加宽");
-    expect(harborBuildingBack()).toBe("回到浮站");
+    expect(harborBuildingBack()).toBe("回港口");
     const joined = [
       harborWorldTitle(),
+      huntFieldCaption(),
       harborOrderBoardLabel(),
       harborPontoonUpgradeLabel(),
       harborBuildingTitle("orders"),
@@ -684,7 +689,7 @@ describe("ProgressionSystem", () => {
       harborPontoonTierLine(2),
       harborPontoonBuiltHint(),
     ].join(" ");
-    expect(joined).not.toMatch(/Crazy|Water World|渔力全开/i);
+    expect(joined).not.toMatch(/潮退浮站|浮岛小站|潮间|Crazy|Water World|渔力全开/i);
   });
 
   it("buys a newly unlocked tool at its level-one cost", () => {
@@ -1875,8 +1880,8 @@ describe("TutorialFlow", () => {
 
   it("teaches pick-up into the crate instead of the old green reel zone", () => {
     expect(tutorialPrompt("cast")).toContain("抛竿");
-    expect(tutorialPrompt("cast")).toContain("湾鳍");
-    expect(tutorialPrompt("weakPoint")).toContain("弱点");
+    expect(tutorialPrompt("cast")).toContain("拽上船");
+    expect(tutorialPrompt("weakPoint")).toContain("砸到弱点");
     expect(tutorialPrompt("reel")).toContain("捡起");
     expect(tutorialPrompt("reel")).toContain("鱼箱");
     expect(tutorialPrompt("reel")).not.toMatch(/绿|收杆/);
@@ -2018,7 +2023,7 @@ describe("TutorialFlow", () => {
       }),
     ).toBe("sail");
     expect(harborNextPrompt("sell")).toContain("卖到鱼市");
-    expect(harborNextPrompt("sail", false)).toContain("开始教学");
+    expect(harborNextPrompt("sail", false)).toContain("拽上船");
     expect(harborNextPrompt("upgrade")).toContain("升级");
     expect(buttonFillRgb("primary")[0]).toBeGreaterThan(
       buttonFillRgb("secondary")[0],

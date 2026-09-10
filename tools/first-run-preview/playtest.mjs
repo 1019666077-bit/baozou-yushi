@@ -104,7 +104,7 @@ try {
   await wait(250);
   await shot(page, "02-tutorial-cast");
   const castText = await page.evaluate(() => document.body.innerText);
-  note(castText.includes("练潮码头") && castText.includes("潮汐猎场"), "教学猎场标题");
+  note(castText.includes("练潮码头") && castText.includes("渔场"), "教学猎场标题");
   note(castText.includes("抛竿") && castText.includes("捡起"), "抛竿/捡起按钮");
   const castState = await page.evaluate(() => window.proxyState());
   note(
@@ -183,7 +183,7 @@ try {
   await wait(350);
   await shot(page, "08-harbor-after");
   const after = await page.evaluate(() => document.body.innerText);
-  note(after.includes("潮退浮站") || after.includes("潮汐港口"), "回到浮站");
+  note(after.includes("海边鱼市") || after.includes("港口"), "回到鱼市");
   note(after.includes("11/90") || after.includes("卖出已入账"), "卖出接到攒够进度");
   note(after.includes("再出海") || after.includes("出海捕鱼"), "第二局 CTA 文案");
   note(after.includes("● 泡沫湾"), "教学后默认泡沫湾");
