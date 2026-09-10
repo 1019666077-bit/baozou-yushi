@@ -4,9 +4,9 @@
  */
 
 export const HARBOR_LOOKS = [
-  { id: "morning", name: "早市码头", blurb: "晴海、晒鱼、白墙村", src: "./looks/morning.jpg" },
-  { id: "dusk", name: "黄昏渔村", blurb: "晚霞、灯笼、炊烟", src: "./looks/dusk.jpg" },
-  { id: "night", name: "夜灯鱼市", blurb: "月牙、灯火、倒影", src: "./looks/night.jpg" },
+  { id: "morning", name: "早市码头", blurb: "钢棚、灯塔、白房子", src: "./looks/morning.jpg" },
+  { id: "dusk", name: "黄昏海港", blurb: "玻璃窗、吊灯、日落", src: "./looks/dusk.jpg" },
+  { id: "night", name: "夜港鱼市", blurb: "灯带、冰柜、夜港", src: "./looks/night.jpg" },
 ];
 
 export const DEFAULT_HARBOR_LOOK = "morning";
