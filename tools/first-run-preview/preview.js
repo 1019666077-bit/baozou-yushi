@@ -1310,9 +1310,14 @@ function renderHarbor() {
     );
     return;
   }
-  const labels = COPY.featureLabelsAfter;
+  const labels =
+    save.completedRuns >= 1
+      ? COPY.featureLabelsAfter
+      : COPY.featureLabelsPlay ?? COPY.featureLabelsAfter;
   cta(
-    COPY.sailCaptionAfter,
+    save.completedRuns >= 1
+      ? COPY.sailCaptionAfter
+      : COPY.sailCaptionPlay ?? COPY.sailCaptionAfter,
     -80,
     -230,
     230,

@@ -198,11 +198,29 @@ function snapshot() {
       freeSail: TutorialFlow.harborNextPrompt("sail", true),
     },
     sailCaptionNew: TutorialFlow.harborSailCaption(false),
+    sailCaptionPlay: TutorialFlow.harborSailCaption(true, 0),
     sailCaptionAfter: TutorialFlow.harborSailCaption(true, after.completedRuns),
     featureLabelsNew: {
       upgrade: TutorialFlow.harborFeatureButtonLabel("upgrade", newSave),
       book: TutorialFlow.harborFeatureButtonLabel("book", newSave),
       board: TutorialFlow.harborFeatureButtonLabel("board", newSave),
+    },
+    featureLabelsPlay: {
+      upgrade: TutorialFlow.harborUpgradeCtaLabel({
+        tutorialComplete: true,
+        completedRuns: 0,
+        coins: 0,
+        nextUpgradeCost: nextRod?.upgradeCost,
+        toolName: rod.name,
+      }),
+      book: TutorialFlow.harborFeatureButtonLabel("book", {
+        tutorialComplete: true,
+        completedRuns: 0,
+      }),
+      board: TutorialFlow.harborFeatureButtonLabel("board", {
+        tutorialComplete: true,
+        completedRuns: 0,
+      }),
     },
     featureLabelsAfter: {
       upgrade: TutorialFlow.harborUpgradeCtaLabel({
