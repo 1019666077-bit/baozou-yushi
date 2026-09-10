@@ -12,13 +12,7 @@ import {
   paintSkyBloom,
   paintWaterLife,
 } from "./skin.js";
-import {
-  HARBOR_LOOKS,
-  paintHarborBackdrop,
-  preloadHarborLooks,
-  readHarborLook,
-  writeHarborLook,
-} from "./harborLooks.js";
+import { paintHarborBackdrop, preloadHarborLooks } from "./harborLooks.js";
 
 const grain = makeGrain(320, 180);
 
@@ -732,12 +726,10 @@ function carryBob(elapsed) {
   };
 }
 
-let harborLookId = readHarborLook();
-
 function paintSea(ctx, _look, harbor = false) {
   const phase = performance.now() / 520;
   if (harbor) {
-    paintHarborBackdrop(ctx, phase, harborLookId);
+    paintHarborBackdrop(ctx);
     return;
   }
   const ops = freeHunt && COPY.art?.foam ? COPY.art.foam : COPY.art?.tutorial;
@@ -1617,16 +1609,6 @@ function paintBackdrop() {
   if (focus && focus !== "none") paintGuide(ctx, focus);
 }
 
-function syncLookPicker() {
-  const picker = document.getElementById("look-picker");
-  if (!picker) return;
-  const onHarbor = surface === "harbor" || surface === "settle" || surface === "orders" || surface === "pontoon";
-  picker.hidden = !onHarbor;
-  picker.querySelectorAll("button.look-chip").forEach((btn) => {
-    btn.dataset.on = btn.dataset.look === harborLookId ? "1" : "0";
-  });
-}
-
 function render() {
   stage.dataset.surface = surface;
   stage.dataset.step = tutorialStep;
@@ -1635,7 +1617,6 @@ function render() {
   else if (surface === "orders") renderOrderBoard();
   else if (surface === "pontoon") renderPontoon();
   else renderSea();
-  syncLookPicker();
 }
 
 function onIsland(island) {
@@ -1972,34 +1953,7 @@ function tick(now) {
   requestAnimationFrame(tick);
 }
 
-function mountLookPicker() {
-  const row = document.getElementById("look-row");
-  if (!row) return;
-  row.innerHTML = "";
-  for (const look of HARBOR_LOOKS) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "look-chip";
-    btn.dataset.look = look.id;
-    const thumb = document.createElement("img");
-    thumb.src = look.src;
-    thumb.alt = look.name;
-    const name = document.createElement("strong");
-    name.textContent = look.name;
-    const blurb = document.createElement("span");
-    blurb.textContent = look.blurb;
-    btn.append(thumb, name, blurb);
-    btn.addEventListener("click", () => {
-      harborLookId = look.id;
-      writeHarborLook(look.id);
-      render();
-    });
-    row.appendChild(btn);
-  }
-}
-
 preloadHarborLooks().then(() => {
-  mountLookPicker();
   render();
 });
 requestAnimationFrame(tick);
@@ -2021,7 +1975,7 @@ Object.assign(window, {
     slamMark,
     dust: particles.filter((p) => p.kind === "dust").length,
     tutorialComplete: save.tutorialComplete,
-    harborLookId,
+    harborLookId: "morning",
     station: { ...station },
   }),
   proxyHoldCharge: (value) => {
