@@ -964,10 +964,12 @@ export function farRidgeOps(look: IslandLook): DrawOp[] {
   ];
 }
 
-/** 淹没天际：半沉楼影 + 浮木。港口远层，不用竞品剪影。 */
+/** 远岸渔村：山脊、瓦房、灯窗。港口远层，不要淹没楼影。 */
 export function floodSkylineOps(look: IslandLook): DrawOp[] {
-  const ink = mix(look.deep, [22, 26, 40], 0.62);
-  const wet = mix(ink, look.far, 0.28);
+  const hill = mix(look.landDark, look.far, 0.35);
+  const wall = mix(look.land, [232, 196, 132], 0.45);
+  const roof = mix(look.accent, [196, 72, 48], 0.4);
+  const wet = mix(hill, look.far, 0.28);
   return [
     {
       t: "ellipse",
@@ -979,13 +981,24 @@ export function floodSkylineOps(look: IslandLook): DrawOp[] {
       tag: "paraFar",
     },
     {
-      t: "rect",
-      x: -236,
-      y: 16,
-      w: 38,
-      h: 96,
-      fill: rgba(ink, 220),
+      t: "poly",
+      pts: [-280, 12, -236, 86, -188, 70, -210, 12],
+      fill: rgba(hill, 220),
       tag: "silhouette",
+    },
+    {
+      t: "rect",
+      x: -248,
+      y: 18,
+      w: 34,
+      h: 36,
+      fill: rgba(wall, 230),
+      tag: "silhouette",
+    },
+    {
+      t: "poly",
+      pts: [-256, 54, -231, 78, -204, 54],
+      fill: rgba(roof, 230),
     },
     {
       t: "rect",
@@ -998,11 +1011,11 @@ export function floodSkylineOps(look: IslandLook): DrawOp[] {
     },
     {
       t: "rect",
-      x: -222,
-      y: 72,
+      x: -236,
+      y: 36,
       w: 8,
       h: 10,
-      fill: rgba(look.accent, 170),
+      fill: rgba(look.accent, 200),
       tag: "skyline",
     },
     {
@@ -1010,9 +1023,22 @@ export function floodSkylineOps(look: IslandLook): DrawOp[] {
       x: -52,
       y: 10,
       w: 86,
-      h: 72,
-      fill: rgba(ink, 200),
+      h: 48,
+      fill: rgba(hill, 200),
       tag: "paraMid",
+    },
+    {
+      t: "rect",
+      x: -36,
+      y: 18,
+      w: 28,
+      h: 24,
+      fill: rgba(wall, 230),
+    },
+    {
+      t: "poly",
+      pts: [-42, 42, -22, 62, -2, 42],
+      fill: rgba(roof, 230),
     },
     {
       t: "rect",
@@ -1026,16 +1052,16 @@ export function floodSkylineOps(look: IslandLook): DrawOp[] {
     {
       t: "rect",
       x: -34,
-      y: 38,
-      w: 14,
-      h: 12,
-      fill: rgba([18, 22, 32], 180),
+      y: 28,
+      w: 8,
+      h: 8,
+      fill: rgba([255, 214, 120], 200),
       tag: "rim",
     },
     {
       t: "poly",
       pts: [148, 14, 198, 88, 240, 78, 208, 10],
-      fill: rgba(ink, 190),
+      fill: rgba(hill, 190),
       tag: "silhouette",
     },
     {
@@ -1043,7 +1069,7 @@ export function floodSkylineOps(look: IslandLook): DrawOp[] {
       x: 318,
       y: 18,
       w: 30,
-      h: 56,
+      h: 36,
       fill: rgba(wet, 180),
       tag: "rock",
     },
@@ -1072,6 +1098,12 @@ export function floodSkylineOps(look: IslandLook): DrawOp[] {
       rx: 14,
       ry: 7,
       fill: rgba(look.landDark, 120),
+      tag: "bush",
+    },
+    {
+      t: "poly",
+      pts: [-196, 18, -188, 44, -178, 18],
+      fill: rgba(look.landDark, 200),
       tag: "bush",
     },
     {

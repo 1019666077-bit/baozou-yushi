@@ -185,6 +185,59 @@
         opacity: 0.85;
         pointer-events: none;
       }
+      .look-picker {
+        width: min(var(--stage-w), 100%);
+        margin-top: 14px;
+      }
+      .look-picker-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: #d8c48a;
+        margin-bottom: 8px;
+      }
+      .look-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+      }
+      button.look-chip {
+        appearance: none;
+        border: 2px solid rgba(255, 210, 96, 0.28);
+        background: rgba(12, 28, 40, 0.86);
+        color: #f4f7fa;
+        border-radius: 14px;
+        padding: 8px 8px 10px;
+        cursor: pointer;
+        font-family: inherit;
+        text-align: left;
+      }
+      button.look-chip canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 8px;
+        margin-bottom: 6px;
+      }
+      button.look-chip strong {
+        display: block;
+        font-size: 14px;
+        letter-spacing: 0.02em;
+      }
+      button.look-chip span {
+        display: block;
+        margin-top: 2px;
+        font-size: 12px;
+        color: #b7c8d4;
+      }
+      button.look-chip[data-on="1"] {
+        border-color: #ffd060;
+        box-shadow: 0 0 0 2px rgba(255, 208, 96, 0.35);
+      }
+      @media (max-width: 900px) {
+        .look-row {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
     </style>
   </head>
   <body>
@@ -198,6 +251,10 @@
         <div id="hud"></div>
         <div id="buttons"></div>
         <div id="fx"></div>
+      </div>
+      <div class="look-picker" id="look-picker" hidden>
+        <div class="look-picker-label">港口背景 · 点一张看看，选中的会记住</div>
+        <div class="look-row" id="look-row"></div>
       </div>
     </div>
     <script type="module" src="./preview.js"></script>

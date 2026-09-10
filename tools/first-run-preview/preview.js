@@ -12,6 +12,13 @@ import {
   paintSkyBloom,
   paintWaterLife,
 } from "./skin.js";
+import {
+  HARBOR_LOOKS,
+  paintHarborBackdrop,
+  paintHarborFinish,
+  readHarborLook,
+  writeHarborLook,
+} from "./harborLooks.js";
 
 const grain = makeGrain(320, 180);
 
@@ -725,33 +732,41 @@ function carryBob(elapsed) {
   };
 }
 
+let harborLookId = readHarborLook();
+
 function paintSea(ctx, _look, harbor = false) {
-  const ops = harbor ? COPY.art?.harbor : freeHunt && COPY.art?.foam ? COPY.art.foam : COPY.art?.tutorial;
+  const phase = performance.now() / 520;
+  if (harbor) {
+    paintHarborBackdrop(ctx, phase, harborLookId);
+    paintNearPier(ctx, phase, harbor, station.pontoonTier);
+    if (station.flotsamSpawned) {
+      const bob = Math.sin(phase * 1.4) * 5;
+      if (COPY.artFlotsam) {
+        ctx.save();
+        ctx.translate(0, bob);
+        paintOps(ctx, COPY.artFlotsam, phase);
+        ctx.restore();
+      }
+    }
+    if (station.pontoonTier >= 2 && COPY.artPontoon2) {
+      paintOps(ctx, COPY.artPontoon2, phase);
+    }
+    paintHarborFinish(ctx, grain, W, H, harborLookId);
+    return;
+  }
+  const ops = freeHunt && COPY.art?.foam ? COPY.art.foam : COPY.art?.tutorial;
   if (ops) {
-    paintOps(ctx, ops, performance.now() / 520);
-    if (!harbor && COPY.art?.dock) paintOps(ctx, COPY.art.dock, performance.now() / 520);
+    paintOps(ctx, ops, phase);
+    if (COPY.art?.dock) paintOps(ctx, COPY.art.dock, phase);
   } else {
     ctx.fillStyle = "#0a5c7e";
     ctx.fillRect(0, 0, W, H);
   }
-  const phase = performance.now() / 520;
-  paintSkyBloom(ctx, phase, harbor);
-  paintWaterLife(ctx, phase, !harbor);
-  paintBayTraffic(ctx, phase, harbor);
-  paintNearPier(ctx, phase, harbor, station.pontoonTier);
-  if (harbor && station.flotsamSpawned) {
-    const bob = Math.sin(phase * 1.4) * 5;
-    if (COPY.artFlotsam) {
-      ctx.save();
-      ctx.translate(0, bob);
-      paintOps(ctx, COPY.artFlotsam, phase);
-      ctx.restore();
-    }
-  }
-  if (harbor && station.pontoonTier >= 2 && COPY.artPontoon2) {
-    paintOps(ctx, COPY.artPontoon2, phase);
-  }
-  paintFinish(ctx, grain, W, H, !harbor);
+  paintSkyBloom(ctx, phase, false);
+  paintWaterLife(ctx, phase, true);
+  paintBayTraffic(ctx, phase, false);
+  paintNearPier(ctx, phase, false, station.pontoonTier);
+  paintFinish(ctx, grain, W, H, true);
 }
 
 function paintBoat(ctx, x, y) {
@@ -1616,6 +1631,16 @@ function paintBackdrop() {
   if (focus && focus !== "none") paintGuide(ctx, focus);
 }
 
+function syncLookPicker() {
+  const picker = document.getElementById("look-picker");
+  if (!picker) return;
+  const onHarbor = surface === "harbor" || surface === "settle" || surface === "orders" || surface === "pontoon";
+  picker.hidden = !onHarbor;
+  picker.querySelectorAll("button.look-chip").forEach((btn) => {
+    btn.dataset.on = btn.dataset.look === harborLookId ? "1" : "0";
+  });
+}
+
 function render() {
   stage.dataset.surface = surface;
   stage.dataset.step = tutorialStep;
@@ -1624,6 +1649,7 @@ function render() {
   else if (surface === "orders") renderOrderBoard();
   else if (surface === "pontoon") renderPontoon();
   else renderSea();
+  syncLookPicker();
 }
 
 function onIsland(island) {
@@ -1960,6 +1986,38 @@ function tick(now) {
   requestAnimationFrame(tick);
 }
 
+function mountLookPicker() {
+  const row = document.getElementById("look-row");
+  if (!row) return;
+  row.innerHTML = "";
+  for (const look of HARBOR_LOOKS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "look-chip";
+    btn.dataset.look = look.id;
+    const thumb = document.createElement("canvas");
+    thumb.width = 320;
+    thumb.height = 180;
+    const tctx = thumb.getContext("2d");
+    tctx.scale(320 / 1280, 180 / 720);
+    paintHarborBackdrop(tctx, 0.8, look.id);
+    paintNearPier(tctx, 0.8, true, 1);
+    paintHarborFinish(tctx, grain, 1280, 720, look.id);
+    const name = document.createElement("strong");
+    name.textContent = look.name;
+    const blurb = document.createElement("span");
+    blurb.textContent = look.blurb;
+    btn.append(thumb, name, blurb);
+    btn.addEventListener("click", () => {
+      harborLookId = look.id;
+      writeHarborLook(look.id);
+      render();
+    });
+    row.appendChild(btn);
+  }
+}
+
+mountLookPicker();
 render();
 requestAnimationFrame(tick);
 
@@ -1980,6 +2038,7 @@ Object.assign(window, {
     slamMark,
     dust: particles.filter((p) => p.kind === "dust").length,
     tutorialComplete: save.tutorialComplete,
+    harborLookId,
     station: { ...station },
   }),
   proxyHoldCharge: (value) => {
