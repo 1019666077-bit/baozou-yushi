@@ -27,14 +27,16 @@
       .disclaimer {
         width: min(var(--stage-w), 100%);
         margin-bottom: 8px;
-        padding: 10px 14px;
-        border: 2px dashed #f0c040;
-        background: #2a1a08;
-        color: #ffe9a8;
-        font-size: 14px;
-        font-weight: 700;
-        letter-spacing: 0.02em;
-        box-shadow: 0 0 0 3px rgba(58, 34, 8, 0.8);
+        padding: 6px 12px;
+        border: 1px solid rgba(240, 192, 64, 0.45);
+        background: rgba(20, 14, 8, 0.72);
+        color: #d8c48a;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        line-height: 1.35;
+        max-height: 3.2em;
+        overflow: hidden;
       }
       .stage {
         position: relative;
@@ -49,7 +51,7 @@
           inset 0 -22px 48px rgba(8, 28, 36, 0.22);
         background: #083044;
       }
-      canvas {
+      .stage canvas {
         position: absolute;
         inset: 0;
         width: 100%;

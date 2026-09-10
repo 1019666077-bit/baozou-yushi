@@ -7,17 +7,41 @@ export function harborFailCopy(error: unknown): string {
   return raw;
 }
 
-/** 港口世界壳标题。玩家可见，只用原创中文。 */
+/** 港口主标题。进港先读成鱼市，不读成抽象浮站。 */
 export function harborWorldTitle(): string {
-  return "潮退浮站 · 浮岛小站";
+  return "海边鱼市";
+}
+
+/** 标题在旁白板上方，中间留空，避免叠字。 */
+export const HARBOR_TITLE_Y = 328;
+export const HARBOR_PROMPT_Y = 248;
+
+/** 出海时岛名后面的场次后缀。 */
+export function huntFieldCaption(): string {
+  return "渔场";
+}
+
+/** 教学没走完：第一屏只留鱼市标题、一句旁白、开始教学。 */
+export function harborFirstScreen(tutorialComplete: boolean): boolean {
+  return tutorialComplete !== true;
+}
+
+/** 教学没走完前，不露码头差事 / 加宽码头 / 商店外观。 */
+export function harborSideSystemsVisible(tutorialComplete: boolean): boolean {
+  return tutorialComplete === true;
+}
+
+/** 选岛、渔具、图鉴行、升级/榜这些浏览件，教学后再露。 */
+export function harborBrowseChromeVisible(tutorialComplete: boolean): boolean {
+  return tutorialComplete === true;
 }
 
 export function harborOrderBoardLabel(): string {
-  return "订单板";
+  return "码头差事";
 }
 
 export function harborPontoonUpgradeLabel(): string {
-  return "浮台升级";
+  return "加宽码头";
 }
 
 export type HarborBuildingKind = "orders" | "pontoon";
@@ -32,77 +56,77 @@ export function harborBuildingBody(
 ): string {
   if (kind === "pontoon") {
     return pontoonTier >= 2
-      ? "甲板加宽了，棚角也亮着灯。只换皮，不改箱容和售价。"
-      : "还能再钉宽一块甲板、加一盏灯。只换皮，不改箱容和售价。";
+      ? "码头加宽了，棚角也亮着灯。只换样子，卖价不变。"
+      : "还能再钉宽一块甲板、加一盏灯。只换样子，卖价不变。";
   }
-  return "退潮刚过，小站缺一块潮间漂木钉棚角。记下需求，捞到再交到浮站。";
+  return "码头缺一块木头钉棚角。接差事，捞到岸边木头再交回来。";
 }
 
 export function harborBuildingBack(): string {
-  return "回到浮站";
+  return "回港口";
 }
 
 export function harborOrderName(): string {
-  return "潮间补货";
+  return "钉块木板";
 }
 
 export function harborOrderNeedLine(progress: number, need = 1): string {
   const safeNeed = Math.max(1, Math.floor(need) || 1);
   const safeProgress = Math.min(safeNeed, Math.max(0, Math.floor(progress) || 0));
-  return `需要：潮间漂木 ${safeProgress}/${safeNeed}`;
+  return `需要：岸边木头 ${safeProgress}/${safeNeed}`;
 }
 
 export function harborOrderAcceptCaption(accepted: boolean): string {
-  return accepted ? "已记下" : "记下需求";
+  return accepted ? "已接差事" : "接差事";
 }
 
 export function harborOrderDeliverCaption(done: boolean): string {
-  return done ? "已送到小站" : "交到小站";
+  return done ? "木头已交" : "交木头";
 }
 
 export function harborOrderAcceptHint(): string {
-  return "先记下需求，再把潮间漂木交到浮站。";
+  return "先接差事，再把岸边木头交回码头。";
 }
 
 export function harborOrderDeliverHint(): string {
-  return "先捞起近岸的潮间漂木。";
+  return "先捞起岸边那块木头。";
 }
 
 export function harborFlotsamLabel(): string {
-  return "潮间漂木";
+  return "岸边木头";
 }
 
 export function harborFlotsamPickCaption(): string {
-  return "捞起漂木";
+  return "捞木头";
 }
 
 export function harborFlotsamPickedToast(): string {
-  return "捞到一块潮间漂木。带回订单板交给小站。";
+  return "捞到一块木头。去码头差事交回去。";
 }
 
 export function harborFlotsamDeliverToast(): string {
-  return "潮间漂木已钉到棚角。小站记下了。";
+  return "木头钉上棚角了。卖价没变。";
 }
 
 export function harborFlotsamHeldLine(held: number): string {
-  return held > 0 ? "手里有一块潮间漂木" : "近岸还有潮间漂木";
+  return held > 0 ? "手里有一块木头" : "岸边还有木头";
 }
 
 export function harborPontoonTierLine(tier: number): string {
   const safe = Math.min(3, Math.max(1, Math.floor(tier) || 1));
   return safe >= 2
-    ? `现在：加宽甲板浮台（${safe} 档 / 3）`
-    : `现在：窄板浮台（${safe} 档 / 3）`;
+    ? `现在：加宽码头（${safe} 档 / 3）`
+    : `现在：窄板码头（${safe} 档 / 3）`;
 }
 
 export function harborPontoonUpgradeCaption(tier: number): string {
-  return tier >= 2 ? "浮台已经能站住" : "钉宽甲板";
+  return tier >= 2 ? "码头已经够站" : "钉宽码头";
 }
 
 export function harborPontoonUpgradeToast(): string {
-  return "甲板加宽了，棚角也亮着灯。售价没变。";
+  return "码头加宽了，棚角也亮着灯。卖价没变。";
 }
 
 export function harborPontoonBuiltHint(): string {
-  return "第三档图纸还在修建中。";
+  return "再加宽的图纸还没好。";
 }
