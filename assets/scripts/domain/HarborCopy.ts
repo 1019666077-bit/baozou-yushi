@@ -12,13 +12,27 @@ export function harborWorldTitle(): string {
   return "海边鱼市";
 }
 
+/** 标题在旁白板上方，中间留空，避免叠字。 */
+export const HARBOR_TITLE_Y = 328;
+export const HARBOR_PROMPT_Y = 248;
+
 /** 出海时岛名后面的场次后缀。 */
 export function huntFieldCaption(): string {
   return "渔场";
 }
 
+/** 教学没走完：第一屏只留鱼市标题、一句旁白、开始教学。 */
+export function harborFirstScreen(tutorialComplete: boolean): boolean {
+  return tutorialComplete !== true;
+}
+
 /** 教学没走完前，不露码头差事 / 加宽码头 / 商店外观。 */
 export function harborSideSystemsVisible(tutorialComplete: boolean): boolean {
+  return tutorialComplete === true;
+}
+
+/** 选岛、渔具、图鉴行、升级/榜这些浏览件，教学后再露。 */
+export function harborBrowseChromeVisible(tutorialComplete: boolean): boolean {
   return tutorialComplete === true;
 }
 

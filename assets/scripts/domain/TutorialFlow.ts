@@ -277,7 +277,11 @@ export function harborHudPhase(input: {
   return "idle";
 }
 
-export function harborHudShowMeta(phase: HarborHudPhase): boolean {
+export function harborHudShowMeta(
+  phase: HarborHudPhase,
+  tutorialComplete = true,
+): boolean {
+  if (!tutorialComplete) return false;
   return phase === "idle";
 }
 

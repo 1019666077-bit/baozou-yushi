@@ -1217,8 +1217,8 @@ function renderHarbor() {
   const displayIsland = complete ? COPY.islands[0].id : COPY.tutorialIsland.id;
   hud.innerHTML = "";
   buttons.innerHTML = "";
-  label(COPY.harborTitle, 36, 0, 310, 900, rgb(COPY.colors.palette.hud), "title");
-  label(`● 金币 ${save.coins}`, 26, 470, 310, 280, rgb(COPY.colors.gold), "goldchip");
+  label(COPY.harborTitle, 36, 0, COPY.harborTitleY ?? 328, 900, rgb(COPY.colors.palette.hud), "title");
+  label(`● 金币 ${save.coins}`, 26, 470, COPY.harborTitleY ?? 328, 280, rgb(COPY.colors.gold), "goldchip");
   if (coinJump && coinJumpLeft > 0) {
     const t = 1 - coinJumpLeft / COPY.coinJumpSeconds;
     label(coinJump, 28, 470, 274 + t * 46, 280, `rgba(255,220,72,${1 - t * 0.15})`, "goldchip");
@@ -1235,7 +1235,8 @@ function renderHarbor() {
     progressBar(0, barY, 380, save.coins / COPY.nextUpgradeCost);
   }
   const phase = harborPhase();
-  const showMeta = COPY.hudShowMeta?.[phase] ?? phase === "idle";
+  const showMeta =
+    complete && (COPY.hudShowMeta?.[phase] ?? phase === "idle");
   if (showMeta) {
     label(COPY.cloudLine, 18, 0, 278);
     label(COPY.healthLine, 16, 0, 262, 1100);
@@ -1260,29 +1261,28 @@ function renderHarbor() {
           : phase === "toast"
             ? statusFlash
             : "";
-  plate(0, 292, 760, 44, !complete);
-  label(line, 20, 0, 292, 1100, rgb(COPY.colors.cream));
+  plate(0, COPY.harborPromptY ?? 248, 760, 44, !complete);
+  label(line, 20, 0, COPY.harborPromptY ?? 248, 1100, rgb(COPY.colors.cream));
   if (toastText) {
     label(
       toastText,
       22,
       0,
-      252,
+      (COPY.harborPromptY ?? 248) - 40,
       720,
       toastText === discoveryText ? rgb(COPY.colors.gold) : rgb(COPY.colors.cream),
     );
   }
-  COPY.islands.forEach((island, index) => {
-    const selected = complete && island.id === displayIsland;
-    const unlocked = island.unlockCost === 0;
-    const caption = complete
-      ? island.chipAfter ??
-        (unlocked ? `${selected ? "● " : ""}${island.name}` : `${island.name} ${island.unlockCost}`)
-      : island.chipNew ?? `${island.name} · 教学后`;
-    const chip = cta(caption, -220 + index * 220, 210, 148, 32, 14, "secondary", () => onIsland(island));
-    chip.classList.add("chip");
-  });
   if (complete) {
+    COPY.islands.forEach((island, index) => {
+      const selected = island.id === displayIsland;
+      const unlocked = island.unlockCost === 0;
+      const caption =
+        island.chipAfter ??
+        (unlocked ? `${selected ? "● " : ""}${island.name}` : `${island.name} ${island.unlockCost}`);
+      const chip = cta(caption, -220 + index * 220, 210, 148, 32, 14, "secondary", () => onIsland(island));
+      chip.classList.add("chip");
+    });
     COPY.tools.forEach((tool, index) => {
       const owned = tool.id === "tool_rod";
       const selected = owned;
@@ -1295,12 +1295,29 @@ function renderHarbor() {
       });
       toolBtn.classList.add("chip");
     });
+    label(COPY.sailLineAfter, 18, 200, -86, 520);
+    label(COPY.fishCountAfter, 18, 200, -112, 520);
   }
-  label(complete ? COPY.sailLineAfter : COPY.sailLineNew, 18, 200, -86, 520);
-  label(complete ? COPY.fishCountAfter : COPY.fishCountNew, 18, 200, -112, 520);
-  const labels = complete ? COPY.featureLabelsAfter : COPY.featureLabelsNew;
+  if (!complete) {
+    cta(COPY.sailCaptionNew, 0, -220, 300, 96, 32, "primary", sail);
+    cta(
+      COPY.settingsButton,
+      -530,
+      COPY.harborTitleY ?? 328,
+      COPY.button.mini.width,
+      COPY.button.mini.height,
+      COPY.button.mini.fontSize,
+      "secondary",
+      () => {
+        setStatus("代理预览不包含设置页。");
+        render();
+      },
+    );
+    return;
+  }
+  const labels = COPY.featureLabelsAfter;
   cta(
-    complete ? COPY.sailCaptionAfter : COPY.sailCaptionNew,
+    COPY.sailCaptionAfter,
     -80,
     -230,
     230,
@@ -1318,17 +1335,16 @@ function renderHarbor() {
     next === "upgrade" ? 26 : 20,
     next === "upgrade" ? "primary" : "secondary",
     () => {
-      if (!complete) setStatus(COPY.upgradeLockNew);
-      else if (save.coins < COPY.nextUpgradeCost) setStatus(COPY.coinFail);
+      if (save.coins < COPY.nextUpgradeCost) setStatus(COPY.coinFail);
       render();
     },
   );
   cta(labels.book, 220, -230, 180, 72, 22, "secondary", () => {
-    setStatus(complete ? COPY.bookLockAfter : COPY.bookLockNew);
+    setStatus(COPY.bookLockAfter);
     render();
   });
   cta(labels.board, 470, -230, 160, 72, 22, "secondary", () => {
-    setStatus(complete ? COPY.boardLockAfter : COPY.boardLockNew);
+    setStatus(COPY.boardLockAfter);
     render();
   });
   if (complete && (COPY.harborStationVisibleAfter ?? true)) {
@@ -1351,7 +1367,7 @@ function renderHarbor() {
       render();
     });
   }
-  cta(COPY.settingsButton, -530, 310, COPY.button.mini.width, COPY.button.mini.height, COPY.button.mini.fontSize, "secondary", () => {
+  cta(COPY.settingsButton, -530, COPY.harborTitleY ?? 328, COPY.button.mini.width, COPY.button.mini.height, COPY.button.mini.fontSize, "secondary", () => {
     setStatus("代理预览不包含设置页。");
     render();
   });

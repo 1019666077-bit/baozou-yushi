@@ -24,8 +24,12 @@ import {
   harborPontoonUpgradeCaption,
   harborPontoonUpgradeLabel,
   harborSideSystemsVisible,
+  harborBrowseChromeVisible,
+  harborFirstScreen,
   harborWorldTitle,
   huntFieldCaption,
+  HARBOR_PROMPT_Y,
+  HARBOR_TITLE_Y,
 } from "../assets/scripts/domain/HarborCopy";
 import {
   STATION_ORDER_NEED,
@@ -655,8 +659,13 @@ describe("ProgressionSystem", () => {
   it("keeps first-run harbor copy as a fish market, not a flood station", () => {
     expect(harborWorldTitle()).toBe("海边鱼市");
     expect(huntFieldCaption()).toBe("渔场");
+    expect(harborFirstScreen(false)).toBe(true);
+    expect(harborFirstScreen(true)).toBe(false);
+    expect(harborBrowseChromeVisible(false)).toBe(false);
+    expect(harborBrowseChromeVisible(true)).toBe(true);
     expect(harborSideSystemsVisible(false)).toBe(false);
     expect(harborSideSystemsVisible(true)).toBe(true);
+    expect(HARBOR_TITLE_Y).toBeGreaterThan(HARBOR_PROMPT_Y + 40);
     expect(harborOrderBoardLabel()).toBe("码头差事");
     expect(harborPontoonUpgradeLabel()).toBe("加宽码头");
     expect(harborBuildingTitle("orders")).toBe("码头差事");
@@ -2104,6 +2113,7 @@ describe("TutorialFlow", () => {
     expect(harborHudShowMeta("justSold")).toBe(false);
     expect(harborHudShowMeta("toast")).toBe(false);
     expect(harborHudShowMeta("idle")).toBe(true);
+    expect(harborHudShowMeta("idle", false)).toBe(false);
     expect(harborHudShowDiscovery("justSold", true)).toBe(false);
     expect(harborHudShowDiscovery("toast", true)).toBe(true);
     expect(
