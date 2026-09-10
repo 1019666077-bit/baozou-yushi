@@ -197,7 +197,7 @@
       }
       .look-row {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 10px;
       }
       button.look-chip {
@@ -211,12 +211,14 @@
         font-family: inherit;
         text-align: left;
       }
-      button.look-chip canvas {
+      button.look-chip canvas,
+      button.look-chip img {
         position: static;
         display: block;
         width: 100%;
         height: auto;
         aspect-ratio: 16 / 9;
+        object-fit: cover;
         border-radius: 8px;
         margin-bottom: 6px;
       }
@@ -237,7 +239,7 @@
       }
       @media (max-width: 900px) {
         .look-row {
-          grid-template-columns: repeat(2, 1fr);
+          grid-template-columns: 1fr;
         }
       }
     </style>
@@ -255,7 +257,7 @@
         <div id="fx"></div>
       </div>
       <div class="look-picker" id="look-picker" hidden>
-        <div class="look-picker-label">港口背景 · 点一张看看，选中的会记住</div>
+        <div class="look-picker-label">港口背景（重画的渔市插画）· 点一张看看</div>
         <div class="look-row" id="look-row"></div>
       </div>
     </div>

@@ -15,7 +15,7 @@ import {
 import {
   HARBOR_LOOKS,
   paintHarborBackdrop,
-  paintHarborFinish,
+  preloadHarborLooks,
   readHarborLook,
   writeHarborLook,
 } from "./harborLooks.js";
@@ -738,20 +738,6 @@ function paintSea(ctx, _look, harbor = false) {
   const phase = performance.now() / 520;
   if (harbor) {
     paintHarborBackdrop(ctx, phase, harborLookId);
-    paintNearPier(ctx, phase, harbor, station.pontoonTier);
-    if (station.flotsamSpawned) {
-      const bob = Math.sin(phase * 1.4) * 5;
-      if (COPY.artFlotsam) {
-        ctx.save();
-        ctx.translate(0, bob);
-        paintOps(ctx, COPY.artFlotsam, phase);
-        ctx.restore();
-      }
-    }
-    if (station.pontoonTier >= 2 && COPY.artPontoon2) {
-      paintOps(ctx, COPY.artPontoon2, phase);
-    }
-    paintHarborFinish(ctx, grain, W, H, harborLookId);
     return;
   }
   const ops = freeHunt && COPY.art?.foam ? COPY.art.foam : COPY.art?.tutorial;
@@ -1995,14 +1981,9 @@ function mountLookPicker() {
     btn.type = "button";
     btn.className = "look-chip";
     btn.dataset.look = look.id;
-    const thumb = document.createElement("canvas");
-    thumb.width = 320;
-    thumb.height = 180;
-    const tctx = thumb.getContext("2d");
-    tctx.scale(320 / 1280, 180 / 720);
-    paintHarborBackdrop(tctx, 0.8, look.id);
-    paintNearPier(tctx, 0.8, true, 1);
-    paintHarborFinish(tctx, grain, 1280, 720, look.id);
+    const thumb = document.createElement("img");
+    thumb.src = look.src;
+    thumb.alt = look.name;
     const name = document.createElement("strong");
     name.textContent = look.name;
     const blurb = document.createElement("span");
@@ -2017,8 +1998,10 @@ function mountLookPicker() {
   }
 }
 
-mountLookPicker();
-render();
+preloadHarborLooks().then(() => {
+  mountLookPicker();
+  render();
+});
 requestAnimationFrame(tick);
 
 Object.assign(window, {
