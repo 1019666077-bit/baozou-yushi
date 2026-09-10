@@ -10,6 +10,7 @@ import { spawnSync } from "node:child_process";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PREVIEW_PORT ?? 8766);
+const host = process.env.PREVIEW_HOST ?? "0.0.0.0";
 
 const extract = spawnSync(process.execPath, [path.join(here, "extract-copy.mjs")], {
   stdio: "inherit",
@@ -46,8 +47,9 @@ const server = http.createServer((req, res) => {
   fs.createReadStream(abs).pipe(res);
 });
 
-server.listen(port, "127.0.0.1", () => {
+server.listen(port, host, () => {
   console.log(`first-run proxy http://127.0.0.1:${port}/`);
+  console.log(`listening ${host}:${port} (Cursor 端口转发可用)`);
   console.log("非 Cocos 实机，仅 2D 辅助体验代理。2D/辅助 ≠ Creator 3D");
   console.log("可浏览器代验玩法/画面。2D/辅助 ≠ Creator 3D，不能当 3D 实机证据。");
 });
