@@ -86,8 +86,8 @@ const layout = await fetch("./generated/layout.json").then((res) => {
 
 document.getElementById("title").textContent = layout.title;
 
-const woodMap = makeTex(paintWood(), 64, 1.6);
-const waterMap = makeTex(paintWater(), 64, 8);
+const woodMap = makeTex(paintWood(), 64, 1.4);
+const waterMap = makeTex(paintWater(), 64, 3.2);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -105,8 +105,7 @@ const spherical = new THREE.Spherical();
 
 function applyRestCamera() {
   camera.position.set(layout.cam.x, layout.cam.y, layout.cam.z);
-  camera.rotation.order = "YXZ";
-  camera.rotation.set(layout.cam.pitch * DEG, layout.cam.yaw * DEG, 0);
+  camera.lookAt(target);
   spherical.setFromVector3(camera.position.clone().sub(target));
 }
 
@@ -128,11 +127,19 @@ planeGeo.rotateX(-Math.PI / 2);
 
 const mats = new Map();
 function materialFor(part) {
-  const key = `${part.finish}:${part.glow}:${part.color.join(",")}`;
+  const key = `${part.name}:${part.finish}:${part.glow}:${part.color.join(",")}`;
   if (mats.has(key)) return mats.get(key);
   const color = rgb(part.color);
   let mat;
-  if (part.glow) {
+  if (part.name === "HorizonHaze") {
+    mat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.28,
+      depthWrite: false,
+      fog: true,
+    });
+  } else if (part.glow) {
     mat = new THREE.MeshBasicMaterial({ color, fog: true });
   } else if (part.finish === "water") {
     mat = new THREE.MeshPhongMaterial({
