@@ -23,6 +23,7 @@ const FILES = [
   "GrayLook.ts",
   "ArtRecipe.ts",
   "CameraFeel.ts",
+  "TideStation.ts",
   "ProcGeom.ts",
   "HitJuice.ts",
   "SfxFeel.ts",

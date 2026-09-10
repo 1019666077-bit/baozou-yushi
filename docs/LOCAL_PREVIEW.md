@@ -44,7 +44,7 @@ Creator 4 张应丢 `docs/stage3d/creator-shots/`（现在是空目录 + README�
 
 | # | 文件 | 何时截 | 应看到什么（含能看见的 A+B） |
 | --- | --- | --- | --- |
-| 1 | `01_harbor_wide.png` 港湾远景 | 刚进港口，不要点出海 | 透视近/中/远海 + 矮波；左侧木甲板/市集棚；远处半沉楼影与浮木；日落侧光；标题「海边鱼市」；下方 2D 主橙「开始教学」。教学前不应看到码头差事/商店/外观。**下半屏**主 CTA，上半是海。短滑/完美窗口这张还看不到。 |
+| 1 | `01_harbor_wide.png` 港湾远景 | 刚进港口，不要点出海 | 斜俯视一眼 **海+浮台+人+远景**：透视近/中/远海 + 矮波；中央浮站木板格/市集棚；站姿渔夫；远处半沉楼影一圈与浮木；标题「海边鱼市」；下方 2D 主橙「开始教学」。教学前不应看到码头差事/商店/外观。**下半屏**主 CTA，上半是海。短滑/完美窗口这张还看不到。 |
 | 2 | `02_dock_near.png` 码头近景 | 仍在港口，拉近左侧浮站（能感到甲板分量更好） | 栏杆、台阶、浮筒、青箱；棚架立柱和金幌；停泊小船；能看清木头厚度。甲板有分量（刚体**短滑**落点）；青箱是**下半屏**拖运目标。 |
 | 3 | `03_bayfin_weak.png` 湾鳍弱点 | 点「开始教学」出海，抛竿打中后停在侧脸 | 鱼 5 件：身 / 浅色脸 / 鳞片色块 / 尾 / **背上大金弱点**。**下半屏**瞄准带仍在；打中会弹出（击退）。 |
 | 4 | `04_flop_smash.png` 扑腾/空中砸或砸甲板 | 翻扑最高点（能体现砸窗口更好）或砸到甲板的瞬间 | 抛物线飞向码头；镜头略抬；空中可砸圈 /「**完美窗口**」金圈；砸甲板短压扁后再**短滑**，不是瞬贴。**下半屏**操作带仍在。 |
@@ -86,8 +86,9 @@ PLAYTEST_URL=http://127.0.0.1:8765/ node tools/playtest-live.mjs
 # 只探测，不构建（无 Creator 也只打印「缺 Creator」，exit 0）
 node tools/try-web-desktop-build.mjs --probe-only
 
-# 有 Creator 就出包；没有则 exit 2，文案含「缺 Creator」
-COCOS_CREATOR=/path/to/CocosCreator node tools/try-web-desktop-build.mjs
+# 本机一键：出包并起静态服（没有 Creator 则 exit 2，文案含「缺 Creator」）
+node tools/try-web-desktop-build.mjs && npx --yes serve build/web-desktop -l 8765
+# 浏览器 http://127.0.0.1:8765/
 ```
 
 当前云端探测结果：无 Creator 可执行文件，默认模式 exit 2。云端若仍无 Creator，不要假装已出 `build/web-desktop`，自评只报代理分，未真机不出 8.5。

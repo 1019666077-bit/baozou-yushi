@@ -28,6 +28,7 @@
     "preview:extract": "node tools/first-run-preview/extract-copy.mjs",
     "art:vector": "node tools/generate-vector-art.mjs",
     "try:web-desktop": "node tools/try-web-desktop-build.mjs",
+    "serve:web-desktop": "npx --yes serve build/web-desktop -l 8765",
     "shots:list": "node tools/stage3d-shot-checklist.mjs",
     "validate": "npm run art:vector && npm run typecheck && npm run typecheck:cocos && npm test && npm run preflight && npm run preview:extract && npm run shots:list"
   },
