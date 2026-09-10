@@ -112,7 +112,7 @@ function snapshot() {
 
   const data = {
     proxy: true,
-    disclaimer: `非 Cocos 实机，仅 2D 辅助体验代理。2D/辅助 ≠ Creator 3D · 不是港湾真机画面 · 可浏览器代验玩法/画面 · ${SfxFeel.sfxPlaceholderNote()} · 真机 4 张只认 docs/stage3d/creator-shots/`,
+    disclaimer: `非 Cocos 实机，仅 2D 辅助体验代理。2D/辅助 ≠ Creator 3D · 港口挂潮退浮站浏览器 3D 灰盒 · 不是港湾真机画面 · 可浏览器代验玩法/画面 · ${SfxFeel.sfxPlaceholderNote()} · 真机 4 张只认 docs/stage3d/creator-shots/`,
     sourceStamp: "baozou-flop-v37",
     harborTitle: HarborCopy.harborWorldTitle(),
     harborPlayPrompt: HazardCatch.harborPlayPrompt(),

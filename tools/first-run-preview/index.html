@@ -57,6 +57,9 @@
         width: 100%;
         height: 100%;
       }
+      #world3d {
+        pointer-events: none;
+      }
       #juice {
         pointer-events: none;
       }
@@ -193,6 +196,7 @@
         非 Cocos 实机，仅 2D 辅助体验代理。2D/辅助 ≠ Creator 3D。正在读取源码文案…
       </div>
       <div class="stage" id="stage" data-proxy="1">
+        <canvas id="world3d" width="1280" height="720" aria-hidden="true"></canvas>
         <canvas id="bg" width="1280" height="720"></canvas>
         <canvas id="juice" width="1280" height="720"></canvas>
         <div id="hud"></div>
@@ -200,6 +204,13 @@
         <div id="fx"></div>
       </div>
     </div>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/tide-station/vendor/three.module.min.js"
+        }
+      }
+    </script>
     <script type="module" src="./preview.js"></script>
   </body>
 </html>

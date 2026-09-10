@@ -43,8 +43,11 @@ function shift(parts, pos = { x: 0, y: 0, z: 0 }) {
   }));
 }
 
-export function dumpLayout() {
-  extract();
+export function dumpLayout({ skipExtract = false } = {}) {
+  if (!skipExtract) extract();
+  if (!fs.existsSync(path.join(genDomain, "TideStation.js"))) {
+    throw new Error("TideStation extract missing — run extract-copy.mjs first");
+  }
   const require = createRequire(import.meta.url);
   const Tide = require(path.join(genDomain, "TideStation.js"));
   const Gray = require(path.join(genDomain, "GrayLook.js"));

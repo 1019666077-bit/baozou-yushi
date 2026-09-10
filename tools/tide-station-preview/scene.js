@@ -79,162 +79,205 @@ function makeTex(data, size = 64, repeat = 1) {
   return tex;
 }
 
-const layout = await fetch("./generated/layout.json").then((res) => {
-  if (!res.ok) throw new Error("layout.json missing — start via serve.mjs");
-  return res.json();
-});
+export async function mountTideStation(canvas, options = {}) {
+  const interactive = options.interactive !== false;
+  const fillWindow = options.fillWindow === true;
+  const layoutUrl =
+    options.layoutUrl ?? new URL("./generated/layout.json", import.meta.url).href;
+  const layout = await fetch(layoutUrl).then((res) => {
+    if (!res.ok) throw new Error("layout.json missing — start via serve.mjs");
+    return res.json();
+  });
 
-document.getElementById("title").textContent = layout.title;
+  const title = document.getElementById("title");
+  if (title) title.textContent = layout.title;
 
-const woodMap = makeTex(paintWood(), 64, 1.4);
-const waterMap = makeTex(paintWater(), 64, 3.2);
+  const woodMap = makeTex(paintWood(), 64, 1.4);
+  const waterMap = makeTex(paintWater(), 64, 3.2);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-document.body.prepend(renderer.domElement);
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: false,
+  });
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-const scene = new THREE.Scene();
-scene.background = rgb(layout.look.skyTop);
-scene.fog = new THREE.Fog(rgb(layout.look.haze), 16, 48);
-
-const camera = new THREE.PerspectiveCamera(layout.cam.fov, innerWidth / innerHeight, 0.2, layout.cam.far);
-const target = new THREE.Vector3(0, 0.62, 0);
-const spherical = new THREE.Spherical();
-
-function applyRestCamera() {
-  camera.position.set(layout.cam.x, layout.cam.y, layout.cam.z);
-  camera.lookAt(target);
-  spherical.setFromVector3(camera.position.clone().sub(target));
-}
-
-applyRestCamera();
-
-const hemi = new THREE.HemisphereLight(rgb(layout.look.skyTop), rgb(layout.look.deep), 0.72);
-scene.add(hemi);
-
-const dir = new THREE.DirectionalLight(0xfff1d6, 1.35);
-const lightEuler = new THREE.Euler(layout.light.pitch * DEG, layout.light.yaw * DEG, 0, "YXZ");
-dir.position.copy(new THREE.Vector3(0, 0, -1).applyEuler(lightEuler).multiplyScalar(-18));
-scene.add(dir);
-scene.add(new THREE.AmbientLight(0xffe6c4, 0.22));
-
-const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-const sphereGeo = new THREE.SphereGeometry(0.5, 12, 10);
-const planeGeo = new THREE.PlaneGeometry(1, 1, 1, 1);
-planeGeo.rotateX(-Math.PI / 2);
-
-const mats = new Map();
-function materialFor(part) {
-  const key = `${part.name}:${part.finish}:${part.glow}:${part.color.join(",")}`;
-  if (mats.has(key)) return mats.get(key);
-  const color = rgb(part.color);
-  let mat;
-  if (part.name === "HorizonHaze") {
-    mat = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.28,
-      depthWrite: false,
-      fog: true,
-    });
-  } else if (part.glow) {
-    mat = new THREE.MeshBasicMaterial({ color, fog: true });
-  } else if (part.finish === "water") {
-    mat = new THREE.MeshPhongMaterial({
-      color,
-      map: waterMap,
-      shininess: 42,
-      specular: 0x88c8e0,
-      transparent: true,
-      opacity: 0.94,
-    });
-  } else if (part.finish === "wood") {
-    mat = new THREE.MeshLambertMaterial({ color, map: woodMap });
-  } else {
-    mat = new THREE.MeshLambertMaterial({ color });
+  function size() {
+    if (fillWindow) {
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      renderer.setSize(innerWidth, innerHeight, false);
+      return { w: innerWidth, h: innerHeight };
+    }
+    const w = canvas.clientWidth || canvas.width || 1280;
+    const h = canvas.clientHeight || canvas.height || 720;
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(w, h, false);
+    return { w, h };
   }
-  mats.set(key, mat);
-  return mat;
-}
 
-let waterNode = null;
-for (const part of layout.parts) {
-  const geo = part.kind === "sphere" ? sphereGeo : part.kind === "plane" ? planeGeo : boxGeo;
-  const mesh = new THREE.Mesh(geo, materialFor(part));
-  mesh.position.set(part.x, part.y, part.z);
-  mesh.scale.set(part.sx, part.sy, part.sz);
-  mesh.rotation.order = "XYZ";
-  mesh.rotation.set(part.rx * DEG, part.ry * DEG, part.rz * DEG);
-  mesh.name = part.name;
-  scene.add(mesh);
-  if (part.name === "Water") waterNode = mesh;
-}
+  let { w, h } = size();
+  const scene = new THREE.Scene();
+  scene.background = rgb(layout.look.skyTop);
+  scene.fog = new THREE.Fog(rgb(layout.look.haze), 16, 48);
 
-const clock = new THREE.Clock();
-let dragging = false;
-let lastX = 0;
-let lastY = 0;
+  const camera = new THREE.PerspectiveCamera(layout.cam.fov, w / h, 0.2, layout.cam.far);
+  const target = new THREE.Vector3(0, 0.62, 0);
+  const spherical = new THREE.Spherical();
 
-function onPointerDown(ev) {
-  dragging = true;
-  lastX = ev.clientX;
-  lastY = ev.clientY;
-  renderer.domElement.setPointerCapture(ev.pointerId);
-}
-
-function onPointerMove(ev) {
-  if (!dragging) return;
-  const dx = ev.clientX - lastX;
-  const dy = ev.clientY - lastY;
-  lastX = ev.clientX;
-  lastY = ev.clientY;
-  spherical.theta -= dx * 0.005;
-  spherical.phi = THREE.MathUtils.clamp(spherical.phi + dy * 0.004, 0.18, 1.42);
-  camera.position.copy(new THREE.Vector3().setFromSpherical(spherical).add(target));
-  camera.lookAt(target);
-}
-
-function onPointerUp(ev) {
-  dragging = false;
-  try {
-    renderer.domElement.releasePointerCapture(ev.pointerId);
-  } catch {
-    /* already released */
-  }
-}
-
-renderer.domElement.addEventListener("pointerdown", onPointerDown);
-renderer.domElement.addEventListener("pointermove", onPointerMove);
-renderer.domElement.addEventListener("pointerup", onPointerUp);
-renderer.domElement.addEventListener("pointercancel", onPointerUp);
-renderer.domElement.addEventListener(
-  "wheel",
-  (ev) => {
-    ev.preventDefault();
-    spherical.radius = THREE.MathUtils.clamp(spherical.radius + ev.deltaY * 0.01, 4.2, 28);
-    camera.position.copy(new THREE.Vector3().setFromSpherical(spherical).add(target));
+  function applyRestCamera() {
+    camera.position.set(layout.cam.x, layout.cam.y, layout.cam.z);
     camera.lookAt(target);
-  },
-  { passive: false },
-);
-
-document.getElementById("reset").addEventListener("click", applyRestCamera);
-
-window.addEventListener("resize", () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
-
-function tick() {
-  const t = clock.getElapsedTime();
-  if (waterNode) {
-    waterNode.position.y = -0.02 + Math.sin(t * 1.1) * 0.022;
+    spherical.setFromVector3(camera.position.clone().sub(target));
   }
-  renderer.render(scene, camera);
-  requestAnimationFrame(tick);
+
+  applyRestCamera();
+
+  scene.add(new THREE.HemisphereLight(rgb(layout.look.skyTop), rgb(layout.look.deep), 0.72));
+  const dir = new THREE.DirectionalLight(0xfff1d6, 1.35);
+  const lightEuler = new THREE.Euler(layout.light.pitch * DEG, layout.light.yaw * DEG, 0, "YXZ");
+  dir.position.copy(new THREE.Vector3(0, 0, -1).applyEuler(lightEuler).multiplyScalar(-18));
+  scene.add(dir);
+  scene.add(new THREE.AmbientLight(0xffe6c4, 0.22));
+
+  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+  const sphereGeo = new THREE.SphereGeometry(0.5, 12, 10);
+  const planeGeo = new THREE.PlaneGeometry(1, 1, 1, 1);
+  planeGeo.rotateX(-Math.PI / 2);
+  const mats = new Map();
+  function materialFor(part) {
+    const key = `${part.name}:${part.finish}:${part.glow}:${part.color.join(",")}`;
+    if (mats.has(key)) return mats.get(key);
+    const color = rgb(part.color);
+    let mat;
+    if (part.name === "HorizonHaze") {
+      mat = new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.28,
+        depthWrite: false,
+        fog: true,
+      });
+    } else if (part.glow) {
+      mat = new THREE.MeshBasicMaterial({ color, fog: true });
+    } else if (part.finish === "water") {
+      mat = new THREE.MeshPhongMaterial({
+        color,
+        map: waterMap,
+        shininess: 42,
+        specular: 0x88c8e0,
+        transparent: true,
+        opacity: 0.94,
+      });
+    } else if (part.finish === "wood") {
+      mat = new THREE.MeshLambertMaterial({ color, map: woodMap });
+    } else {
+      mat = new THREE.MeshLambertMaterial({ color });
+    }
+    mats.set(key, mat);
+    return mat;
+  }
+
+  let waterNode = null;
+  for (const part of layout.parts) {
+    const geo = part.kind === "sphere" ? sphereGeo : part.kind === "plane" ? planeGeo : boxGeo;
+    const mesh = new THREE.Mesh(geo, materialFor(part));
+    mesh.position.set(part.x, part.y, part.z);
+    mesh.scale.set(part.sx, part.sy, part.sz);
+    mesh.rotation.order = "XYZ";
+    mesh.rotation.set(part.rx * DEG, part.ry * DEG, part.rz * DEG);
+    mesh.name = part.name;
+    scene.add(mesh);
+    if (part.name === "Water") waterNode = mesh;
+  }
+
+  const clock = new THREE.Clock();
+  let dragging = false;
+  let lastX = 0;
+  let lastY = 0;
+  let visible = true;
+  let raf = 0;
+
+  if (interactive) {
+    canvas.addEventListener("pointerdown", (ev) => {
+      dragging = true;
+      lastX = ev.clientX;
+      lastY = ev.clientY;
+      canvas.setPointerCapture(ev.pointerId);
+    });
+    canvas.addEventListener("pointermove", (ev) => {
+      if (!dragging) return;
+      const dx = ev.clientX - lastX;
+      const dy = ev.clientY - lastY;
+      lastX = ev.clientX;
+      lastY = ev.clientY;
+      spherical.theta -= dx * 0.005;
+      spherical.phi = THREE.MathUtils.clamp(spherical.phi + dy * 0.004, 0.18, 1.42);
+      camera.position.copy(new THREE.Vector3().setFromSpherical(spherical).add(target));
+      camera.lookAt(target);
+    });
+    const up = (ev) => {
+      dragging = false;
+      try {
+        canvas.releasePointerCapture(ev.pointerId);
+      } catch {
+        /* already released */
+      }
+    };
+    canvas.addEventListener("pointerup", up);
+    canvas.addEventListener("pointercancel", up);
+    canvas.addEventListener(
+      "wheel",
+      (ev) => {
+        ev.preventDefault();
+        spherical.radius = THREE.MathUtils.clamp(spherical.radius + ev.deltaY * 0.01, 4.2, 28);
+        camera.position.copy(new THREE.Vector3().setFromSpherical(spherical).add(target));
+        camera.lookAt(target);
+      },
+      { passive: false },
+    );
+  }
+
+  function onResize() {
+    const next = size();
+    camera.aspect = next.w / Math.max(1, next.h);
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener("resize", onResize);
+
+  function tick() {
+    raf = requestAnimationFrame(tick);
+    if (!visible) return;
+    const t = clock.getElapsedTime();
+    if (waterNode) {
+      waterNode.position.y = -0.02 + Math.sin(t * 1.1) * 0.022;
+    }
+    if (!interactive) {
+      camera.position.x = layout.cam.x + Math.sin(t * 0.18) * 0.22;
+      camera.lookAt(target);
+    }
+    renderer.render(scene, camera);
+  }
+  tick();
+
+  return {
+    layout,
+    resetCamera: applyRestCamera,
+    setVisible(value) {
+      visible = value === true;
+      canvas.style.visibility = visible ? "visible" : "hidden";
+      if (visible) applyRestCamera();
+    },
+    resize: onResize,
+    dispose() {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", onResize);
+      renderer.dispose();
+    },
+  };
 }
 
-tick();
+const standalone = document.getElementById("view");
+if (standalone) {
+  const api = await mountTideStation(standalone, { interactive: true, fillWindow: true });
+  document.getElementById("reset")?.addEventListener("click", () => api.resetCamera());
+}

@@ -13,12 +13,15 @@ import {
   paintWaterLife,
 } from "./skin.js";
 import { paintHarborBackdrop, preloadHarborLooks } from "./harborLooks.js";
+import { mountTideStation } from "/tide-station/scene.js";
 
 const grain = makeGrain(320, 180);
 
 const stage = document.getElementById("stage");
 const bg = document.getElementById("bg");
+const worldCanvas = document.getElementById("world3d");
 const juiceCanvas = document.getElementById("juice");
+let world3d = null;
 const hud = document.getElementById("hud");
 const buttons = document.getElementById("buttons");
 const disclaimer = document.getElementById("disclaimer");
@@ -726,9 +729,21 @@ function carryBob(elapsed) {
   };
 }
 
+function harborWorldSurface() {
+  return surface === "harbor" || surface === "settle" || surface === "orders" || surface === "pontoon";
+}
+
+function syncWorld3d() {
+  world3d?.setVisible(harborWorldSurface());
+}
+
 function paintSea(ctx, _look, harbor = false) {
   const phase = performance.now() / 520;
   if (harbor) {
+    if (world3d) {
+      ctx.clearRect(0, 0, W, H);
+      return;
+    }
     paintHarborBackdrop(ctx);
     return;
   }
@@ -1619,6 +1634,7 @@ function paintBackdrop() {
 function render() {
   stage.dataset.surface = surface;
   stage.dataset.step = tutorialStep;
+  syncWorld3d();
   if (surface === "harbor") renderHarbor();
   else if (surface === "settle") renderSettle();
   else if (surface === "orders") renderOrderBoard();
@@ -1965,6 +1981,24 @@ function tick(now) {
 preloadHarborLooks().then(() => {
   render();
 });
+if (worldCanvas) {
+  mountTideStation(worldCanvas, {
+    interactive: false,
+    fillWindow: false,
+    layoutUrl: "/tide-station/generated/layout.json",
+  })
+    .then((api) => {
+      world3d = api;
+      syncWorld3d();
+      world3d.resize();
+      render();
+    })
+    .catch((err) => {
+      console.warn("tide-station 3d failed, fallback morning.jpg", err);
+      world3d = null;
+      render();
+    });
+}
 requestAnimationFrame(tick);
 
 Object.assign(window, {
@@ -1984,7 +2018,8 @@ Object.assign(window, {
     slamMark,
     dust: particles.filter((p) => p.kind === "dust").length,
     tutorialComplete: save.tutorialComplete,
-    harborLookId: "morning",
+    harborLookId: world3d ? "tide-station" : "morning",
+    world3d: Boolean(world3d),
     station: { ...station },
   }),
   proxyHoldCharge: (value) => {

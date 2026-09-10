@@ -80,10 +80,15 @@ const page = await browser.newPage();
 try {
   await page.goto(url, { waitUntil: "networkidle0", timeout: 20000 });
   await wait(400);
+  await page.waitForFunction(() => window.proxyState()?.harborLookId === "tide-station", {
+    timeout: 8000,
+  }).catch(() => {});
   const disclaimer = await page.$eval("#disclaimer", (el) => el.textContent);
   note(disclaimer.includes("非 Cocos 实机"), `disclaimer ${disclaimer}`);
   note(disclaimer.includes("2D/辅助") && disclaimer.includes("Creator 3D"), "disclaimer marks 2D/辅助 ≠ Creator 3D");
   note(disclaimer.includes("占位音效") && disclaimer.includes("≠ 真机"), "disclaimer marks WebAudio 占位");
+  const harborLook = await page.evaluate(() => window.proxyState());
+  note(harborLook.harborLookId === "tide-station" && harborLook.world3d === true, "港口挂潮退浮站 3D 灰盒");
   await shot(page, "01-harbor-new");
 
   const harborText = await page.evaluate(() => document.body.innerText);
