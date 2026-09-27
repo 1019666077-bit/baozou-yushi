@@ -16774,7 +16774,7 @@ void main() {
       let _clippingEnabled = false;
       let _localClippingEnabled = false;
       const _currentProjectionMatrix = new Matrix4();
-      const _projScreenMatrix = new Matrix4();
+      const _projScreenMatrix2 = new Matrix4();
       const _vector3 = new Vector3();
       const _vector4 = new Vector4();
       const _emptyScene = { background: null, fog: null, environment: null, overrideMaterial: null, isScene: true };
@@ -17282,8 +17282,8 @@ void main() {
         currentRenderState = renderStates.get(scene2, renderStateStack.length);
         currentRenderState.init(camera2);
         renderStateStack.push(currentRenderState);
-        _projScreenMatrix.multiplyMatrices(camera2.projectionMatrix, camera2.matrixWorldInverse);
-        _frustum.setFromProjectionMatrix(_projScreenMatrix);
+        _projScreenMatrix2.multiplyMatrices(camera2.projectionMatrix, camera2.matrixWorldInverse);
+        _frustum.setFromProjectionMatrix(_projScreenMatrix2);
         _localClippingEnabled = this.localClippingEnabled;
         _clippingEnabled = clipping.init(this.clippingPlanes, _localClippingEnabled);
         currentRenderList = renderLists.get(scene2, renderListStack.length);
@@ -17369,7 +17369,7 @@ void main() {
           } else if (object.isSprite) {
             if (!object.frustumCulled || _frustum.intersectsSprite(object)) {
               if (sortObjects) {
-                _vector4.setFromMatrixPosition(object.matrixWorld).applyMatrix4(_projScreenMatrix);
+                _vector4.setFromMatrixPosition(object.matrixWorld).applyMatrix4(_projScreenMatrix2);
               }
               const geometry = objects.update(object);
               const material = object.material;
@@ -17389,7 +17389,7 @@ void main() {
                   if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
                   _vector4.copy(geometry.boundingSphere.center);
                 }
-                _vector4.applyMatrix4(object.matrixWorld).applyMatrix4(_projScreenMatrix);
+                _vector4.applyMatrix4(object.matrixWorld).applyMatrix4(_projScreenMatrix2);
               }
               if (Array.isArray(material)) {
                 const groups = geometry.groups;
@@ -18238,6 +18238,53 @@ void main() {
       if (this.environmentIntensity !== 1) data.object.environmentIntensity = this.environmentIntensity;
       data.object.environmentRotation = this.environmentRotation.toArray();
       return data;
+    }
+  };
+  var CircleGeometry = class _CircleGeometry extends BufferGeometry {
+    constructor(radius = 1, segments2 = 32, thetaStart = 0, thetaLength = Math.PI * 2) {
+      super();
+      this.type = "CircleGeometry";
+      this.parameters = {
+        radius,
+        segments: segments2,
+        thetaStart,
+        thetaLength
+      };
+      segments2 = Math.max(3, segments2);
+      const indices = [];
+      const vertices = [];
+      const normals = [];
+      const uvs = [];
+      const vertex2 = new Vector3();
+      const uv = new Vector2();
+      vertices.push(0, 0, 0);
+      normals.push(0, 0, 1);
+      uvs.push(0.5, 0.5);
+      for (let s = 0, i = 3; s <= segments2; s++, i += 3) {
+        const segment = thetaStart + s / segments2 * thetaLength;
+        vertex2.x = radius * Math.cos(segment);
+        vertex2.y = radius * Math.sin(segment);
+        vertices.push(vertex2.x, vertex2.y, vertex2.z);
+        normals.push(0, 0, 1);
+        uv.x = (vertices[i] / radius + 1) / 2;
+        uv.y = (vertices[i + 1] / radius + 1) / 2;
+        uvs.push(uv.x, uv.y);
+      }
+      for (let i = 1; i <= segments2; i++) {
+        indices.push(i, i + 1, 0);
+      }
+      this.setIndex(indices);
+      this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+      this.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+      this.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+    }
+    copy(source) {
+      super.copy(source);
+      this.parameters = Object.assign({}, source.parameters);
+      return this;
+    }
+    static fromJSON(data) {
+      return new _CircleGeometry(data.radius, data.segments, data.thetaStart, data.thetaLength);
     }
   };
   var CylinderGeometry = class _CylinderGeometry extends BufferGeometry {
@@ -19288,6 +19335,104 @@ void main() {
       return object;
     }
   };
+  var _projScreenMatrix = /* @__PURE__ */ new Matrix4();
+  var _lightPositionWorld = /* @__PURE__ */ new Vector3();
+  var _lookTarget = /* @__PURE__ */ new Vector3();
+  var PointLightShadow = class extends LightShadow {
+    constructor() {
+      super(new PerspectiveCamera(90, 1, 0.5, 500));
+      this.isPointLightShadow = true;
+      this._frameExtents = new Vector2(4, 2);
+      this._viewportCount = 6;
+      this._viewports = [
+        // These viewports map a cube-map onto a 2D texture with the
+        // following orientation:
+        //
+        //  xzXZ
+        //   y Y
+        //
+        // X - Positive x direction
+        // x - Negative x direction
+        // Y - Positive y direction
+        // y - Negative y direction
+        // Z - Positive z direction
+        // z - Negative z direction
+        // positive X
+        new Vector4(2, 1, 1, 1),
+        // negative X
+        new Vector4(0, 1, 1, 1),
+        // positive Z
+        new Vector4(3, 1, 1, 1),
+        // negative Z
+        new Vector4(1, 1, 1, 1),
+        // positive Y
+        new Vector4(3, 0, 1, 1),
+        // negative Y
+        new Vector4(1, 0, 1, 1)
+      ];
+      this._cubeDirections = [
+        new Vector3(1, 0, 0),
+        new Vector3(-1, 0, 0),
+        new Vector3(0, 0, 1),
+        new Vector3(0, 0, -1),
+        new Vector3(0, 1, 0),
+        new Vector3(0, -1, 0)
+      ];
+      this._cubeUps = [
+        new Vector3(0, 1, 0),
+        new Vector3(0, 1, 0),
+        new Vector3(0, 1, 0),
+        new Vector3(0, 1, 0),
+        new Vector3(0, 0, 1),
+        new Vector3(0, 0, -1)
+      ];
+    }
+    updateMatrices(light, viewportIndex = 0) {
+      const camera2 = this.camera;
+      const shadowMatrix = this.matrix;
+      const far = light.distance || camera2.far;
+      if (far !== camera2.far) {
+        camera2.far = far;
+        camera2.updateProjectionMatrix();
+      }
+      _lightPositionWorld.setFromMatrixPosition(light.matrixWorld);
+      camera2.position.copy(_lightPositionWorld);
+      _lookTarget.copy(camera2.position);
+      _lookTarget.add(this._cubeDirections[viewportIndex]);
+      camera2.up.copy(this._cubeUps[viewportIndex]);
+      camera2.lookAt(_lookTarget);
+      camera2.updateMatrixWorld();
+      shadowMatrix.makeTranslation(-_lightPositionWorld.x, -_lightPositionWorld.y, -_lightPositionWorld.z);
+      _projScreenMatrix.multiplyMatrices(camera2.projectionMatrix, camera2.matrixWorldInverse);
+      this._frustum.setFromProjectionMatrix(_projScreenMatrix);
+    }
+  };
+  var PointLight = class extends Light {
+    constructor(color, intensity, distance = 0, decay = 2) {
+      super(color, intensity);
+      this.isPointLight = true;
+      this.type = "PointLight";
+      this.distance = distance;
+      this.decay = decay;
+      this.shadow = new PointLightShadow();
+    }
+    get power() {
+      return this.intensity * 4 * Math.PI;
+    }
+    set power(power) {
+      this.intensity = power / (4 * Math.PI);
+    }
+    dispose() {
+      this.shadow.dispose();
+    }
+    copy(source, recursive) {
+      super.copy(source, recursive);
+      this.distance = source.distance;
+      this.decay = source.decay;
+      this.shadow = source.shadow.clone();
+      return this;
+    }
+  };
   var DirectionalLightShadow = class extends LightShadow {
     constructor() {
       super(new OrthographicCamera(-5, 5, 5, -5, 0.5, 500));
@@ -19728,6 +19873,25 @@ void main() {
     splash: { file: "splash.mp3", slices: [[0.08, 1.2]] }
   };
   var AUDIO_IDS = Object.keys(AUDIO_CLIPS);
+
+  // assets/scripts/fishing/audio/mix.ts
+  function reelWindRate(crankSpeed) {
+    return Math.min(1.3, Math.max(0.45, crankSpeed / 1.4));
+  }
+  function reelDragRate(payOut) {
+    return 0.7 + Math.max(0, payOut) * 0.25;
+  }
+  function strainGain(tension) {
+    if (tension <= 0.7) return 0;
+    const t = Math.min(1, (tension - 0.7) / 0.3);
+    return t * t * (3 - 2 * t);
+  }
+  function swishRate(power) {
+    return 0.9 + Math.min(1, Math.max(0, power)) * 0.2;
+  }
+  function swishGain(power) {
+    return Math.pow(10, -9 * Math.min(1, Math.max(0, power)) / 20);
+  }
 
   // assets/scripts/fishing/FishTable.ts
   var FISH = {
@@ -20396,6 +20560,14 @@ void main() {
     if (spot === "boat") return { x: eyeX + 8, y: 0.4, z: eyeZ + 3 };
     return { x: eyeX + PIER_LOOK_X, y: 0.64, z: eyeZ + PIER_LOOK_Z };
   }
+  function aimLook(spot, eyeX, eyeZ, yaw) {
+    const look = fishingLook(spot, eyeX, eyeZ);
+    const dx = look.x - eyeX;
+    const dz = look.z - eyeZ;
+    const c = Math.cos(yaw);
+    const s = Math.sin(yaw);
+    return { x: eyeX + dx * c - dz * s, y: look.y, z: eyeZ + dx * s + dz * c };
+  }
   var WAYPOINTS = {
     bay: { x: 0, z: 80, depth: 10, reefDist: 50, pierDist: 50 },
     reef: { x: -78, z: 58, depth: 6, reefDist: -4, pierDist: 80 },
@@ -20450,7 +20622,7 @@ void main() {
     if (z > 80) return offshore + (z - 80) * 0.12;
     return offshore;
   }
-  function sampleCast(spot, waypoint, power, castM) {
+  function sampleCast(spot, waypoint, power, castM, yaw = 0) {
     const clamped = Math.min(1, Math.max(0, power));
     const reach = castM * (0.35 + 0.65 * clamped);
     if (spot === "boat") {
@@ -20466,10 +20638,13 @@ void main() {
       };
     }
     const eye = SPOT_EYE[spot];
-    const span = Math.hypot(PIER_LOOK_X, PIER_LOOK_Z);
-    const dist = 4.4 + clamped * 6.2;
-    const x = spot === "pier" ? eye.x + PIER_LOOK_X / span * dist : eye.x;
-    const z = spot === "pier" ? eye.z + PIER_LOOK_Z / span * dist : eye.z + reach;
+    const span = Math.hypot(PIER_LOOK_X, PIER_LOOK_Z) || 1;
+    const fx = spot === "pier" ? PIER_LOOK_X / span : 0;
+    const fz = spot === "pier" ? PIER_LOOK_Z / span : 1;
+    const c = Math.cos(yaw);
+    const s = Math.sin(yaw);
+    const x = eye.x + (fx * c - fz * s) * reach;
+    const z = eye.z + (fx * s + fz * c) * reach;
     const depth = depthAt(x, z);
     const reefDist = reefDistance(x, z);
     const pierDist = pierDistance(x, z);
@@ -20504,6 +20679,12 @@ void main() {
     night: { id: "night", name: "\u591C\u665A", hour: 22 }
   };
   var PERIOD_IDS = Object.keys(PERIODS);
+  var PERIOD_LOOK = {
+    dawn: { clear: 15774858, fog: 15188900, sun: 16761504, ambient: 13152416, sunInt: 1.15 },
+    day: { clear: 10406114, fog: 12047590, sun: 16773330, ambient: 10401992, sunInt: 1.45 },
+    dusk: { clear: 14715490, fog: 13206648, sun: 16756858, ambient: 12619904, sunInt: 1.05 },
+    night: { clear: 1846340, fog: 2372684, sun: 9086152, ambient: 3820130, sunInt: 0.35 }
+  };
 
   // assets/scripts/fishing/FishingTrip.ts
   var SPOT_NAME = {
@@ -20523,8 +20704,8 @@ void main() {
       spotName: "\u7801\u5934",
       waypoint: "bay",
       waypointName: "\u6D77\u6E7E",
-      periodId: "day",
-      periodName: "\u767D\u5929",
+      periodId: "dusk",
+      periodName: "\u9EC4\u660F",
       power: 0,
       reach: 0,
       depth: 0,
@@ -20565,6 +20746,11 @@ void main() {
       fuelL: 40,
       fuelCap: 40,
       finder: false,
+      deckLights: false,
+      hour: 16.2,
+      cardLeft: 0,
+      finderDepth: 0,
+      finderSignal: 0,
       hint: "",
       fightCall: "",
       guideOpen: false,
@@ -20578,7 +20764,14 @@ void main() {
       this.phase = "dock";
       this.spot = "pier";
       this.waypoint = "bay";
-      this.period = "day";
+      this.period = "dusk";
+      this.hour = 16.2;
+      this.aimYaw = 0;
+      this.splashLine = 0;
+      this.cardLeft = 0;
+      this.finderClock = 0;
+      this.finderDepth = 0;
+      this.finderSignal = 0;
       this.held = false;
       this.power = 0;
       this.reach = 0;
@@ -20645,8 +20838,14 @@ void main() {
     setPeriod(id) {
       if (this.phase !== "dock" && this.phase !== "ready" && this.phase !== "miss") return;
       this.period = id;
+      this.hour = PERIODS[id].hour;
       if (this.phase === "miss") this.phase = "ready";
       this.publish();
+    }
+    /** 左右滑动，大约 ±25°。抛投方向跟着镜头转。 */
+    setAimYaw(yaw) {
+      const limit = 25 * Math.PI / 180;
+      this.aimYaw = Math.min(limit, Math.max(-limit, yaw));
     }
     toDock() {
       this.phase = "dock";
@@ -20825,17 +21024,35 @@ void main() {
     }
     cast() {
       const stats = this.state.stats;
-      const sample = sampleCast(this.spot, this.waypoint, this.power, stats.castM);
+      const sample = sampleCast(this.spot, this.waypoint, this.power, stats.castM, this.aimYaw);
       this.reach = sample.reach;
       this.depth = sample.depth;
       this.bobX = sample.x;
       this.bobZ = sample.z;
-      const delay = this.bites.start(sample.habitat, PERIODS[this.period].hour);
+      this.splashLine = 0;
+      this.phase = "flying";
+    }
+    /** 浮标落水后才开始计咬钩。落在干沙滩上就收回。 */
+    bobberLanded(lineOut, depth) {
+      if (this.phase !== "flying") return;
+      this.splashLine = Math.max(0, lineOut);
+      this.depth = depth;
+      if (depth < 0.25) {
+        this.fail("\u843D\u5230\u6C99\u6EE9\u4E0A\u4E86");
+        this.publish();
+        return;
+      }
+      const delay = this.bites.start(this.castHabitat(), this.hour);
       if (!Number.isFinite(delay)) {
         this.fail("\u8FD9\u7247\u6C34\u91CC\u6CA1\u6709\u9C7C");
+        this.publish();
         return;
       }
       this.phase = "waiting";
+      this.publish();
+    }
+    castHabitat() {
+      return sampleCast(this.spot, this.waypoint, this.power, this.state.stats.castM, this.aimYaw).habitat;
     }
     hookSet() {
       const hooked = this.bites.consumeHook();
@@ -20846,7 +21063,7 @@ void main() {
         kg: hooked.kg,
         lineKg: stats.lineKg,
         reelSpeed: stats.reelSpeed,
-        distance: Math.max(3, this.reach),
+        distance: Math.max(3, this.splashLine),
         rng: this.rng
       });
       this.phase = "fighting";
@@ -20862,6 +21079,21 @@ void main() {
         if (this.noticeLeft === 0) this.notice = "";
       }
       if (this.phase === "charging" && this.held) this.power = chargePower(this.power, dt);
+      if (this.phase === "card") {
+        this.cardLeft = Math.max(0, this.cardLeft - dt);
+        if (this.cardLeft === 0) this.toReady();
+      }
+      if (this.spot === "boat" && this.state.stats.finder) {
+        this.finderClock += dt;
+        if (this.finderClock >= 0.5) {
+          this.finderClock = 0;
+          const sample = sampleCast("boat", this.waypoint, 0, this.state.stats.castM);
+          this.finderDepth = sample.depth;
+          let rich = 0;
+          for (const key of Object.keys(sample.habitat)) rich += sample.habitat[key];
+          this.finderSignal = Math.min(1, rich / 1.4);
+        }
+      }
       if (this.phase === "waiting" || this.phase === "nibbling" || this.phase === "hook") {
         const event = this.bites.update(dt);
         if (event === "nibble") {
@@ -20883,10 +21115,11 @@ void main() {
     land(fight) {
       this.landedDistance = fight.distance;
       this.landedStamina = fight.stamina;
-      this.state.addFish(fight.species, fight.kg, PERIODS[this.period].hour);
+      this.state.addFish(fight.species, fight.kg, this.hour);
       this.fight = null;
       this.held = false;
       this.phase = "card";
+      this.cardLeft = 9;
       this.dirty = true;
       const card = this.state.lastCatch;
       this.notice = card?.kept ? "\u8FDB\u51B7\u85CF\u7BB1\u4E86" : "\u9C7C\u8231\u6EE1\u4E86\uFF0C\u5DF2\u653E\u751F\uFF08\u56FE\u9274\u8BB0\u4E0B\u4E86\uFF09";
@@ -20966,6 +21199,11 @@ void main() {
       view.fuelL = this.state.fuelL;
       view.fuelCap = stats.fuelL;
       view.finder = !!stats.finder;
+      view.deckLights = !!stats.deckLights;
+      view.hour = this.hour;
+      view.cardLeft = this.phase === "card" ? this.cardLeft : 0;
+      view.finderDepth = this.finderDepth;
+      view.finderSignal = this.finderSignal;
       view.hint = this.hintFor();
       view.fightCall = this.fightCall();
       view.guideOpen = !this.state.guideIntro;
@@ -20991,6 +21229,8 @@ void main() {
           return "\u6309\u4F4F\u84C4\u529B\uFF0C\u677E\u624B\u629B\u6295";
         case "charging":
           return "\u677E\u624B\u629B\u51FA\uFF0C\u6309\u8D8A\u4E45\u8D8A\u8FDC";
+        case "flying":
+          return "\u6D6E\u6807\u8FD8\u5728\u98DE";
         case "waiting":
           return "\u7B49\u6D6E\u6807\u88AB\u62C9\u4E0B\u53BB";
         case "nibbling":
@@ -21000,7 +21240,7 @@ void main() {
         case "fighting":
           return this.view.tension > 0.88 ? "\u62C9\u529B\u592A\u5927\uFF0C\u677E\u624B" : "\u6309\u4F4F\u6536\u7EBF\uFF0C\u53D8\u7EA2\u5C31\u677E\u624B";
         case "card":
-          return "\u70B9\u4E00\u4E0B\u7EE7\u7EED";
+          return "\u70B9\u4E00\u4E0B\u7EE7\u7EED\uFF0C\u6216\u7B49\u5B83\u81EA\u5DF1\u6536\u8D77";
         case "miss":
           return this.notice;
         default:
@@ -21052,14 +21292,25 @@ void main() {
       this.tipX = 0;
       this.tipY = 0;
       this.tipZ = 0;
+      /** 落水那一帧，竿尖到浮标的距离。搏斗从这里起算。 */
+      this.splashLine = 0;
+      this.splashX = 0;
+      this.splashZ = 0;
+      /** 这一帧画出来的仰角和侧摆。surge 和呼吸只加在这里。 */
+      this.drawElev = POSES.stowed.elev;
+      this.drawSide = POSES.stowed.side;
+      this.bendDirX = 0;
+      this.bendDirZ = -1;
+      /** 鱼把线往外拖的速度，米/秒。泄力声用它。 */
+      this.payOut = 0;
+      this.lineOut = 0;
       this.line = new Float32Array((LINE_SEGS + 1) * 3);
       this.elev = { now: POSES.stowed.elev };
       this.side = { now: POSES.stowed.side };
       this.hand = { x: POSES.stowed.hand[0], y: POSES.stowed.hand[1], z: POSES.stowed.hand[2] };
       this.t = 0;
       this.bendVel = 0;
-      this.bendDirX = 0;
-      this.bendDirZ = -1;
+      this.splashMarked = false;
       this.bobVX = 0;
       this.bobVY = 0;
       this.bobVZ = 0;
@@ -21068,7 +21319,6 @@ void main() {
       this.bailTarget = 0;
       this.crankRate = 0;
       this.lastOut = 0;
-      this.lineOut = 0;
       this.wander = 0;
       this.landFromX = 0;
       this.landFromY = 0;
@@ -21126,7 +21376,10 @@ void main() {
       this.t += dt;
       if (this.state === "windup") this.power = Math.min(1, this.power + dt / 1.1);
       this.easePose(dt, frame2);
+      this.applyDraw(frame2);
       this.easeBend(dt, frame2);
+      this.placeTip(frame2);
+      this.aimBend(dt, frame2);
       this.placeTip(frame2);
       this.stepBobber(dt, frame2);
       this.stepReel(dt, frame2);
@@ -21149,9 +21402,22 @@ void main() {
       this.hand.x += (target.hand[0] - this.hand.x) * k;
       this.hand.y += (target.hand[1] - this.hand.y) * k;
       this.hand.z += (target.hand[2] - this.hand.z) * k;
-      if (this.state === "fighting" && frame2.fight) {
-        this.elev.now += -0.35 * frame2.fight.surge * k + 0.12 * Math.sin(this.t * 2.3) * k;
+    }
+    /** 原版低头、侧摆、待机呼吸、收线抖动都只加在这一帧的角度上。 */
+    applyDraw(frame2) {
+      let elev = this.elev.now;
+      let side = this.side.now;
+      if (this.state === "idle" || this.state === "floating") {
+        elev += Math.sin(this.t * 1.3) * 0.012;
+        side += Math.sin(this.t * 0.9 + 1.7) * 0.01;
       }
+      if (this.state === "retrieving") elev += Math.sin(this.crank) * 6e-3;
+      if (this.state === "fighting" && frame2.fight) {
+        elev += -0.35 * frame2.fight.surge + 0.12 * Math.sin(this.t * 2.3);
+        side += 0.12 * Math.sin(this.t * 1.1 + frame2.fight.surge * 2);
+      }
+      this.drawElev = elev;
+      this.drawSide = side;
     }
     easeBend(dt, frame2) {
       let bendT = 0;
@@ -21177,8 +21443,26 @@ void main() {
       this.load += (loadT - this.load) * (1 - Math.exp(-dt * 6));
       this.bendP = bendExponent(this.load);
     }
+    aimBend(dt, frame2) {
+      const basis = rodBasis(this.drawElev, this.drawSide, this.hand.x, this.hand.y, this.hand.z);
+      const origin = basisToWorld(basis, 0, 0, 0, frame2);
+      const xAxis = basisToWorld(basis, 1, 0, 0, frame2);
+      const zAxis = basisToWorld(basis, 0, 0, 1, frame2);
+      const dx = this.bobX - this.tipX;
+      const dz = this.bobZ - this.tipZ;
+      const localX = dx * (xAxis.x - origin.x) + dz * (xAxis.z - origin.z);
+      const localZ = dx * (zAxis.x - origin.x) + dz * (zAxis.z - origin.z);
+      const len = Math.hypot(localX, localZ);
+      if (len < 1e-3) return;
+      const k = 1 - Math.exp(-dt * 4);
+      this.bendDirX += (localX / len - this.bendDirX) * k;
+      this.bendDirZ += (localZ / len - this.bendDirZ) * k;
+      const n = Math.hypot(this.bendDirX, this.bendDirZ) || 1;
+      this.bendDirX /= n;
+      this.bendDirZ /= n;
+    }
     placeTip(frame2) {
-      const basis = rodBasis(this.elev.now, this.side.now, this.hand.x, this.hand.y, this.hand.z);
+      const basis = rodBasis(this.drawElev, this.drawSide, this.hand.x, this.hand.y, this.hand.z);
       const s = 1;
       const lat = this.bend * ROD_L * Math.pow(s, this.bendP);
       const drop = 0.5 * lat * lat / (ROD_L - BLANK_START + 0.06);
@@ -21194,14 +21478,18 @@ void main() {
       if (this.state === "flick" && this.t > 0.09) {
         const v0 = 7 + 13 * this.power * Math.sqrt(this.castM / 22);
         const dx = this.aimX - this.tipX;
+        const dy = frame2.waterY - this.tipY;
         const dz = this.aimZ - this.tipZ;
-        const horiz = Math.max(Math.hypot(dx, dz), 1e-3);
+        const len = Math.max(Math.hypot(dx, dy, dz), 1e-3);
+        const horiz = Math.hypot(dx, dz);
+        const cap = horiz > this.castM ? 0.5 : 1;
         this.bobX = this.tipX;
         this.bobY = this.tipY;
         this.bobZ = this.tipZ;
-        this.bobVX = dx / horiz * v0 * 0.72;
-        this.bobVY = v0 * 0.55;
-        this.bobVZ = dz / horiz * v0 * 0.72;
+        this.bobVX = dx / len * v0 * cap;
+        this.bobVY = dy / len * v0;
+        this.bobVZ = dz / len * v0 * cap;
+        this.splashMarked = false;
         this.setState("flying");
       }
       if (this.state === "flying") {
@@ -21219,6 +21507,12 @@ void main() {
           this.bobVY = 0;
           this.bobVZ = 0;
           this.splash = 1;
+          if (!this.splashMarked) {
+            this.splashMarked = true;
+            this.splashX = this.bobX;
+            this.splashZ = this.bobZ;
+            this.splashLine = Math.hypot(this.tipX - this.bobX, this.tipY - this.bobY, this.tipZ - this.bobZ);
+          }
           this.setState("floating");
         }
       } else if (this.state === "floating") {
@@ -21227,13 +21521,15 @@ void main() {
         this.bobY += (yT - this.bobY) * (1 - Math.exp(-dt * 12));
       } else if (this.state === "fighting" && frame2.fight) {
         this.wander += dt * (0.4 + frame2.fight.surge * 1.5);
-        const dist = Math.max(1, frame2.fight.distance);
-        const dx = this.aimX - frame2.camX;
-        const dz = this.aimZ - frame2.camZ;
-        const len = Math.max(Math.hypot(dx, dz), 1e-3);
+        const base = Math.max(3, this.splashLine || 1);
+        const dist = Math.max(0.4, frame2.fight.distance);
+        const ratio = dist / base;
+        const ox = this.splashX - frame2.camX;
+        const oz = this.splashZ - frame2.camZ;
+        const len = Math.max(Math.hypot(ox, oz), 1e-3);
         const sway = Math.sin(this.wander) * 0.9;
-        const tx = frame2.camX + dx / len * dist + -dz / len * sway;
-        const tz = frame2.camZ + dz / len * dist + dx / len * sway;
+        const tx = frame2.camX + ox * ratio + -oz / len * sway;
+        const tz = frame2.camZ + oz * ratio + ox / len * sway;
         const k = 1 - Math.exp(-dt * 6);
         this.bobX += (tx - this.bobX) * k;
         this.bobZ += (tz - this.bobZ) * k;
@@ -21273,6 +21569,7 @@ void main() {
       this.bail += Math.sign(db) * Math.min(Math.abs(db), bailRate * dt);
       const outNow = this.state === "fighting" && frame2.fight ? frame2.fight.distance : this.lineOut;
       const dOut = dt > 0 ? outNow - this.lastOut : 0;
+      this.payOut = dt > 0 && dOut > 0 ? dOut / dt : 0;
       this.lastOut = outNow;
       let rateT = 0;
       if ((this.state === "fighting" || this.state === "retrieving" || this.state === "landing") && dt > 0) {
@@ -21284,6 +21581,9 @@ void main() {
       const dCrank = this.crankRate * Math.PI * 2 * dt;
       this.crank += dCrank;
       this.rotor += Math.min(dCrank * GEAR, 3.1 * Math.PI * 2 * dt);
+    }
+    get crankSpeed() {
+      return this.crankRate;
     }
     writeLine(frame2) {
       const out = this.state === "flying" || this.state === "floating" || this.state === "fighting" || this.state === "retrieving" || this.state === "landing";
@@ -21362,36 +21662,17 @@ void main() {
       z: frame2.camZ - lx * sy + lz * cy
     };
   }
-  var PRESENT_R = [
-    0.886632,
-    0.242863,
-    -0.393575,
-    -0.199849,
-    0.968659,
-    0.147515,
-    0.417066,
-    -0.052136,
-    0.90738
-  ];
-  var PRESENT_T = [0.297124, -0.021098, -0.600602];
-  function presentRodPoint(x, y, z) {
-    return [
-      PRESENT_R[0] * x + PRESENT_R[1] * y + PRESENT_R[2] * z + PRESENT_T[0],
-      PRESENT_R[3] * x + PRESENT_R[4] * y + PRESENT_R[5] * z + PRESENT_T[1],
-      PRESENT_R[6] * x + PRESENT_R[7] * y + PRESENT_R[8] * z + PRESENT_T[2]
-    ];
-  }
   function blankCameraPoints(rig2, count = 12) {
-    const b = rodBasis(rig2.elev.now, rig2.side.now, rig2.hand.x, rig2.hand.y, rig2.hand.z);
+    const b = rodBasis(rig2.drawElev, rig2.drawSide, rig2.hand.x, rig2.hand.y, rig2.hand.z);
     const out = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
       const y = ROD_L * i / (count - 1);
       const s = Math.min(1, Math.max(0, (y - BLANK_START) / (ROD_L - BLANK_START)));
       const lat = y > BLANK_START ? rig2.bend * ROD_L * Math.pow(s, rig2.bendP) : 0;
       const drop = lat === 0 ? 0 : 0.5 * lat * lat / (y - BLANK_START + 0.06);
-      const lx = lat * 0.15;
+      const lx = rig2.bendDirX * lat;
       const ly = y - drop;
-      const lz = -lat;
+      const lz = rig2.bendDirZ * lat;
       out[i * 3] = b.px + b.xx * lx + b.yx * ly + b.zx * lz;
       out[i * 3 + 1] = b.py + b.xy * lx + b.yy * ly + b.zy * lz;
       out[i * 3 + 2] = b.pz + b.xz * lx + b.yz * ly + b.zz * lz;
@@ -21411,31 +21692,37 @@ void main() {
   }
   var params = new URLSearchParams(location.search);
   var debug = params.get("debug") === "1";
-  var trip = new FishingTrip({ rng: seeded(Number(params.get("seed") || 2)), money: 0 });
+  var trip = new FishingTrip({ rng: seeded(Number(params.get("seed") || 2)), money: Number(params.get("wallet") || 0) });
   var rig = new RodRig();
   rig.equip(true);
   var speed = Number(params.get("speed") || 1);
   var lastPhase = trip.view.phase;
   var lastPose = {
     butt: [0, 0, 0],
+    shaft: [0, 0, 0],
     tip: [0, 0, 0],
     bob: [0, 0, 0],
     radius: 0.0215,
-    pierHits: 0
+    pierHits: 0,
+    bobVisible: false
   };
   var castArmed = false;
+  var aimYaw = 0;
   var renderer = new WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
   renderer.setSize(innerWidth, innerHeight);
-  renderer.setClearColor(10406114, 1);
+  renderer.setClearColor(PERIOD_LOOK.dusk.clear, 1);
   document.getElementById("view").append(renderer.domElement);
   var scene = new Scene();
-  scene.fog = new Fog(12047590, 26, 95);
-  scene.add(new AmbientLight(10401992, 0.62));
-  var sun = new DirectionalLight(16773330, 1.45);
+  scene.fog = new Fog(PERIOD_LOOK.dusk.fog, 26, 95);
+  var ambient = new AmbientLight(PERIOD_LOOK.dusk.ambient, 0.62);
+  scene.add(ambient);
+  var sun = new DirectionalLight(PERIOD_LOOK.dusk.sun, PERIOD_LOOK.dusk.sunInt);
   sun.position.set(-12, 18, 8);
   scene.add(sun);
-  var camera = new PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 180);
+  var deckLamp = new PointLight(16756858, 0, 18);
+  scene.add(deckLamp);
+  var camera = new PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 180);
   scene.add(camera);
   var rodRoot = new Group();
   camera.add(rodRoot);
@@ -21585,8 +21872,8 @@ void main() {
   var lineMesh = new Mesh(lineGeo, new MeshBasicMaterial({ color: 16054250, side: DoubleSide }));
   camera.add(lineMesh);
   var bobber = new Group();
-  var bobTop = new Mesh(new SphereGeometry(0.09, 12, 10), new MeshLambertMaterial({ color: 13781562 }));
-  var bobBot = new Mesh(new SphereGeometry(0.09, 12, 10), new MeshLambertMaterial({ color: 16052196 }));
+  var bobTop = new Mesh(new SphereGeometry(0.028, 12, 10), new MeshLambertMaterial({ color: 13781562 }));
+  var bobBot = new Mesh(new SphereGeometry(0.028, 12, 10), new MeshLambertMaterial({ color: 16052196 }));
   bobTop.scale.y = 0.5;
   bobBot.scale.y = 0.5;
   bobTop.position.y = 0.02;
@@ -21607,8 +21894,9 @@ void main() {
   camera.add(fishRoot);
   fishRoot.visible = false;
   function makeFish(id, kg) {
+    void kg;
     const look = FISH_LOOK[id] ?? FISH_LOOK.mullet;
-    const length = Math.max(0.7, Math.min(1.8, 0.9 + Math.cbrt(Math.max(kg, 0.05))));
+    const length = 1;
     const fat = Math.max(look.body, 0.22);
     const g = new Group();
     const bodyMat = new MeshLambertMaterial({ color: new Color(look.rgb[0] / 255, look.rgb[1] / 255, look.rgb[2] / 255) });
@@ -21626,10 +21914,25 @@ void main() {
     return g;
   }
   var shownFish = "";
+  var fishDrops = [];
   function syncFish(id, kg) {
-    if (shownFish === id) return;
+    if (shownFish === id && fishRoot.children.length > 0) return;
     fishRoot.clear();
     fishRoot.add(makeFish(id, kg));
+    const shadow = new Mesh(
+      new CircleGeometry(0.55, 18),
+      new MeshBasicMaterial({ color: 266264, transparent: true, opacity: 0.5 })
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = -0.28;
+    fishRoot.add(shadow);
+    fishDrops = [];
+    const dropMat = new MeshBasicMaterial({ color: 14151410, transparent: true, opacity: 0.85 });
+    for (let i = 0; i < 6; i++) {
+      const drop = new Mesh(new SphereGeometry(0.04, 6, 5), dropMat);
+      fishRoot.add(drop);
+      fishDrops.push(drop);
+    }
     shownFish = id;
   }
   var audio = {};
@@ -21639,16 +21942,47 @@ void main() {
     if (AUDIO_CLIPS[id].loop) el.loop = true;
     audio[id] = el;
   }
-  function playClip(id) {
+  var sliceEnd = {};
+  function playClip(id, rate = 1, gain = 1) {
     const el = audio[id];
     const clip = AUDIO_CLIPS[id];
     if (!el || !clip) return;
     const slice = clip.slices?.[Math.floor(Math.random() * clip.slices.length)];
+    const start = slice ? slice[0] : 0;
     try {
-      el.currentTime = slice ? slice[0] : 0;
+      el.playbackRate = mediaRate(rate);
+      el.volume = Math.min(1, Math.max(0, gain));
+      el.currentTime = start;
+      sliceEnd[id] = slice ? start + slice[1] : 0;
       void el.play();
     } catch {
     }
+  }
+  function tickSlices() {
+    for (const id of Object.keys(sliceEnd)) {
+      const end = sliceEnd[id];
+      const el = audio[id];
+      if (end > 0 && el && el.currentTime >= end - 0.02) {
+        el.pause();
+        delete sliceEnd[id];
+      }
+    }
+  }
+  function mediaRate(rate) {
+    if (!Number.isFinite(rate)) return 1;
+    return Math.min(4, Math.max(0.5, rate));
+  }
+  function loopAt(id, on, rate, gain) {
+    const el = audio[id];
+    if (!el) return;
+    try {
+      el.playbackRate = mediaRate(rate);
+      el.volume = Math.min(1, Math.max(0, gain));
+    } catch {
+    }
+    if (on && gain > 1e-3) {
+      if (el.paused) void el.play().catch(() => void 0);
+    } else if (!el.paused) el.pause();
   }
   if (debug) document.body.classList.add("debug");
   var hud = document.getElementById("hud");
@@ -21663,6 +21997,9 @@ void main() {
   <div class="bite" id="bite">\uFF01</div>
   <div class="cast" id="cast"><i></i></div>
   <div class="hint" id="hint"></div>
+  <div id="cross" aria-hidden="true"></div>
+  <div id="finder"></div>
+  <button id="replay" class="chrome icon" type="button">\u518D\u770B\u5F15\u5BFC</button>
   <button id="hold" type="button">\u6309\u4F4F\u84C4\u529B / \u63D0\u7AFF / \u6536\u7EBF</button>
   <div class="map" id="map" aria-hidden="true"></div>
   <div class="tip" id="tip"></div>
@@ -21699,6 +22036,49 @@ void main() {
   });
   document.getElementById("cooler-btn").addEventListener("click", () => onAct("cooler"));
   document.getElementById("retrieve-btn").addEventListener("click", () => onAct("retrieve"));
+  document.getElementById("replay").addEventListener("click", () => onAct("replay"));
+  document.getElementById("map").addEventListener("click", (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width;
+    const y = (event.clientY - rect.top) / rect.height;
+    const marks = [
+      { x: 0.42, y: 0.78, act: "joe" },
+      { x: 0.7, y: 0.55, act: "marta" },
+      { x: 0.58, y: 0.3, act: "boat" },
+      { x: 0.5, y: 0.62, act: "pier" }
+    ];
+    let best = marks[0];
+    let bestD = 99;
+    for (const mark of marks) {
+      const d = Math.hypot(mark.x - x, mark.y - y);
+      if (d < bestD) {
+        best = mark;
+        bestD = d;
+      }
+    }
+    if (bestD < 0.22) onAct(best.act);
+  });
+  var viewEl = document.getElementById("view");
+  var yawDrag = false;
+  var yawX = 0;
+  viewEl.addEventListener("pointerdown", (event) => {
+    if (event.target.closest("button, .panel, .guide")) return;
+    yawDrag = true;
+    yawX = event.clientX;
+  });
+  addEventListener("pointermove", (event) => {
+    if (!yawDrag) return;
+    const limit = 25 * Math.PI / 180;
+    aimYaw = Math.max(-limit, Math.min(limit, aimYaw + (event.clientX - yawX) / Math.max(1, innerWidth) * 1.2));
+    yawX = event.clientX;
+    trip.setAimYaw(aimYaw);
+  });
+  addEventListener("pointerup", () => {
+    yawDrag = false;
+  });
+  addEventListener("pointercancel", () => {
+    yawDrag = false;
+  });
   var talks = document.getElementById("talks");
   var panelKind = "";
   function onAct(act) {
@@ -21726,6 +22106,8 @@ void main() {
     else if (act === "fuel") trip.refuel();
     else if (act === "close") panelKind = "";
     else if (act === "again") trip.toReady();
+    else if (act === "replay") trip.replayGuide();
+    else if (act.startsWith("release:")) trip.releaseFish(Number(act.slice(8)));
     paintPanel();
   }
   var hold = document.getElementById("hold");
@@ -21773,7 +22155,7 @@ void main() {
       const list = rows.map((row) => `<div class="fish-row"><div class="fish-copy"><b>${row.name}</b><small>${row.cm} cm \xB7 ${row.kg.toFixed(2)} kg</small></div><button type="button" data-act="sell:${row.id}">\u5356\u6389 ${row.value}</button></div>`).join("");
       panel.innerHTML = `<h2>\u4E54 \xB7 \u9C7C\u8D29</h2><p class="sub">${rows.length ? JOE_GREETING : JOE_IDLE}</p>${list || `<p class="sub">\u51B7\u85CF\u7BB1\u662F\u7A7A\u7684\u3002</p>`}<div class="foot"><button type="button" data-act="close">\u79BB\u5F00</button><button type="button" data-act="sellall" ${rows.length ? "" : "disabled"}>\u5168\u90E8\u5356\u6389 \xB7 ${trip.view.holdValue}</button></div>`;
     } else {
-      const rows = trip.holdRows().map((row) => `<div class="fish-row"><div class="fish-copy"><b>${row.name}</b><small>${row.cm} cm \xB7 ${row.kg.toFixed(2)} kg</small></div><span>${row.value} \u91D1</span></div>`).join("");
+      const rows = trip.holdRows().map((row) => `<div class="fish-row"><div class="fish-copy"><b>${row.name}</b><small>${row.cm} cm \xB7 ${row.kg.toFixed(2)} kg</small></div><button type="button" data-act="release:${row.id}">\u653E\u751F</button></div>`).join("");
       const log = trip.logRows().map((row) => `${row.name}\uFF1A${row.count} \u6761\uFF0C\u6700\u597D ${row.bestKg.toFixed(2)} kg`).join("<br>");
       panel.innerHTML = `<h2>${trip.state.upgrades.hold > 0 ? "\u9C7C\u8231" : "\u51B7\u85CF\u7BB1"}</h2><p class="sub">${trip.view.holdCount} \u6761 \xB7 ${trip.view.holdKg.toFixed(1)} / ${trip.view.holdCap} kg</p>${rows || `<p class="sub">\u8FD8\u6CA1\u6709\u3002\u4ECE\u6C99\u6EE9\u3001\u7801\u5934\u6216\u8239\u4E0A\u629B\u3002</p>`}${log ? `<p class="sub">${log}</p>` : ""}<div class="foot"><button type="button" data-act="close">\u79BB\u5F00</button><button type="button" data-act="ready">\u62FF\u51FA\u9C7C\u7AFF</button></div>`;
     }
@@ -21789,7 +22171,9 @@ void main() {
     const fish = FISH[trip.view.species];
     const badge = trip.view.isRecord ? `<span class="badge record">\u65B0\u7EAA\u5F55</span>` : trip.view.isNew ? `<span class="badge new">\u65B0\u9C7C\u79CD</span>` : `<span class="badge">\u6E14\u83B7</span>`;
     const note = !trip.view.kept ? "\u51B7\u85CF\u7BB1\u6CA1\u6709\u7A7A\u4E86\uFF0C\u8FD9\u6761\u653E\u4E86\u3002" : trip.view.isRecord ? `\u4E0A\u4E00\u6746 ${trip.view.prevBestKg.toFixed(2)} kg \xB7 ${trip.view.prevBestCm} cm\u3002` : trip.view.isNew ? "\u7B2C\u4E00\u6B21\u5199\u8FDB\u9C7C\u5F55\u3002" : `\u4F60\u7684\u6700\u597D\u6210\u7EE9\uFF1A${trip.view.prevBestKg.toFixed(2)} kg \xB7 ${trip.view.prevBestCm} cm`;
-    root.innerHTML = `<div>${badge}<h2>${trip.view.speciesName}</h2><div class="sci">${fish?.sci ?? ""}</div></div><div class="stage"></div><div><div class="stats"><div class="stat"><span>\u4F53\u957F</span><b>${trip.view.cm}</b></div><div class="stat"><span>\u4F53\u91CD</span><b>${trip.view.kg.toFixed(trip.view.kg < 1 ? 2 : 1)}</b></div><div class="stat"><span>\u4EF7\u503C</span><b>${trip.view.value}</b></div></div><p>${note}</p><p>\u70B9\u6309\u4F4F\u952E\u7EE7\u7EED</p></div>`;
+    const inches = (trip.view.cm / 2.54).toFixed(1);
+    const pounds = (trip.view.kg * 2.20462).toFixed(2);
+    root.innerHTML = `<div>${badge}<h2>${trip.view.speciesName}</h2><div class="sci">${fish?.sci ?? ""}</div></div><div class="stage"></div><div><div class="stats"><div class="stat"><span>\u4F53\u957F</span><b>${trip.view.cm}</b><small>${inches} in</small></div><div class="stat"><span>\u4F53\u91CD</span><b>${trip.view.kg.toFixed(trip.view.kg < 1 ? 2 : 1)}</b><small>${pounds} lb</small></div><div class="stat"><span>\u4EF7\u503C</span><b>${trip.view.value}</b></div></div><div class="card-timer"><i id="cardBar"></i></div><p>${note}</p><p>\u70B9\u4E00\u4E0B\u7EE7\u7EED\uFF0C\u6216\u7B49\u5B83\u81EA\u5DF1\u6536\u8D77</p></div>`;
   }
   var panelStamp = "";
   var talkStamp = "";
@@ -21851,14 +22235,30 @@ void main() {
     const spotBtn = document.getElementById("spot");
     spotBtn.textContent = v.spot === "boat" ? `\u6362\u9493\u70B9
 ${v.waypointName}` : "\u6362\u9493\u70B9";
+    const finder = document.getElementById("finder");
+    const showFinder = v.spot === "boat" && v.finder && !overlay;
+    finder.classList.toggle("on", showFinder);
+    if (showFinder) finder.textContent = `\u6C34\u6DF1 ${v.finderDepth.toFixed(1)} m   \u9C7C\u8BAF ${Math.round(v.finderSignal * 100)}%`;
+    const cardBar = document.getElementById("cardBar");
+    if (cardBar && v.phase === "card") cardBar.style.width = `${Math.max(0, v.cardLeft / 9) * 100}%`;
   }
-  function lookTarget(spot, eyeX, eyeZ) {
-    return fishingLook(spot, eyeX, eyeZ);
+  function applySky() {
+    const id = trip.view.periodId;
+    const look = PERIOD_LOOK[id] ?? PERIOD_LOOK.dusk;
+    const nightLift = id === "night" && trip.view.deckLights;
+    const lit = nightLift ? PERIOD_LOOK.dusk : look;
+    renderer.setClearColor(look.clear, 1);
+    scene.fog = new Fog(look.fog, 26, 95);
+    ambient.color.set(look.ambient);
+    sun.color.set(lit.sun);
+    sun.intensity = lit.sunInt;
+    deckLamp.intensity = nightLift ? 2.4 : 0;
+    deckLamp.position.set(trip.view.eyeX, trip.view.eyeY + 1.2, trip.view.eyeZ);
   }
   function syncRig(dt) {
     const v = trip.view;
     rig.setGear(v.castM, v.reelSpeed);
-    const look = lookTarget(v.spot, v.eyeX, v.eyeZ);
+    const look = aimLook(v.spot, v.eyeX, v.eyeZ, aimYaw);
     const frame2 = {
       camX: v.eyeX,
       camY: v.eyeY,
@@ -21873,15 +22273,14 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
       rig.startWindup();
       castArmed = true;
     }
-    if (lastPhase === "charging" && v.phase === "waiting" && castArmed) {
+    if (lastPhase === "charging" && v.phase === "flying" && castArmed) {
       rig.release(v.bobX, v.bobZ);
-      playClip("rod_swish");
+      playClip("rod_swish", swishRate(v.power), swishGain(v.power));
       playClip("line_out");
       castArmed = false;
     }
     if ((v.phase === "hook" || v.phase === "fighting") && rig.state === "floating") {
-      rig.hook();
-      if (lastPhase !== "fighting" && lastPhase !== "hook") playClip("fish_splash");
+      if (rig.hook() && lastPhase !== "fighting" && lastPhase !== "hook") playClip("fish_splash");
     }
     if (v.phase === "card" && lastPhase !== "card") {
       rig.land();
@@ -21892,9 +22291,14 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
       if (v.notice.includes("\u65AD")) playClip("line_snap");
       rig.retrieve();
     }
-    if (rig.state === "flying" && rig.splash > 0.95) playClip("plop");
+    const prevRig = rig.state;
     rig.update(dt, frame2);
-    lastPhase = v.phase;
+    if (prevRig !== "floating" && rig.state === "floating") {
+      playClip("plop");
+      trip.bobberLanded(rig.splashLine, depthAt(rig.bobX, rig.bobZ));
+      if (trip.view.phase === "miss") rig.retrieve();
+    }
+    lastPhase = trip.view.phase;
     camera.position.set(v.eyeX, v.eyeY, v.eyeZ);
     camera.up.set(0, 1, 0);
     camera.lookAt(look.x, look.y, look.z);
@@ -21903,14 +22307,7 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
       boat.position.set(v.eyeX, 0.15, v.eyeZ + 1.2);
     } else boat.visible = v.spot === "pier";
     if (v.spot === "pier") boat.position.set(64.5, 0.15, 36.5);
-    const raw = blankCameraPoints(rig, ROD_N + 1);
-    const pts = new Float32Array(raw.length);
-    for (let i = 0; i < raw.length; i += 3) {
-      const p = presentRodPoint(raw[i], raw[i + 1], raw[i + 2]);
-      pts[i] = p[0];
-      pts[i + 1] = p[1];
-      pts[i + 2] = p[2];
-    }
+    const pts = blankCameraPoints(rig, ROD_N + 1);
     const yAxis = new Vector3(0, 1, 0);
     const dir = new Vector3();
     for (let i = 0; i < segments.length; i++) {
@@ -21954,83 +22351,97 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
     crank.rotation.x = rig.crank;
     bail.position.copy(reel.position);
     bail.rotation.x = -rig.bail * 1.4;
-    const castOut = rig.state === "flying" || rig.state === "floating" || rig.state === "fighting" || rig.state === "retrieving" || rig.state === "landing";
-    let pierHits = 0;
-    let bobX = rig.bobX;
-    let bobY = rig.bobY;
-    let bobZ = rig.bobZ;
-    if (!castOut) {
-      const rest = sampleCast(v.spot, v.waypoint, 0.35, v.castM);
-      bobX = rest.x;
-      bobY = 0.08 + Math.sin(performance.now() / 1e3 * 2.1) * 0.035 - v.dip * 0.09;
-      bobZ = rest.z;
-    }
-    const showLine = v.phase !== "card" && v.phase !== "miss";
+    const showBobber = rig.state === "flying" || rig.state === "floating" || rig.state === "fighting" || rig.state === "retrieving";
+    const showLine = showBobber || rig.state === "landing";
+    const bobX = rig.bobX;
+    const bobY = rig.bobY;
+    const bobZ = rig.bobZ;
     lineMesh.visible = showLine;
-    bobber.visible = showLine;
+    bobber.visible = showBobber;
     bobber.position.set(bobX, bobY, bobZ);
+    let pierHits = 0;
     if (showLine) {
       const dist = Math.hypot(bobX - v.eyeX, bobY - v.eyeY, bobZ - v.eyeZ);
-      bobber.scale.setScalar(Math.max(3.4, dist / 3.2));
+      bobber.scale.setScalar(Math.max(1, dist / 7));
       camera.updateMatrixWorld(true);
-      const tip = pts.length / 3 - 1;
-      const tipV = new Vector3(pts[tip * 3], pts[tip * 3 + 1], pts[tip * 3 + 2]);
-      const bobL = camera.worldToLocal(new Vector3(bobX, bobY, bobZ));
-      const sag = Math.min(0.55, dist * 0.06);
       const arr = lineGeo.attributes.position.array;
+      const local = [];
       for (let i = 0; i <= LINE_SEGS; i++) {
-        const t = i / LINE_SEGS;
-        const a = 1 - t;
-        const mx = (tipV.x + bobL.x) * 0.5;
-        const my = (tipV.y + bobL.y) * 0.5 - sag;
-        const mz = (tipV.z + bobL.z) * 0.5;
-        const x = a * a * tipV.x + 2 * a * t * mx + t * t * bobL.x;
-        const y = a * a * tipV.y + 2 * a * t * my + t * t * bobL.y;
-        const z = a * a * tipV.z + 2 * a * t * mz + t * t * bobL.z;
-        const nx = bobL.x - tipV.x;
-        const nz = bobL.z - tipV.z;
+        const world = new Vector3(rig.line[i * 3], rig.line[i * 3 + 1], rig.line[i * 3 + 2]);
+        local.push(camera.worldToLocal(world));
+      }
+      for (let i = 0; i <= LINE_SEGS; i++) {
+        const curr = local[i];
+        const next = local[Math.min(LINE_SEGS, i + 1)];
+        const nx = next.x - curr.x;
+        const nz = next.z - curr.z;
         const len = Math.hypot(nx, nz) || 1;
-        const ox = -nz / len * 0.028;
-        const oz = nx / len * 0.028;
-        arr[i * 6] = x + ox;
-        arr[i * 6 + 1] = y;
-        arr[i * 6 + 2] = z + oz;
-        arr[i * 6 + 3] = x - ox;
-        arr[i * 6 + 4] = y;
-        arr[i * 6 + 5] = z - oz;
+        const ox = -nz / len * 0.016;
+        const oz = nx / len * 0.016;
+        arr[i * 6] = curr.x + ox;
+        arr[i * 6 + 1] = curr.y;
+        arr[i * 6 + 2] = curr.z + oz;
+        arr[i * 6 + 3] = curr.x - ox;
+        arr[i * 6 + 4] = curr.y;
+        arr[i * 6 + 5] = curr.z - oz;
       }
       lineGeo.attributes.position.needsUpdate = true;
       lineGeo.computeBoundingSphere();
-      pierHits = 0;
       for (let i = 0; i <= LINE_SEGS; i += 3) {
-        const wx = camera.localToWorld(new Vector3(arr[i * 6], arr[i * 6 + 1], arr[i * 6 + 2]));
-        if (wx.y > 1.7 && wx.y < 3.75 && pierDistance(wx.x, wx.z) < 0.3) pierHits++;
+        const y = rig.line[i * 3 + 1];
+        const x = rig.line[i * 3];
+        const z = rig.line[i * 3 + 2];
+        if (y > 1.7 && y < 3.75 && pierDistance(x, z) < 0.3) pierHits++;
       }
-    } else pierHits = 0;
+    }
     splashBits.forEach((bit, i) => {
-      bit.visible = rig.splash > 0.05;
+      bit.visible = showBobber && rig.splash > 0.05;
       const a = i / splashBits.length * Math.PI * 2;
       bit.position.set(bobX + Math.cos(a) * rig.splash * 0.35, bobY + rig.splash * 0.15, bobZ + Math.sin(a) * rig.splash * 0.35);
       bit.scale.setScalar(0.4 + rig.splash);
     });
+    let shaft = 0;
+    for (let i = 0; i < pts.length / 3; i++) {
+      if (pts[i * 3 + 2] < -0.3) {
+        shaft = i;
+        break;
+      }
+    }
     lastPose = {
       butt: [pts[0], pts[1], pts[2]],
+      shaft: [pts[shaft * 3], pts[shaft * 3 + 1], pts[shaft * 3 + 2]],
       tip: [pts[pts.length - 3], pts[pts.length - 2], pts[pts.length - 1]],
       bob: [bobX, bobY, bobZ],
       radius: 0.0215,
-      pierHits
+      pierHits,
+      bobVisible: showBobber
     };
-    fishRoot.visible = v.phase === "card";
-    if (v.phase === "card") {
-      fishRoot.position.set(0, 0.02, -1.55);
-      fishRoot.rotation.y = Math.sin(performance.now() / 1e3 * 0.55) * 0.25;
+    const shown = trip.view;
+    fishRoot.visible = shown.phase === "card";
+    if (shown.phase === "card") {
+      const t = Math.max(0, 9 - shown.cardLeft);
+      const slide = Math.min(1, t / 0.7);
+      const ease = slide * slide * (3 - 2 * slide);
+      const scale = Math.max(0.12, shown.cm / 100);
+      fishRoot.position.set(-0.95 * (1 - ease), -0.02, -1.6);
+      fishRoot.scale.setScalar(scale);
+      fishRoot.rotation.z = Math.sin(t * 13) * 0.9 * Math.exp(-t * 1.6);
+      fishRoot.rotation.y = Math.sin(t * 0.55) * 0.2;
+      fishDrops.forEach((drop, i) => {
+        const fall = Math.min(1, t / 0.7);
+        const a = i / fishDrops.length * Math.PI * 2;
+        drop.position.set(Math.cos(a) * 0.45, 0.45 - fall * 0.85, Math.sin(a) * 0.15);
+        drop.visible = t < 1.3;
+      });
     }
-    if (v.phase === "fighting" && v.tension > 0.9) {
-      if (audio.line_strain.paused) void audio.line_strain.play().catch(() => void 0);
-    } else audio.line_strain.pause();
-    if (v.reeling) {
-      if (audio.reel_wind.paused) void audio.reel_wind.play().catch(() => void 0);
-    } else audio.reel_wind.pause();
+    tickSlices();
+    const strain = shown.phase === "fighting" ? strainGain(shown.tension) : 0;
+    loopAt("reel_wind", rig.crankSpeed > 0.02, reelWindRate(rig.crankSpeed), 0.85);
+    loopAt("reel_drag", rig.state === "fighting" && rig.payOut > 0.02, reelDragRate(Math.min(8, rig.payOut)), 0.8);
+    loopAt("line_strain", strain > 1e-3, 1, strain);
+    const bailOpen = rig.state === "windup" || rig.state === "flick" || rig.state === "flying";
+    if (bailOpen !== bailWasOpen) playClip("bail_click");
+    bailWasOpen = bailOpen;
   }
   var waveT = 0;
   function wave(dt) {
@@ -22049,23 +22460,14 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
   });
-  var PERIOD_ORDER = ["dawn", "day", "dusk", "night"];
-  var periodClock = 0;
+  var bailWasOpen = false;
   var last = performance.now();
   function frame(now) {
     const wall = Math.min(0.05, (now - last) / 1e3);
     const dt = wall * speed;
     last = now;
-    if (!debug) {
-      periodClock += wall;
-      if (periodClock > 50) {
-        periodClock = 0;
-        const order = PERIOD_ORDER.indexOf(trip.view.periodId);
-        const next = PERIOD_ORDER[(order + 1) % PERIOD_ORDER.length];
-        trip.setPeriod(next);
-      }
-    }
     if (!trip.view.guideOpen) trip.tick(dt);
+    applySky();
     syncRig(dt);
     wave(dt);
     syncHud();
@@ -22102,14 +22504,16 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
         };
       };
       const depth = Math.max(0.2, -lastPose.butt[2]);
-      const tanH = Math.tan(58 * Math.PI / 360) * (innerWidth / Math.max(1, innerHeight));
+      const tanH = Math.tan(62 * Math.PI / 360) * (innerWidth / Math.max(1, innerHeight));
       const dock2 = document.querySelector(".dock");
       return {
         butt: project(lastPose.butt[0], lastPose.butt[1], lastPose.butt[2], true),
+        shaft: project(lastPose.shaft[0], lastPose.shaft[1], lastPose.shaft[2], true),
         tip: project(lastPose.tip[0], lastPose.tip[1], lastPose.tip[2], true),
         bob: project(lastPose.bob[0], lastPose.bob[1], lastPose.bob[2], false),
         diamPct: lastPose.radius * 2 / depth / (2 * tanH) * 100,
         pierHits: lastPose.pierHits,
+        bobVisible: lastPose.bobVisible,
         bobWorldY: lastPose.bob[1],
         dock: dock2 ? getComputedStyle(dock2).display : "missing",
         w: innerWidth,

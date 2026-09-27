@@ -3,7 +3,7 @@ html, body { height: 100%; background: #081018; color: #f4ead6; font-family: "We
 body { overflow: hidden; }
 #view, #view canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 #hud { position: fixed; inset: 0; pointer-events: none; }
-#hud button, #hud .panel, #hold { pointer-events: auto; }
+#hud button, #hud .panel, #hold, #map { pointer-events: auto; }
 .purse {
   position: absolute; top: 12px; right: 12px; display: flex; gap: 10px; align-items: center;
   padding: 8px 14px; border-radius: 999px; background: rgba(8, 18, 28, 0.72);
@@ -58,10 +58,29 @@ body.overlay #hint,
 body.overlay #map,
 body.overlay #hold,
 body.overlay #tip,
+body.overlay #cross,
+body.overlay #finder,
 body.overlay .fight,
 body.overlay .cast,
 body.overlay .bite,
 body.overlay .purse { display: none !important; }
+#cross {
+  position: absolute; left: 50%; top: 46%; width: 14px; height: 14px;
+  transform: translate(-50%, -50%); pointer-events: none;
+}
+#cross::before, #cross::after { content: ""; position: absolute; background: rgba(255,255,255,0.9); }
+#cross::before { left: 6px; top: 0; width: 2px; height: 14px; }
+#cross::after { left: 0; top: 6px; width: 14px; height: 2px; }
+#replay { position: absolute; left: 8px; top: 12px; width: 72px; height: 36px; padding: 4px; }
+#finder {
+  position: absolute; left: 50%; top: 12px; transform: translateX(-50%);
+  display: none; padding: 6px 12px; border-radius: 999px;
+  background: rgba(8, 18, 28, 0.78); font-size: 13px; white-space: nowrap;
+}
+#finder.on { display: block; }
+.card-timer { height: 6px; border-radius: 99px; background: rgba(255,255,255,0.16); overflow: hidden; margin: 8px auto 0; width: min(280px, 80%); }
+.card-timer > i { display: block; height: 100%; width: 100%; background: #f0c46a; }
+.stat small { display: block; color: #debd7d; font-size: 11px; }
 .dock {
   position: absolute; left: 12px; top: 12px; display: none; flex-wrap: wrap; gap: 6px;
   max-width: calc(100vw - 220px);

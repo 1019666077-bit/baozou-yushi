@@ -30,6 +30,7 @@ export type TripPhase =
   | "dock"
   | "ready"
   | "charging"
+  | "flying"
   | "waiting"
   | "nibbling"
   | "hook"
@@ -97,6 +98,11 @@ export interface TripView {
   fuelL: number;
   fuelCap: number;
   finder: boolean;
+  deckLights: boolean;
+  hour: number;
+  cardLeft: number;
+  finderDepth: number;
+  finderSignal: number;
   hint: string;
   fightCall: string;
   guideOpen: boolean;
@@ -141,8 +147,8 @@ function blankView(): TripView {
     spotName: "码头",
     waypoint: "bay",
     waypointName: "海湾",
-    periodId: "day",
-    periodName: "白天",
+    periodId: "dusk",
+    periodName: "黄昏",
     power: 0,
     reach: 0,
     depth: 0,
@@ -183,6 +189,11 @@ function blankView(): TripView {
     fuelL: 40,
     fuelCap: 40,
     finder: false,
+    deckLights: false,
+    hour: 16.2,
+    cardLeft: 0,
+    finderDepth: 0,
+    finderSignal: 0,
     hint: "",
     fightCall: "",
     guideOpen: false,
@@ -199,7 +210,14 @@ export class FishingTrip {
   private phase: TripPhase = "dock";
   private spot: SpotId = "pier";
   private waypoint: WaypointId = "bay";
-  private period: PeriodId = "day";
+  private period: PeriodId = "dusk";
+  private hour = 16.2;
+  private aimYaw = 0;
+  private splashLine = 0;
+  private cardLeft = 0;
+  private finderClock = 0;
+  private finderDepth = 0;
+  private finderSignal = 0;
   private held = false;
   private power = 0;
   private reach = 0;
@@ -273,8 +291,15 @@ export class FishingTrip {
   setPeriod(id: PeriodId): void {
     if (this.phase !== "dock" && this.phase !== "ready" && this.phase !== "miss") return;
     this.period = id;
+    this.hour = PERIODS[id].hour;
     if (this.phase === "miss") this.phase = "ready";
     this.publish();
+  }
+
+  /** 左右滑动，大约 ±25°。抛投方向跟着镜头转。 */
+  setAimYaw(yaw: number): void {
+    const limit = 25 * Math.PI / 180;
+    this.aimYaw = Math.min(limit, Math.max(-limit, yaw));
   }
 
   toDock(): void {
@@ -474,17 +499,37 @@ export class FishingTrip {
 
   private cast(): void {
     const stats = this.state.stats;
-    const sample = sampleCast(this.spot, this.waypoint, this.power, stats.castM);
+    const sample = sampleCast(this.spot, this.waypoint, this.power, stats.castM, this.aimYaw);
     this.reach = sample.reach;
     this.depth = sample.depth;
     this.bobX = sample.x;
     this.bobZ = sample.z;
-    const delay = this.bites.start(sample.habitat, PERIODS[this.period].hour);
+    this.splashLine = 0;
+    this.phase = "flying";
+  }
+
+  /** 浮标落水后才开始计咬钩。落在干沙滩上就收回。 */
+  bobberLanded(lineOut: number, depth: number): void {
+    if (this.phase !== "flying") return;
+    this.splashLine = Math.max(0, lineOut);
+    this.depth = depth;
+    if (depth < 0.25) {
+      this.fail("落到沙滩上了");
+      this.publish();
+      return;
+    }
+    const delay = this.bites.start(this.castHabitat(), this.hour);
     if (!Number.isFinite(delay)) {
       this.fail("这片水里没有鱼");
+      this.publish();
       return;
     }
     this.phase = "waiting";
+    this.publish();
+  }
+
+  private castHabitat() {
+    return sampleCast(this.spot, this.waypoint, this.power, this.state.stats.castM, this.aimYaw).habitat;
   }
 
   private hookSet(): void {
@@ -496,7 +541,7 @@ export class FishingTrip {
       kg: hooked.kg,
       lineKg: stats.lineKg,
       reelSpeed: stats.reelSpeed,
-      distance: Math.max(3, this.reach),
+      distance: Math.max(3, this.splashLine),
       rng: this.rng,
     });
     this.phase = "fighting";
@@ -513,6 +558,21 @@ export class FishingTrip {
       if (this.noticeLeft === 0) this.notice = "";
     }
     if (this.phase === "charging" && this.held) this.power = chargePower(this.power, dt);
+    if (this.phase === "card") {
+      this.cardLeft = Math.max(0, this.cardLeft - dt);
+      if (this.cardLeft === 0) this.toReady();
+    }
+    if (this.spot === "boat" && this.state.stats.finder) {
+      this.finderClock += dt;
+      if (this.finderClock >= 0.5) {
+        this.finderClock = 0;
+        const sample = sampleCast("boat", this.waypoint, 0, this.state.stats.castM);
+        this.finderDepth = sample.depth;
+        let rich = 0;
+        for (const key of Object.keys(sample.habitat)) rich += sample.habitat[key as keyof typeof sample.habitat];
+        this.finderSignal = Math.min(1, rich / 1.4);
+      }
+    }
     if (this.phase === "waiting" || this.phase === "nibbling" || this.phase === "hook") {
       const event = this.bites.update(dt);
       if (event === "nibble") {
@@ -535,10 +595,11 @@ export class FishingTrip {
   private land(fight: CatchMinigame): void {
     this.landedDistance = fight.distance;
     this.landedStamina = fight.stamina;
-    this.state.addFish(fight.species, fight.kg, PERIODS[this.period].hour);
+    this.state.addFish(fight.species, fight.kg, this.hour);
     this.fight = null;
     this.held = false;
     this.phase = "card";
+    this.cardLeft = 9;
     this.dirty = true;
     const card = this.state.lastCatch;
     this.notice = card?.kept ? "进冷藏箱了" : "鱼舱满了，已放生（图鉴记下了）";
@@ -622,6 +683,11 @@ export class FishingTrip {
     view.fuelL = this.state.fuelL;
     view.fuelCap = stats.fuelL;
     view.finder = !!stats.finder;
+    view.deckLights = !!stats.deckLights;
+    view.hour = this.hour;
+    view.cardLeft = this.phase === "card" ? this.cardLeft : 0;
+    view.finderDepth = this.finderDepth;
+    view.finderSignal = this.finderSignal;
     view.hint = this.hintFor();
     view.fightCall = this.fightCall();
     view.guideOpen = !this.state.guideIntro;
@@ -646,11 +712,12 @@ export class FishingTrip {
       case "dock": return "卖鱼、升级，再拿出鱼竿";
       case "ready": return "按住蓄力，松手抛投";
       case "charging": return "松手抛出，按越久越远";
+      case "flying": return "浮标还在飞";
       case "waiting": return "等浮标被拉下去";
       case "nibbling": return "有东西在碰饵，先别提竿";
       case "hook": return "提竿！";
       case "fighting": return this.view.tension > 0.88 ? "拉力太大，松手" : "按住收线，变红就松手";
-      case "card": return "点一下继续";
+      case "card": return "点一下继续，或等它自己收起";
       case "miss": return this.notice;
       default: return "";
     }

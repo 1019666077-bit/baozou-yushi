@@ -11,7 +11,8 @@
   },
   "exclude": [
     "assets/scripts/fishing/FishingSession.ts",
-    "assets/scripts/fishing/FishingWorld.ts"
+    "assets/scripts/fishing/FishingWorld.ts",
+    "assets/scripts/fishing/audio/FishingAudio.ts"
   ],
   "include": [
     "assets/scripts/domain/**/*.ts",

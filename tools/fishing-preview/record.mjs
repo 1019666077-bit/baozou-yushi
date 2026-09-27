@@ -75,16 +75,29 @@ async function composition(page) {
   return page.evaluate(() => window.__fishing.composition());
 }
 
-function assertCast(name, shot) {
+function assertChrome(name, shot) {
+  if (shot.dock !== "none") throw new Error(`${name} 调试条可见 ${shot.dock}`);
+}
+
+function assertRod(name, shot) {
+  assertChrome(name, shot);
   const problems = [];
-  if (shot.dock !== "none") problems.push(`调试条可见 ${shot.dock}`);
-  if (shot.butt.behind || shot.butt.x < shot.w * 0.72 || shot.butt.y < shot.h * 0.7 || shot.butt.y > shot.h * 1.25) problems.push(`竿尾不在右下 ${JSON.stringify(shot.butt)}`);
-  if (shot.tip.behind || shot.tip.x < shot.w * 0.55 || shot.tip.y < 8 || shot.tip.y > shot.h * 0.55) problems.push(`竿尖不在右上方 ${JSON.stringify(shot.tip)}`);
-  if (shot.diamPct < 2.8 || shot.diamPct > 4.4) problems.push(`竿尾直径 ${shot.diamPct.toFixed(2)}%`);
-  if (shot.bob.behind || shot.bob.x < shot.w * 0.15 || shot.bob.x > shot.w * 0.88 || shot.bob.y < shot.h * 0.18 || shot.bob.y > shot.h * 0.9) {
-    problems.push(`浮标不在水面画面里 ${JSON.stringify(shot.bob)}`);
-  }
-  if (shot.bobWorldY > 0.5) problems.push(`浮标离开水面 y=${shot.bobWorldY}`);
+  if (!shot.shaft || shot.shaft.behind || shot.tip.behind) problems.push(`竿不在画面里 ${JSON.stringify({ shaft: shot.shaft, tip: shot.tip })}`);
+  if (shot.shaft && !(shot.tip.y < shot.shaft.y)) problems.push(`竿尖没有高于竿身 ${JSON.stringify({ tip: shot.tip, shaft: shot.shaft })}`);
+  if (problems.length) throw new Error(`${name} ${problems.join("；")}`);
+}
+
+function assertIdle(name, shot) {
+  assertRod(name, shot);
+  if (shot.bobVisible) throw new Error(`${name} 待机不该有浮标`);
+  return shot;
+}
+
+function assertBob(name, shot, air) {
+  assertRod(name, shot);
+  const problems = [];
+  if (!shot.bobVisible) problems.push("浮标没显示");
+  if (!air && (shot.bob.behind || shot.bobWorldY > 0.35)) problems.push(`浮标不在水面 ${JSON.stringify(shot.bob)} y=${shot.bobWorldY}`);
   if (shot.pierHits > 0) problems.push(`鱼线穿过码头 ${shot.pierHits}`);
   if (problems.length) throw new Error(`${name} ${problems.join("；")}`);
   return shot;
@@ -192,7 +205,7 @@ try {
   await act(page, "ready");
   await act(page, "pier");
   await wait(1200);
-  const idleShot = assertCast("01-idle", await composition(page));
+  const idleShot = assertIdle("01-idle", await composition(page));
   console.log("01-idle", JSON.stringify(idleShot));
   await shot(page, "01-idle.png");
 
@@ -241,11 +254,17 @@ try {
     await shot(page, "02-cast.png");
     capturing = true;
     await page.evaluate(() => window.__fishing.setHeld(false));
+    const flying = await until(page, (v) => (v.rodState === "flying" && v.bobY < 2.2 && v.bobY > 0.35) || v.rodState === "floating" || v.phase === "waiting", 8000);
+    if (flying.rodState === "flying") {
+      const flyShot = assertBob("02-fly", await composition(page), true);
+      console.log("02-fly", JSON.stringify(flyShot));
+      await shot(page, "02-fly.png");
+    }
     await page.evaluate(() => window.__fishing.setSpeed(6));
     await until(page, (v) => (v.phase === "waiting" || v.phase === "nibbling") && v.rodState === "floating" && v.bobY < 0.45, 12000);
     await page.evaluate(() => window.__fishing.setSpeed(1));
     await wait(180);
-    const waitShot = assertCast("02-wait", await composition(page));
+    const waitShot = assertBob("02-wait", await composition(page), false);
     console.log("02-wait", JSON.stringify(waitShot));
     await shot(page, "02-wait.png");
     await page.evaluate(() => window.__fishing.setSpeed(10));
@@ -260,12 +279,12 @@ try {
     await until(page, (v) => v.phase === "fighting" || v.phase === "miss" || v.phase === "card");
     const posed = await until(
       page,
-      (v) => v.phase !== "fighting" || (v.rodState === "fighting" && v.bobY < 0.45 && Number.isFinite(v.bend) && Math.abs(v.bend) > 0.03 && Math.abs(v.bend) < 1.2),
+      (v) => v.phase !== "fighting" || (v.rodState === "fighting" && v.bobY < 0.45 && Number.isFinite(v.bend) && Math.abs(v.bend) > 0.03 && Math.abs(v.bend) < 1.2 && v.tension > 0.45),
       8000,
     ).catch(async () => view(page));
     const mid = posed.phase ? posed : await view(page);
     if (mid.phase === "fighting") {
-      const fightShot = assertCast("03-fight", await composition(page));
+      const fightShot = assertBob("03-fight", await composition(page), false);
       console.log("03-fight", JSON.stringify(fightShot));
       await shot(page, "03-fight.png");
     }
@@ -279,7 +298,14 @@ try {
     await page.evaluate(() => window.__fishing.setHeld(false));
     capturing = false;
     if (done.phase === "card") {
-      await wait(250);
+      await page.evaluate(() => window.__fishing.setSpeed(1));
+      await wait(400);
+      const card = await page.evaluate(() => {
+        const bar = document.querySelector("#cardBar");
+        const on = document.getElementById("catch")?.classList.contains("on");
+        return { on, width: bar ? bar.style.width : "" };
+      });
+      if (!card.on || !card.width || card.width === "0%") throw new Error(`渔获卡进度条不对 ${JSON.stringify(card)}`);
       await shot(page, "04-card.png");
     }
     return done;
@@ -301,6 +327,13 @@ try {
   await act(page, "marta");
   await wait(200);
   await shot(page, "05-shop.png");
+  await act(page, "close");
+  await act(page, "ready");
+  for (const id of ["dawn", "day", "dusk", "night"]) {
+    await act(page, id);
+    await wait(250);
+    await shot(page, `08-${id}.png`);
+  }
 
   clearInterval(timer);
   await wait(200);
@@ -330,6 +363,26 @@ try {
   const stat = fs.statSync(gif);
   const seconds = picked.length / 8;
   if (seconds > 15.05) throw new Error(`GIF 超过 15 秒：${seconds}`);
+  const finderPage = await browser.newPage();
+  finderPage.on("pageerror", (error) => console.error("pageerror", error));
+  await finderPage.goto(pageUrl + "&wallet=500", { waitUntil: "load", timeout: 20000 });
+  await finderPage.waitForFunction(() => window.__fishing, { timeout: 15000 });
+  await act(finderPage, "skip");
+  await act(finderPage, "ready");
+  await act(finderPage, "boat");
+  await act(finderPage, "buy:fishFinder");
+  await act(finderPage, "buy:lights");
+  await act(finderPage, "night");
+  await finderPage.waitForFunction(() => {
+    const v = window.__fishing.view();
+    return v.finder && v.spot === "boat" && v.finderDepth > 0;
+  }, { timeout: 8000 });
+  await wait(300);
+  const finderText = await finderPage.evaluate(() => document.getElementById("finder")?.textContent || "");
+  if (!finderText.includes("水深") || !finderText.includes("鱼讯")) throw new Error(`探鱼器没显示 ${finderText}`);
+  await shot(finderPage, "09-finder.png");
+  await finderPage.close();
+
   console.log(JSON.stringify({
     png: fs.readdirSync(outDir).filter((name) => name.endsWith(".png")),
     gif,

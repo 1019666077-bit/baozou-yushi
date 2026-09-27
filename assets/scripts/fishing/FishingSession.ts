@@ -2,15 +2,16 @@
  * Cocos 出海钓鱼。规则在 FishingTrip，第一人称画面在 FishingWorld。
  * 从 RuntimeHome 的「出海钓鱼」进来。商店行是「文字在左、按钮在右」，避免叠在一起。
  */
-import { _decorator, Color, Component, Graphics, Label, Node, UITransform } from "cc";
+import { _decorator, Color, Component, EventTouch, Graphics, Label, Node, UITransform, Vec3 } from "cc";
 import { playerSave } from "../save/SaveService";
 import { makeButton, makeLabel, replacePlayLayer } from "../ui/RuntimeUi";
+import { FishingAudio } from "./audio/FishingAudio";
 import { applyFishingState, gameStateFromSave } from "./FishingSave";
 import { FishingTrip, type TripPhase } from "./FishingTrip";
 import { FishingWorld } from "./FishingWorld";
 import { FISH_RGB, GUIDE_CARDS, JOE_GREETING, JOE_IDLE, MARTA_GREETING } from "./present";
 import { RodRig, type RodFrame } from "./RodRig";
-import { fishingLook, sampleCast, type SpotId } from "./SpotQuery";
+import { aimLook, depthAt, type SpotId } from "./SpotQuery";
 import { PERIODS, type PeriodId } from "./Waters";
 import type { ShopKey } from "./present";
 
@@ -38,7 +39,13 @@ export class FishingSession extends Component {
   private panel: PanelKind = "";
   private lastPhase: TripPhase = "dock";
   private castArmed = false;
-  private shown = 0;
+  private aimYaw = 0;
+  private yawX = 0;
+  private yawDrag = false;
+  private audio!: FishingAudio;
+  private finder!: Label;
+  private cardFill?: Graphics;
+  private cross!: Node;
 
   onLoad(): void {
     this.leave = FishingSession.onHarbor ?? (() => {});
@@ -46,6 +53,7 @@ export class FishingSession extends Component {
     this.trip = new FishingTrip({ state: gameStateFromSave(playerSave.get()) });
     this.rig.equip(true);
     this.world = FishingWorld.ensure(this.node);
+    this.audio = new FishingAudio(this.node);
     const layer = replacePlayLayer(this.node);
     this.coins = makeLabel(layer, "", 22, 430, 320, 400);
     this.hint = makeLabel(layer, "", 22, 0, 250, 900);
@@ -55,6 +63,9 @@ export class FishingSession extends Component {
     this.ui.parent = layer;
     this.ui.addComponent(UITransform).setContentSize(1280, 720);
     this.map = this.makeMap(layer);
+    this.finder = makeLabel(layer, "", 18, 0, 300, 520);
+    this.cross = this.makeCross(layer);
+    this.bindYaw(layer);
     this.pad = new Node("HoldPad");
     this.pad.layer = layer.layer;
     this.pad.parent = layer;
@@ -88,6 +99,7 @@ export class FishingSession extends Component {
     this.syncRig(dt);
     this.refreshText();
     this.paintMap();
+    this.paintCardTimer();
     this.syncUi(false);
     if (this.trip.consumeDirty()) {
       void playerSave.save(applyFishingState(playerSave.get(), this.trip.state));
@@ -97,7 +109,7 @@ export class FishingSession extends Component {
   private syncRig(dt: number): void {
     const view = this.trip.view;
     this.rig.setGear(view.castM, view.reelSpeed);
-    const look = fishingLook(view.spot, view.eyeX, view.eyeZ);
+    const look = aimLook(view.spot, view.eyeX, view.eyeZ, this.aimYaw);
     const frame: RodFrame = {
       camX: view.eyeX,
       camY: view.eyeY,
@@ -111,39 +123,54 @@ export class FishingSession extends Component {
       this.rig.startWindup();
       this.castArmed = true;
     }
-    if (this.lastPhase === "charging" && view.phase === "waiting" && this.castArmed) {
+    if (this.lastPhase === "charging" && view.phase === "flying" && this.castArmed) {
       this.rig.release(view.bobX, view.bobZ);
+      this.audio.swish(view.power);
       this.castArmed = false;
     }
-    if ((view.phase === "hook" || view.phase === "fighting") && this.rig.state === "floating") this.rig.hook();
-    if (view.phase === "card" && this.lastPhase !== "card") this.rig.land();
-    if (view.phase === "miss" && this.lastPhase !== "miss") this.rig.retrieve();
-    if (view.phase === "ready" && this.rig.state !== "idle" && this.rig.state !== "windup") this.rig.equip(true);
-    this.rig.update(dt, frame);
-    this.lastPhase = view.phase;
-    const rgb = view.species ? FISH_RGB[view.species] : undefined;
-    const castOut = this.rig.state === "flying" || this.rig.state === "floating" || this.rig.state === "fighting" || this.rig.state === "retrieving" || this.rig.state === "landing";
-    this.shown += dt;
-    let bobX = this.rig.bobX;
-    let bobY = this.rig.bobY;
-    let bobZ = this.rig.bobZ;
-    if (!castOut) {
-      const rest = sampleCast(view.spot, view.waypoint, 0.35, view.castM);
-      bobX = rest.x;
-      bobY = 0.08 + Math.sin(this.shown * 2.1) * 0.03 - view.dip * 0.08;
-      bobZ = rest.z;
+    if ((view.phase === "hook" || view.phase === "fighting") && this.rig.state === "floating") {
+      if (this.rig.hook() && this.lastPhase !== "hook" && this.lastPhase !== "fighting") this.audio.play("fish_splash");
     }
+    if (view.phase === "card" && this.lastPhase !== "card") {
+      this.rig.land();
+      this.audio.play("fish_flop");
+    }
+    if (view.phase === "miss" && this.lastPhase !== "miss") {
+      if (view.notice.includes("断")) this.audio.play("line_snap");
+      this.rig.retrieve();
+    }
+    if (view.phase === "ready" && this.rig.state !== "idle" && this.rig.state !== "windup") this.rig.equip(true);
+    const prevRig = this.rig.state;
+    this.rig.update(dt, frame);
+    if (prevRig !== "floating" && this.rig.state === "floating") {
+      this.audio.play("plop");
+      this.trip.bobberLanded(this.rig.splashLine, depthAt(this.rig.bobX, this.rig.bobZ));
+      if (this.trip.view.phase === "miss") this.rig.retrieve();
+    }
+    this.lastPhase = this.trip.view.phase;
+    const shown = this.trip.view;
+    const rgb = shown.species ? FISH_RGB[shown.species] : undefined;
+    const showBobber = this.rig.state === "flying" || this.rig.state === "floating" || this.rig.state === "fighting" || this.rig.state === "retrieving";
+    this.audio.tick(
+      this.rig.crankSpeed,
+      this.rig.payOut,
+      shown.tension,
+      shown.phase === "fighting",
+      this.rig.state === "windup" || this.rig.state === "flick" || this.rig.state === "flying",
+    );
     this.world.tick(dt, {
-      eyeX: view.eyeX,
-      eyeY: view.eyeY,
-      eyeZ: view.eyeZ,
-      spot: view.spot,
-      phase: view.phase,
+      eyeX: shown.eyeX,
+      eyeY: shown.eyeY,
+      eyeZ: shown.eyeZ,
+      spot: shown.spot,
+      phase: shown.phase,
       fishRgb: rgb ? [rgb[0], rgb[1], rgb[2]] : null,
-      bobX,
-      bobY,
-      bobZ,
-      showLine: view.phase !== "card" && view.phase !== "miss",
+      fishCm: shown.cm,
+      cardAge: shown.phase === "card" ? 9 - shown.cardLeft : 0,
+      aimYaw: this.aimYaw,
+      periodId: shown.periodId,
+      deckLights: shown.deckLights,
+      showBobber,
     }, this.rig);
   }
 
@@ -151,6 +178,12 @@ export class FishingSession extends Component {
     const view = this.trip.view;
     this.coins.string = `${Math.floor(view.coins)} 金   冷藏箱 ${view.holdKg.toFixed(1)}/${view.holdCap} kg`;
     this.hint.string = view.notice || view.hint;
+    const showFinder = view.spot === "boat" && view.finder && !view.guideOpen && this.panel === "";
+    this.finder.node.active = showFinder;
+    if (showFinder) {
+      this.finder.string = `水深 ${view.finderDepth.toFixed(1)} m   鱼讯 ${Math.round(view.finderSignal * 100)}%`;
+    }
+    this.cross.active = this.panel === "" && !view.guideOpen && view.phase !== "card";
     this.detail.string = this.detailLine(view.phase);
     const holding = !view.guideOpen && (
       view.phase === "ready"
@@ -170,7 +203,9 @@ export class FishingSession extends Component {
     if (view.guideOpen) return "";
     if (phase === "card") {
       const flag = view.isRecord ? "新纪录" : view.isNew ? "新鱼种" : view.rarity;
-      return `${view.speciesName}  ${flag}  ${view.cm} cm  ${view.kg.toFixed(2)} kg  ${view.value} 金`;
+      const inches = (view.cm / 2.54).toFixed(1);
+      const pounds = (view.kg * 2.20462).toFixed(2);
+      return `${view.speciesName}  ${flag}  ${view.cm} cm (${inches} in)  ${view.kg.toFixed(2)} kg (${pounds} lb)  ${view.value} 金`;
     }
     if (phase === "fighting" || phase === "hook") {
       return `${view.speciesName || "鱼"}  ${view.fightCall}  拉力 ${view.tension.toFixed(2)}  绿区 ${view.bandLo.toFixed(2)}–${view.bandHi.toFixed(2)}  ${view.distance.toFixed(1)} m`;
@@ -184,6 +219,7 @@ export class FishingSession extends Component {
     const key = `${this.trip.uiKey()}|${this.panel}`;
     if (!force && key === this.uiKey) return;
     this.uiKey = key;
+    this.cardFill = undefined;
     for (const child of [...this.ui.children]) child.destroy();
     if (view.guideOpen) {
       this.guideCard();
@@ -242,6 +278,7 @@ export class FishingSession extends Component {
     makeButton(this.ui, "玛塔的渔具", -140, 230, () => { this.panel = "marta"; this.syncUi(true); }, 220, 48, 20);
     makeButton(this.ui, "鱼舱", 80, 230, () => { this.panel = "cooler"; this.syncUi(true); }, 140, 48, 20);
     makeButton(this.ui, "拿出鱼竿", 280, 230, () => this.trip.toReady(), 180, 48, 20, "primary");
+    makeButton(this.ui, "再看引导", 430, 160, () => this.trip.replayGuide(), 160, 44, 18);
     if (this.trip.view.phase === "dock") {
       makeButton(this.ui, "回港", 500, 230, () => this.leave(), 140, 48, 20);
     }
@@ -295,8 +332,10 @@ export class FishingSession extends Component {
     makeLabel(this.ui, "冷藏箱", 28, 0, 240, 480);
     const rows = this.trip.holdRows();
     if (!rows.length) makeLabel(this.ui, "还没有。从沙滩、码头或船上抛。", 18, 0, 160, 640);
-    rows.slice(0, 6).forEach((row, index) => {
-      makeLabel(this.ui, `${row.name}  ${row.cm} cm  ${row.kg.toFixed(2)} kg  ${row.value} 金`, 18, 0, 160 - index * 40, 700);
+    rows.slice(0, 5).forEach((row, index) => {
+      const y = 160 - index * 48;
+      makeLabel(this.ui, `${row.name}  ${row.cm} cm  ${row.kg.toFixed(2)} kg`, 16, -80, y, 420);
+      makeButton(this.ui, "放生", 220, y, () => this.trip.releaseFish(row.id), 120, 40, 16);
     });
     makeButton(this.ui, "离开", -140, -240, () => { this.panel = ""; this.syncUi(true); }, 180, 52, 22);
     makeButton(this.ui, "拿出鱼竿", 140, -240, () => { this.panel = ""; this.trip.toReady(); }, 200, 52, 22, "primary");
@@ -307,8 +346,16 @@ export class FishingSession extends Component {
     const flag = view.isRecord ? "新纪录" : view.isNew ? "新鱼种" : "渔获";
     makeLabel(this.ui, flag, 18, 0, 200, 400);
     makeLabel(this.ui, view.speciesName, 48, 0, 130, 800);
-    makeLabel(this.ui, `${view.cm} cm    ${view.kg.toFixed(2)} kg    ${view.value} 金`, 24, 0, 60, 700);
-    makeLabel(this.ui, view.kept ? "已进冷藏箱。按住继续。" : "冷藏箱没有空了，这条放了。", 18, 0, 10, 700);
+    const inches = (view.cm / 2.54).toFixed(1);
+    const pounds = (view.kg * 2.20462).toFixed(2);
+    makeLabel(this.ui, `${view.cm} cm / ${inches} in    ${view.kg.toFixed(2)} kg / ${pounds} lb    ${view.value} 金`, 22, 0, 60, 860);
+    makeLabel(this.ui, view.kept ? "已进冷藏箱。点一下或等它收起。" : "冷藏箱没有空了，这条放了。", 18, 0, 10, 700);
+    const bar = new Node("CardTimer");
+    bar.layer = this.ui.layer;
+    bar.parent = this.ui;
+    bar.setPosition(0, -40);
+    this.cardFill = bar.addComponent(Graphics);
+    this.paintCardTimer();
     makeButton(this.ui, "再抛一竿", -150, -200, () => this.trip.toReady(), 240, 64, 24, "primary");
     makeButton(this.ui, "回码头", 150, -200, () => this.trip.toDock(), 200, 64, 24);
   }
@@ -343,7 +390,39 @@ export class FishingSession extends Component {
     node.parent = layer;
     node.setPosition(540, -40);
     node.addComponent(UITransform).setContentSize(120, 120);
+    node.on(Node.EventType.TOUCH_END, (event: EventTouch) => this.onMap(event));
     return node.addComponent(Graphics);
+  }
+
+  private onMap(event: EventTouch): void {
+    const ui = this.map.node.getComponent(UITransform);
+    if (!ui) return;
+    const loc = event.getUILocation();
+    const local = ui.convertToNodeSpaceAR(new Vec3(loc.x, loc.y, 0));
+    const x = local.x / 120 + 0.5;
+    const y = 0.5 - local.y / 120;
+    const marks: { x: number; y: number; act: SpotId | "joe" | "marta" }[] = [
+      { x: 0.42, y: 0.78, act: "joe" },
+      { x: 0.7, y: 0.55, act: "marta" },
+      { x: 0.58, y: 0.3, act: "boat" },
+      { x: 0.5, y: 0.62, act: "pier" },
+    ];
+    let best = marks[0];
+    let bestD = 99;
+    for (const mark of marks) {
+      const d = Math.hypot(mark.x - x, mark.y - y);
+      if (d < bestD) {
+        best = mark;
+        bestD = d;
+      }
+    }
+    if (bestD > 0.22) return;
+    if (best.act === "joe" || best.act === "marta") {
+      this.panel = best.act;
+      this.syncUi(true);
+      return;
+    }
+    this.trip.setSpot(best.act);
   }
 
   private paintMap(): void {
@@ -364,6 +443,59 @@ export class FishingSession extends Component {
     g.fill();
     g.fillColor = new Color(111, 214, 198, 255);
     g.circle(18, 6, 4);
+    g.fill();
+  }
+
+  private makeCross(layer: Node): Node {
+    const node = new Node("Crosshair");
+    node.layer = layer.layer;
+    node.parent = layer;
+    const g = node.addComponent(Graphics);
+    g.strokeColor = new Color(255, 255, 255, 210);
+    g.lineWidth = 2;
+    g.moveTo(-8, 0);
+    g.lineTo(8, 0);
+    g.moveTo(0, -8);
+    g.lineTo(0, 8);
+    g.stroke();
+    return node;
+  }
+
+  private bindYaw(layer: Node): void {
+    const pad = new Node("YawPad");
+    pad.layer = layer.layer;
+    pad.parent = layer;
+    pad.setSiblingIndex(0);
+    pad.addComponent(UITransform).setContentSize(1280, 720);
+    const limit = 25 * Math.PI / 180;
+    pad.on(Node.EventType.TOUCH_START, (event: EventTouch) => {
+      this.yawDrag = true;
+      this.yawX = event.getUILocation().x;
+    });
+    pad.on(Node.EventType.TOUCH_MOVE, (event: EventTouch) => {
+      if (!this.yawDrag) return;
+      const x = event.getUILocation().x;
+      this.aimYaw = Math.max(-limit, Math.min(limit, this.aimYaw + (x - this.yawX) / 1280 * 1.2));
+      this.yawX = x;
+      this.trip.setAimYaw(this.aimYaw);
+    });
+    const stop = () => { this.yawDrag = false; };
+    pad.on(Node.EventType.TOUCH_END, stop);
+    pad.on(Node.EventType.TOUCH_CANCEL, stop);
+  }
+
+  private paintCardTimer(): void {
+    const g = this.cardFill;
+    if (!g?.isValid || this.trip.view.phase !== "card") return;
+    const w = 280;
+    const h = 8;
+    const width = w * Math.max(0, Math.min(1, this.trip.view.cardLeft / 9));
+    g.clear();
+    g.fillColor = new Color(255, 255, 255, 40);
+    g.roundRect(-w / 2, -h / 2, w, h, 4);
+    g.fill();
+    g.fillColor = new Color(240, 196, 106, 255);
+    g.roundRect(-w / 2, -h / 2, Math.max(4, width), h, 4);
     g.fill();
   }
 }

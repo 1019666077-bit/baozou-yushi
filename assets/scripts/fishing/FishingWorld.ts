@@ -6,8 +6,9 @@ import { Camera, Color, DirectionalLight, Layers, Node, Quat, Vec3 } from "cc";
 import { waterAmp } from "../domain/ProcGeom";
 import type { StagePart } from "../domain/ProcGeom";
 import { rippleWater, spawnPart, spawnParts } from "../world/StageBuild";
-import { blankCameraPoints, LINE_SEGS, presentRodPoint, type RodRig } from "./RodRig";
-import { fishingLook, type SpotId } from "./SpotQuery";
+import { blankCameraPoints, LINE_SEGS, type RodRig } from "./RodRig";
+import { aimLook, type SpotId } from "./SpotQuery";
+import { PERIOD_LOOK, type PeriodId } from "./Waters";
 
 export interface FishingPose {
   eyeX: number;
@@ -16,10 +17,12 @@ export interface FishingPose {
   spot: string;
   phase: string;
   fishRgb: readonly [number, number, number] | null;
-  bobX: number;
-  bobY: number;
-  bobZ: number;
-  showLine: boolean;
+  fishCm: number;
+  cardAge: number;
+  aimYaw: number;
+  periodId: string;
+  deckLights: boolean;
+  showBobber: boolean;
 }
 
 const WOOD: [number, number, number] = [196, 160, 106];
@@ -48,6 +51,9 @@ export class FishingWorld {
   private bobber!: Node;
   private splash: Node[] = [];
   private fish!: Node;
+  private drops: Node[] = [];
+  private sun!: DirectionalLight;
+  private viewCam!: Camera;
   private elapsed = 0;
   private alive = true;
   private readonly up = new Vec3(0, 1, 0);
@@ -88,9 +94,10 @@ export class FishingWorld {
   tick(dt: number, pose: FishingPose, rig: RodRig): void {
     if (!this.root?.isValid) return;
     this.elapsed += dt;
+    this.applyLook(pose.periodId, pose.deckLights);
     if (this.water?.isValid) rippleWater(this.water, this.elapsed, waterAmp(false));
     this.camNode.setPosition(pose.eyeX, pose.eyeY, pose.eyeZ);
-    const look = fishingLook(pose.spot as SpotId, pose.eyeX, pose.eyeZ);
+    const look = aimLook(pose.spot as SpotId, pose.eyeX, pose.eyeZ, pose.aimYaw);
     this.look.set(look.x, look.y, look.z);
     this.camNode.lookAt(this.look, this.up);
     if (pose.spot === "boat") this.boat.setPosition(pose.eyeX, 0.15, pose.eyeZ + 1.2);
@@ -100,8 +107,20 @@ export class FishingWorld {
     const showFish = pose.phase === "card" && pose.fishRgb !== null;
     this.fish.active = showFish;
     if (showFish && pose.fishRgb) {
-      this.fish.setPosition(0.05, -0.05, -1.2);
-      this.fish.setRotationFromEuler(0, Math.sin(this.elapsed * 0.55) * 18, 0);
+      const t = Math.max(0, pose.cardAge);
+      const slide = Math.min(1, t / 0.7);
+      const ease = slide * slide * (3 - 2 * slide);
+      const scale = Math.max(0.12, pose.fishCm / 100);
+      this.fish.setScale(scale, scale, scale);
+      this.fish.setPosition(-0.85 * (1 - ease), -0.02, -1.35);
+      const whip = Math.sin(t * 13) * 0.9 * Math.exp(-t * 1.6);
+      this.fish.setRotationFromEuler(0, Math.sin(t * 0.55) * 11.5, whip * 57.3);
+      this.drops.forEach((bit, i) => {
+        const fall = Math.min(1, t / 0.7);
+        const a = (i / this.drops.length) * Math.PI * 2;
+        bit.setPosition(Math.cos(a) * 0.45, 0.55 - fall * 0.9, Math.sin(a) * 0.2);
+        bit.active = t < 1.3;
+      });
     }
   }
 
@@ -195,7 +214,7 @@ export class FishingWorld {
       color: [198, 168, 96],
       finish: "prop",
     });
-    for (let i = 0; i < LINE_SEGS; i++) {
+    for (let i = 0; i <= LINE_SEGS; i++) {
       const bit = spawnPart(this.camNode, Layers.Enum.DEFAULT, {
         name: "Line",
         kind: "sphere",
@@ -215,8 +234,8 @@ export class FishingWorld {
     this.bobber.layer = Layers.Enum.DEFAULT;
     this.bobber.parent = this.root;
     spawnParts(this.bobber, Layers.Enum.DEFAULT, [
-      { name: "BobTop", kind: "sphere", x: 0, y: 0.03, z: 0, sx: 0.08, sy: 0.05, sz: 0.08, color: [210, 74, 58], finish: "prop" },
-      { name: "BobBot", kind: "sphere", x: 0, y: -0.02, z: 0, sx: 0.08, sy: 0.05, sz: 0.08, color: [244, 239, 228], finish: "prop" },
+      { name: "BobTop", kind: "sphere", x: 0, y: 0.01, z: 0, sx: 0.056, sy: 0.04, sz: 0.056, color: [210, 74, 58], finish: "prop" },
+      { name: "BobBot", kind: "sphere", x: 0, y: -0.008, z: 0, sx: 0.056, sy: 0.04, sz: 0.056, color: [244, 239, 228], finish: "prop" },
     ]);
     this.bobber.active = false;
     for (let i = 0; i < 8; i++) {
@@ -241,29 +260,44 @@ export class FishingWorld {
       x: 0,
       y: 0,
       z: 0,
-      sx: 0.55,
-      sy: 0.16,
-      sz: 0.1,
+      sx: 1,
+      sy: 0.28,
+      sz: 0.18,
       color: [180, 200, 190],
       finish: "fish",
     });
+    spawnPart(this.fish, Layers.Enum.DEFAULT, {
+      name: "CatchShadow",
+      kind: "sphere",
+      x: 0,
+      y: -0.35,
+      z: 0,
+      sx: 0.7,
+      sy: 0.06,
+      sz: 0.28,
+      color: [8, 16, 24],
+      finish: "prop",
+    });
+    for (let i = 0; i < 6; i++) {
+      const drop = spawnPart(this.fish, Layers.Enum.DEFAULT, {
+        name: "Drop",
+        kind: "sphere",
+        x: 0,
+        y: 0.4,
+        z: 0,
+        sx: 0.08,
+        sy: 0.1,
+        sz: 0.08,
+        color: [215, 238, 242],
+        finish: "water",
+      });
+      this.drops.push(drop);
+    }
     this.fish.active = false;
   }
 
-  private presented(rig: RodRig): Float32Array {
-    const raw = blankCameraPoints(rig, this.segments.length + 1);
-    const out = new Float32Array(raw.length);
-    for (let i = 0; i < raw.length; i += 3) {
-      const p = presentRodPoint(raw[i], raw[i + 1], raw[i + 2]);
-      out[i] = p[0];
-      out[i + 1] = p[1];
-      out[i + 2] = p[2];
-    }
-    return out;
-  }
-
   private placeRod(rig: RodRig): void {
-    const pts = this.presented(rig);
+    const pts = blankCameraPoints(rig, this.segments.length + 1);
     for (let i = 0; i < this.segments.length; i++) {
       const ax = pts[i * 3];
       const ay = pts[i * 3 + 1];
@@ -292,36 +326,23 @@ export class FishingWorld {
   }
 
   private placeLine(rig: RodRig, pose: FishingPose): void {
-    const show = pose.showLine;
-    this.bobber.active = show && pose.phase !== "card";
+    const show = pose.showBobber;
+    this.bobber.active = show;
     if (show) {
-      this.bobber.setPosition(pose.bobX, pose.bobY, pose.bobZ);
-      const dist = Math.hypot(pose.bobX - pose.eyeX, pose.bobY - pose.eyeY, pose.bobZ - pose.eyeZ);
-      const bobScale = Math.max(3.6, dist / 3.2);
+      this.bobber.setPosition(rig.bobX, rig.bobY, rig.bobZ);
+      const dist = Math.hypot(rig.bobX - pose.eyeX, rig.bobY - pose.eyeY, rig.bobZ - pose.eyeZ);
+      const bobScale = Math.max(1, dist / 7);
       this.bobber.setScale(bobScale, bobScale, bobScale);
     }
-    const pts = this.presented(rig);
-    const tip = pts.length / 3 - 1;
-    this.tmp.set(pose.bobX, pose.bobY, pose.bobZ);
-    this.camNode.inverseTransformPoint(this.bobLocal, this.tmp);
-    const tx = pts[tip * 3];
-    const ty = pts[tip * 3 + 1];
-    const tz = pts[tip * 3 + 2];
-    const sag = Math.min(0.45, Math.hypot(this.bobLocal.x - tx, this.bobLocal.z - tz) * 0.08);
+    const showLine = show || rig.state === "landing";
+    this.camNode.updateWorldTransform();
     for (let i = 0; i < this.lineBits.length; i++) {
       const bit = this.lineBits[i];
-      bit.active = show;
-      if (!show) continue;
-      const t = i / (this.lineBits.length - 1);
-      const a = 1 - t;
-      const mx = (tx + this.bobLocal.x) * 0.5;
-      const my = (ty + this.bobLocal.y) * 0.5 - sag;
-      const mz = (tz + this.bobLocal.z) * 0.5;
-      bit.setPosition(
-        a * a * tx + 2 * a * t * mx + t * t * this.bobLocal.x,
-        a * a * ty + 2 * a * t * my + t * t * this.bobLocal.y,
-        a * a * tz + 2 * a * t * mz + t * t * this.bobLocal.z,
-      );
+      bit.active = showLine;
+      if (!showLine) continue;
+      this.tmp.set(rig.line[i * 3], rig.line[i * 3 + 1], rig.line[i * 3 + 2]);
+      this.camNode.inverseTransformPoint(this.bobLocal, this.tmp);
+      bit.setPosition(this.bobLocal);
     }
     const splashOn = rig.splash > 0.05;
     this.splash.forEach((bit, i) => {
@@ -329,9 +350,9 @@ export class FishingWorld {
       if (!splashOn) return;
       const a = (i / this.splash.length) * Math.PI * 2;
       bit.setPosition(
-        pose.bobX + Math.cos(a) * rig.splash * 0.35,
-        pose.bobY + rig.splash * 0.12,
-        pose.bobZ + Math.sin(a) * rig.splash * 0.35,
+        rig.bobX + Math.cos(a) * rig.splash * 0.35,
+        rig.bobY + rig.splash * 0.12,
+        rig.bobZ + Math.sin(a) * rig.splash * 0.35,
       );
     });
   }
@@ -354,12 +375,14 @@ export class FishingWorld {
     this.camNode.parent = this.root;
     const cam = this.camNode.addComponent(Camera);
     cam.projection = Camera.ProjectionType.PERSPECTIVE;
-    cam.fov = 58;
+    cam.fov = 62;
     cam.near = 0.1;
     cam.far = 180;
     cam.priority = 0;
     cam.clearFlags = Camera.ClearFlag.SOLID_COLOR;
-    cam.clearColor = new Color(158, 200, 226, 255);
+    cam.clearColor = hexColor(PERIOD_LOOK.dusk.clear);
+    this.viewCam = cam;
+    this.applyLook("dusk", false);
     cam.visibility = Layers.Enum.DEFAULT;
   }
 
@@ -370,5 +393,21 @@ export class FishingWorld {
     node.setRotationFromEuler(-36, 40, 0);
     const light = node.addComponent(DirectionalLight);
     light.illuminance = 110000;
+    this.sun = light;
   }
+
+  /** 四个时段改天空和光色。夜里开甲板灯，方向光抬到黄昏那一档，颜色偏暖。 */
+  private applyLook(periodId: string, deckLights: boolean): void {
+    const id = (periodId in PERIOD_LOOK ? periodId : "dusk") as PeriodId;
+    const look = PERIOD_LOOK[id];
+    const nightLift = id === "night" && deckLights;
+    const lit = nightLift ? PERIOD_LOOK.dusk : look;
+    this.viewCam.clearColor = hexColor(look.clear);
+    this.sun.color = hexColor(lit.sun);
+    this.sun.illuminance = 76000 * lit.sunInt;
+  }
+}
+
+function hexColor(hex: number): Color {
+  return new Color((hex >> 16) & 255, (hex >> 8) & 255, hex & 255, 255);
 }

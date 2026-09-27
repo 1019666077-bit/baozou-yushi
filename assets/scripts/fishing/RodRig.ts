@@ -85,6 +85,18 @@ export class RodRig {
   tipX = 0;
   tipY = 0;
   tipZ = 0;
+  /** 落水那一帧，竿尖到浮标的距离。搏斗从这里起算。 */
+  splashLine = 0;
+  splashX = 0;
+  splashZ = 0;
+  /** 这一帧画出来的仰角和侧摆。surge 和呼吸只加在这里。 */
+  drawElev = POSES.stowed.elev;
+  drawSide = POSES.stowed.side;
+  bendDirX = 0;
+  bendDirZ = -1;
+  /** 鱼把线往外拖的速度，米/秒。泄力声用它。 */
+  payOut = 0;
+  lineOut = 0;
   line = new Float32Array((LINE_SEGS + 1) * 3);
   readonly elev = { now: POSES.stowed.elev };
   readonly side = { now: POSES.stowed.side };
@@ -92,8 +104,7 @@ export class RodRig {
 
   private t = 0;
   private bendVel = 0;
-  private bendDirX = 0;
-  private bendDirZ = -1;
+  private splashMarked = false;
   private bobVX = 0;
   private bobVY = 0;
   private bobVZ = 0;
@@ -102,7 +113,6 @@ export class RodRig {
   private bailTarget = 0;
   private crankRate = 0;
   private lastOut = 0;
-  private lineOut = 0;
   private wander = 0;
   private landFromX = 0;
   private landFromY = 0;
@@ -170,7 +180,10 @@ export class RodRig {
     this.t += dt;
     if (this.state === "windup") this.power = Math.min(1, this.power + dt / 1.1);
     this.easePose(dt, frame);
+    this.applyDraw(frame);
     this.easeBend(dt, frame);
+    this.placeTip(frame);
+    this.aimBend(dt, frame);
     this.placeTip(frame);
     this.stepBobber(dt, frame);
     this.stepReel(dt, frame);
@@ -195,9 +208,23 @@ export class RodRig {
     this.hand.x += (target.hand[0] - this.hand.x) * k;
     this.hand.y += (target.hand[1] - this.hand.y) * k;
     this.hand.z += (target.hand[2] - this.hand.z) * k;
-    if (this.state === "fighting" && frame.fight) {
-      this.elev.now += -0.35 * frame.fight.surge * k + 0.12 * Math.sin(this.t * 2.3) * k;
+  }
+
+  /** 原版低头、侧摆、待机呼吸、收线抖动都只加在这一帧的角度上。 */
+  private applyDraw(frame: RodFrame): void {
+    let elev = this.elev.now;
+    let side = this.side.now;
+    if (this.state === "idle" || this.state === "floating") {
+      elev += Math.sin(this.t * 1.3) * 0.012;
+      side += Math.sin(this.t * 0.9 + 1.7) * 0.01;
     }
+    if (this.state === "retrieving") elev += Math.sin(this.crank) * 0.006;
+    if (this.state === "fighting" && frame.fight) {
+      elev += -0.35 * frame.fight.surge + 0.12 * Math.sin(this.t * 2.3);
+      side += 0.12 * Math.sin(this.t * 1.1 + frame.fight.surge * 2);
+    }
+    this.drawElev = elev;
+    this.drawSide = side;
   }
 
   private easeBend(dt: number, frame: RodFrame): void {
@@ -225,8 +252,27 @@ export class RodRig {
     this.bendP = bendExponent(this.load);
   }
 
+  private aimBend(dt: number, frame: RodFrame): void {
+    const basis = rodBasis(this.drawElev, this.drawSide, this.hand.x, this.hand.y, this.hand.z);
+    const origin = basisToWorld(basis, 0, 0, 0, frame);
+    const xAxis = basisToWorld(basis, 1, 0, 0, frame);
+    const zAxis = basisToWorld(basis, 0, 0, 1, frame);
+    const dx = this.bobX - this.tipX;
+    const dz = this.bobZ - this.tipZ;
+    const localX = dx * (xAxis.x - origin.x) + dz * (xAxis.z - origin.z);
+    const localZ = dx * (zAxis.x - origin.x) + dz * (zAxis.z - origin.z);
+    const len = Math.hypot(localX, localZ);
+    if (len < 1e-3) return;
+    const k = 1 - Math.exp(-dt * 4);
+    this.bendDirX += (localX / len - this.bendDirX) * k;
+    this.bendDirZ += (localZ / len - this.bendDirZ) * k;
+    const n = Math.hypot(this.bendDirX, this.bendDirZ) || 1;
+    this.bendDirX /= n;
+    this.bendDirZ /= n;
+  }
+
   private placeTip(frame: RodFrame): void {
-    const basis = rodBasis(this.elev.now, this.side.now, this.hand.x, this.hand.y, this.hand.z);
+    const basis = rodBasis(this.drawElev, this.drawSide, this.hand.x, this.hand.y, this.hand.z);
     const s = 1;
     const lat = this.bend * ROD_L * Math.pow(s, this.bendP);
     const drop = 0.5 * lat * lat / (ROD_L - BLANK_START + 0.06);
@@ -243,14 +289,18 @@ export class RodRig {
     if (this.state === "flick" && this.t > 0.09) {
       const v0 = 7 + 13 * this.power * Math.sqrt(this.castM / 22);
       const dx = this.aimX - this.tipX;
+      const dy = frame.waterY - this.tipY;
       const dz = this.aimZ - this.tipZ;
-      const horiz = Math.max(Math.hypot(dx, dz), 1e-3);
+      const len = Math.max(Math.hypot(dx, dy, dz), 1e-3);
+      const horiz = Math.hypot(dx, dz);
+      const cap = horiz > this.castM ? 0.5 : 1;
       this.bobX = this.tipX;
       this.bobY = this.tipY;
       this.bobZ = this.tipZ;
-      this.bobVX = (dx / horiz) * v0 * 0.72;
-      this.bobVY = v0 * 0.55;
-      this.bobVZ = (dz / horiz) * v0 * 0.72;
+      this.bobVX = (dx / len) * v0 * cap;
+      this.bobVY = (dy / len) * v0;
+      this.bobVZ = (dz / len) * v0 * cap;
+      this.splashMarked = false;
       this.setState("flying");
     }
     if (this.state === "flying") {
@@ -268,6 +318,12 @@ export class RodRig {
         this.bobVY = 0;
         this.bobVZ = 0;
         this.splash = 1;
+        if (!this.splashMarked) {
+          this.splashMarked = true;
+          this.splashX = this.bobX;
+          this.splashZ = this.bobZ;
+          this.splashLine = Math.hypot(this.tipX - this.bobX, this.tipY - this.bobY, this.tipZ - this.bobZ);
+        }
         this.setState("floating");
       }
     } else if (this.state === "floating") {
@@ -276,13 +332,15 @@ export class RodRig {
       this.bobY += (yT - this.bobY) * (1 - Math.exp(-dt * 12));
     } else if (this.state === "fighting" && frame.fight) {
       this.wander += dt * (0.4 + frame.fight.surge * 1.5);
-      const dist = Math.max(1, frame.fight.distance);
-      const dx = this.aimX - frame.camX;
-      const dz = this.aimZ - frame.camZ;
-      const len = Math.max(Math.hypot(dx, dz), 1e-3);
+      const base = Math.max(3, this.splashLine || 1);
+      const dist = Math.max(0.4, frame.fight.distance);
+      const ratio = dist / base;
+      const ox = this.splashX - frame.camX;
+      const oz = this.splashZ - frame.camZ;
+      const len = Math.max(Math.hypot(ox, oz), 1e-3);
       const sway = Math.sin(this.wander) * 0.9;
-      const tx = frame.camX + (dx / len) * dist + (-dz / len) * sway;
-      const tz = frame.camZ + (dz / len) * dist + (dx / len) * sway;
+      const tx = frame.camX + ox * ratio + (-oz / len) * sway;
+      const tz = frame.camZ + oz * ratio + (ox / len) * sway;
       const k = 1 - Math.exp(-dt * 6);
       this.bobX += (tx - this.bobX) * k;
       this.bobZ += (tz - this.bobZ) * k;
@@ -323,6 +381,7 @@ export class RodRig {
     this.bail += Math.sign(db) * Math.min(Math.abs(db), bailRate * dt);
     const outNow = this.state === "fighting" && frame.fight ? frame.fight.distance : this.lineOut;
     const dOut = dt > 0 ? outNow - this.lastOut : 0;
+    this.payOut = dt > 0 && dOut > 0 ? dOut / dt : 0;
     this.lastOut = outNow;
     let rateT = 0;
     if ((this.state === "fighting" || this.state === "retrieving" || this.state === "landing") && dt > 0) {
@@ -334,6 +393,10 @@ export class RodRig {
     const dCrank = this.crankRate * Math.PI * 2 * dt;
     this.crank += dCrank;
     this.rotor += Math.min(dCrank * GEAR, 3.1 * Math.PI * 2 * dt);
+  }
+
+  get crankSpeed(): number {
+    return this.crankRate;
   }
 
   private writeLine(frame: RodFrame): void {
@@ -443,18 +506,18 @@ export function presentRodPoint(x: number, y: number, z: number): [number, numbe
   ];
 }
 
-/** 竿身在相机空间里的折线。视图按这些点摆低多边形竿段。 */
+/** 竿身在相机空间里的折线。侧向跟着弯曲方向，角度用这一帧的 drawElev / drawSide。 */
 export function blankCameraPoints(rig: RodRig, count = 12): Float32Array {
-  const b = rodBasis(rig.elev.now, rig.side.now, rig.hand.x, rig.hand.y, rig.hand.z);
+  const b = rodBasis(rig.drawElev, rig.drawSide, rig.hand.x, rig.hand.y, rig.hand.z);
   const out = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
     const y = (ROD_L * i) / (count - 1);
     const s = Math.min(1, Math.max(0, (y - BLANK_START) / (ROD_L - BLANK_START)));
     const lat = y > BLANK_START ? rig.bend * ROD_L * Math.pow(s, rig.bendP) : 0;
     const drop = lat === 0 ? 0 : (0.5 * lat * lat) / (y - BLANK_START + 0.06);
-    const lx = lat * 0.15;
+    const lx = rig.bendDirX * lat;
     const ly = y - drop;
-    const lz = -lat;
+    const lz = rig.bendDirZ * lat;
     out[i * 3] = b.px + b.xx * lx + b.yx * ly + b.zx * lz;
     out[i * 3 + 1] = b.py + b.xy * lx + b.yy * ly + b.zy * lz;
     out[i * 3 + 2] = b.pz + b.xz * lx + b.yz * ly + b.zz * lz;

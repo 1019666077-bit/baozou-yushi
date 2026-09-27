@@ -37,6 +37,16 @@ export const PERIODS: { [id in PeriodId]: { id: PeriodId; name: string; hour: nu
 
 export const PERIOD_IDS = Object.keys(PERIODS) as PeriodId[];
 
+/** 四个时段的清屏色和光。卡通纯色，不是原版大气。 */
+export const PERIOD_LOOK: {
+  [id in PeriodId]: { clear: number; fog: number; sun: number; ambient: number; sunInt: number };
+} = {
+  dawn: { clear: 0xf0b48a, fog: 0xe7c3a4, sun: 0xffc2a0, ambient: 0xc8b0a0, sunInt: 1.15 },
+  day: { clear: 0x9ec8e2, fog: 0xb7d4e6, sun: 0xfff0d2, ambient: 0x9eb8c8, sunInt: 1.45 },
+  dusk: { clear: 0xe08a62, fog: 0xc98478, sun: 0xffb07a, ambient: 0xc09080, sunInt: 1.05 },
+  night: { clear: 0x1c2c44, fog: 0x24344c, sun: 0x8aa4c8, ambient: 0x3a4a62, sunInt: 0.35 },
+};
+
 /** 蓄力 0..1 把落点推进该水域的深度带。 */
 export function spotAlong(water: WaterId, power: number): HabitatSample {
   const def = WATERS[water];

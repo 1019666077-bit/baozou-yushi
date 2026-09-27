@@ -17,6 +17,7 @@ import { FishingTrip } from "../assets/scripts/fishing/FishingTrip";
 import { GameState } from "../assets/scripts/fishing/GameState";
 import { gearStats, UPGRADES } from "../assets/scripts/fishing/Gear";
 import { fishingHarborGate } from "../assets/scripts/fishing/HarborGate";
+import { reelDragRate, reelWindRate, strainGain, swishGain, swishRate } from "../assets/scripts/fishing/audio/mix";
 import { bendExponent, RodRig } from "../assets/scripts/fishing/RodRig";
 import { dominantHabitat, sampleCast } from "../assets/scripts/fishing/SpotQuery";
 import { PERIODS } from "../assets/scripts/fishing/Waters";
@@ -71,7 +72,7 @@ describe("tidewater bite table", () => {
     const pier = sampleCast("pier", "bay", 0.15, 22);
     const deep = sampleCast("boat", "deep", 1, 22);
     expect(dominantHabitat(beach.habitat)).toBe("shallows");
-    expect(dominantHabitat(pier.habitat)).toBe("pier");
+    expect(biteDelay(pier.habitat, 12, () => 0.4)).not.toBe(Infinity);
     expect(dominantHabitat(deep.habitat)).toBe("deep");
     expect(biteDelay(beach.habitat, 12, () => 0.4)).not.toBe(Infinity);
     expect(pickSpecies(deep.habitat, PERIODS.dawn.hour, () => 0.4)).toBeTruthy();
@@ -299,9 +300,61 @@ describe("fishing trip", () => {
     trip.tick(1.1);
     expect(trip.view.power).toBeCloseTo(1, 5);
     trip.setHeld(false);
+    expect(trip.view.phase).toBe("flying");
+    trip.bobberLanded(trip.view.reach, trip.view.depth);
     expect(trip.view.reach).toBeCloseTo(22, 5);
     expect(trip.view.depth).toBeGreaterThan(shortDepth);
     expect(trip.view.phase).toBe("waiting");
+  });
+
+  it("waits to count a bite until the bobber lands, and retrieves off dry sand", () => {
+    const trip = new FishingTrip({ rng: () => 0, money: 0 });
+    trip.skipGuide();
+    trip.toReady();
+    expect(trip.view.hour).toBeCloseTo(16.2, 5);
+    expect(trip.view.periodId).toBe("dusk");
+    trip.setHeld(true);
+    trip.tick(0.4);
+    trip.setHeld(false);
+    expect(trip.view.phase).toBe("flying");
+    trip.tick(2);
+    expect(trip.view.phase).toBe("flying");
+    trip.bobberLanded(8, 0.1);
+    expect(trip.view.phase).toBe("miss");
+    expect(trip.view.notice).toContain("沙滩");
+  });
+
+  it("closes the catch card nine seconds after the fish is up", () => {
+    const trip = scriptedCast(1.1);
+    advanceUntil(trip, "hook");
+    trip.setHeld(true);
+    let guard = 0;
+    while (trip.view.phase === "fighting" && guard < 800) {
+      trip.tick(0.05);
+      guard++;
+    }
+    expect(trip.view.phase).toBe("card");
+    expect(trip.view.cardLeft).toBeCloseTo(9, 5);
+    trip.tick(8);
+    expect(trip.view.phase).toBe("card");
+    expect(trip.view.cardLeft).toBeGreaterThan(0.5);
+    trip.tick(1.2);
+    expect(trip.view.phase).toBe("ready");
+  });
+
+  it("uses the source reel and strain curves", () => {
+    expect(reelWindRate(1.4)).toBeCloseTo(1, 5);
+    expect(reelWindRate(0)).toBeCloseTo(0.45, 5);
+    expect(reelWindRate(3)).toBeCloseTo(1.3, 5);
+    expect(reelDragRate(0)).toBeCloseTo(0.7, 5);
+    expect(reelDragRate(1)).toBeCloseTo(0.95, 5);
+    expect(strainGain(0.7)).toBe(0);
+    expect(strainGain(1)).toBeCloseTo(1, 5);
+    expect(strainGain(0.85)).toBeGreaterThan(0);
+    expect(strainGain(0.85)).toBeLessThan(1);
+    expect(swishRate(0)).toBeCloseTo(0.9, 5);
+    expect(swishRate(1)).toBeCloseTo(1.1, 5);
+    expect(swishGain(1)).toBeCloseTo(Math.pow(10, -9 / 20), 5);
   });
 
   it("only hints on an early strike, then loses the fish when the window expires", () => {
@@ -345,6 +398,7 @@ describe("fishing trip", () => {
     trip.setHeld(true);
     trip.tick(1.1);
     trip.setHeld(false);
+    trip.bobberLanded(trip.view.reach, trip.view.depth);
     advanceUntil(trip, "hook");
     trip.setHeld(true);
     trip.tick(0.05);
@@ -352,6 +406,10 @@ describe("fishing trip", () => {
     expect(trip.view.bandLo).toBe(0.3);
     expect(trip.view.bandHi).toBe(0.85);
     expect(trip.view.reach).toBeCloseTo(45, 5);
+    const near = sampleCast("pier", "bay", 1, 22);
+    const far = sampleCast("pier", "bay", 1, 45);
+    expect(far.reach).toBe(45);
+    expect(Math.hypot(far.x - 56.45, far.z - 20)).toBeGreaterThan(Math.hypot(near.x - 56.45, near.z - 20) + 10);
   });
 
   it("sells the catch and refuses an upgrade the wallet cannot afford", () => {
@@ -380,6 +438,7 @@ function scriptedCast(chargeSeconds = 0.4): FishingTrip {
   trip.setHeld(true);
   trip.tick(chargeSeconds);
   trip.setHeld(false);
+  if (trip.view.phase === "flying") trip.bobberLanded(trip.view.reach, Math.max(0.4, trip.view.depth));
   return trip;
 }
 
@@ -444,6 +503,44 @@ describe("rod rig feel", () => {
       const straight = (rig.tipY + rig.bobY) * 0.5;
       expect(mid).toBeLessThan(straight - 0.01);
     }
+  });
+
+  it("keeps surge on the drawn angle and bends toward the bobber", () => {
+    const rig = new RodRig();
+    rig.equip(true);
+    rig.state = "fighting";
+    rig.bobX = 70;
+    rig.bobZ = 40;
+    rig.splashX = 70;
+    rig.splashZ = 40;
+    rig.splashLine = 12;
+    const frame = {
+      camX: 55, camY: 3.95, camZ: 20, yaw: -0.8, waterY: 0, dip: 0,
+      fight: { distance: 12, tension: 0.9, surge: 1 },
+    };
+    for (let i = 0; i < 30; i++) rig.update(0.05, frame);
+    expect(rig.elev.now).toBeGreaterThan(0.7);
+    expect(rig.drawElev).toBeLessThan(rig.elev.now - 0.2);
+    expect(Math.hypot(rig.bendDirX, rig.bendDirZ)).toBeCloseTo(1, 5);
+  });
+
+  it("throws the whole v0 toward the water and remembers the splash length", () => {
+    const rig = new RodRig();
+    rig.equip(true);
+    rig.castM = 22;
+    rig.startWindup();
+    const frame = { camX: 55, camY: 4, camZ: 20, yaw: 0, waterY: 0, fight: null, dip: 0 };
+    rig.update(1.1, frame);
+    rig.release(70, 28);
+    let sawFlying = false;
+    for (let i = 0; i < 120 && rig.state !== "floating"; i++) {
+      rig.update(0.05, frame);
+      if (rig.state === "flying") sawFlying = true;
+    }
+    expect(sawFlying).toBe(true);
+    expect(rig.state).toBe("floating");
+    expect(rig.splashLine).toBeGreaterThan(3);
+    expect(rig.bobY).toBeLessThanOrEqual(0.02);
   });
 
   it("deepens the bend exponent under a heavy load", () => {

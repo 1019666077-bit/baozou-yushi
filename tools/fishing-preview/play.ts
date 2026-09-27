@@ -4,6 +4,7 @@
  */
 import * as THREE from "three";
 import { AUDIO_CLIPS } from "../../assets/scripts/fishing/audio/bank";
+import { reelDragRate, reelWindRate, strainGain, swishGain, swishRate } from "../../assets/scripts/fishing/audio/mix";
 import { FishingTrip } from "../../assets/scripts/fishing/FishingTrip";
 import { FISH } from "../../assets/scripts/fishing/FishTable";
 import {
@@ -16,11 +17,11 @@ import {
 import {
   blankCameraPoints,
   LINE_SEGS,
-  presentRodPoint,
   RodRig,
   type RodFrame,
 } from "../../assets/scripts/fishing/RodRig";
-import { fishingLook, pierDistance, sampleCast, type SpotId } from "../../assets/scripts/fishing/SpotQuery";
+import { aimLook, depthAt, pierDistance, type SpotId } from "../../assets/scripts/fishing/SpotQuery";
+import { PERIOD_LOOK, type PeriodId } from "../../assets/scripts/fishing/Waters";
 
 function seeded(seed: number): () => number {
   let x = seed || 1;
@@ -34,30 +35,34 @@ function seeded(seed: number): () => number {
 
 const params = new URLSearchParams(location.search);
 const debug = params.get("debug") === "1";
-const trip = new FishingTrip({ rng: seeded(Number(params.get("seed") || 2)), money: 0 });
+const trip = new FishingTrip({ rng: seeded(Number(params.get("seed") || 2)), money: Number(params.get("wallet") || 0) });
 const rig = new RodRig();
 rig.equip(true);
 let speed = Number(params.get("speed") || 1);
 let lastPhase = trip.view.phase;
-let lastPose: { butt: number[]; tip: number[]; bob: number[]; radius: number; pierHits: number } = {
-  butt: [0, 0, 0], tip: [0, 0, 0], bob: [0, 0, 0], radius: 0.0215, pierHits: 0,
+let lastPose: { butt: number[]; shaft: number[]; tip: number[]; bob: number[]; radius: number; pierHits: number; bobVisible: boolean } = {
+  butt: [0, 0, 0], shaft: [0, 0, 0], tip: [0, 0, 0], bob: [0, 0, 0], radius: 0.0215, pierHits: 0, bobVisible: false,
 };
 let castArmed = false;
+let aimYaw = 0;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
 renderer.setSize(innerWidth, innerHeight);
-renderer.setClearColor(0x9ec8e2, 1);
+renderer.setClearColor(PERIOD_LOOK.dusk.clear, 1);
 document.getElementById("view")!.append(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xb7d4e6, 26, 95);
-scene.add(new THREE.AmbientLight(0x9eb8c8, 0.62));
-const sun = new THREE.DirectionalLight(0xfff0d2, 1.45);
+scene.fog = new THREE.Fog(PERIOD_LOOK.dusk.fog, 26, 95);
+const ambient = new THREE.AmbientLight(PERIOD_LOOK.dusk.ambient, 0.62);
+scene.add(ambient);
+const sun = new THREE.DirectionalLight(PERIOD_LOOK.dusk.sun, PERIOD_LOOK.dusk.sunInt);
 sun.position.set(-12, 18, 8);
 scene.add(sun);
+const deckLamp = new THREE.PointLight(0xffb07a, 0, 18);
+scene.add(deckLamp);
 
-const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 180);
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 180);
 scene.add(camera);
 const rodRoot = new THREE.Group();
 camera.add(rodRoot);
@@ -219,8 +224,8 @@ const lineMesh = new THREE.Mesh(lineGeo, new THREE.MeshBasicMaterial({ color: 0x
 camera.add(lineMesh);
 
 const bobber = new THREE.Group();
-const bobTop = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), new THREE.MeshLambertMaterial({ color: 0xd24a3a }));
-const bobBot = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), new THREE.MeshLambertMaterial({ color: 0xf4efe4 }));
+const bobTop = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10), new THREE.MeshLambertMaterial({ color: 0xd24a3a }));
+const bobBot = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10), new THREE.MeshLambertMaterial({ color: 0xf4efe4 }));
 bobTop.scale.y = 0.5;
 bobBot.scale.y = 0.5;
 bobTop.position.y = 0.02;
@@ -244,8 +249,9 @@ camera.add(fishRoot);
 fishRoot.visible = false;
 
 function makeFish(id: string, kg: number): THREE.Group {
+  void kg;
   const look = FISH_LOOK[id] ?? FISH_LOOK.mullet;
-  const length = Math.max(0.7, Math.min(1.8, 0.9 + Math.cbrt(Math.max(kg, 0.05))));
+  const length = 1;
   const fat = Math.max(look.body, 0.22);
   const g = new THREE.Group();
   const bodyMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(look.rgb[0] / 255, look.rgb[1] / 255, look.rgb[2] / 255) });
@@ -264,10 +270,25 @@ function makeFish(id: string, kg: number): THREE.Group {
 }
 
 let shownFish = "";
+let fishDrops: THREE.Mesh[] = [];
 function syncFish(id: string, kg: number): void {
-  if (shownFish === id) return;
+  if (shownFish === id && fishRoot.children.length > 0) return;
   fishRoot.clear();
   fishRoot.add(makeFish(id, kg));
+  const shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.55, 18),
+    new THREE.MeshBasicMaterial({ color: 0x041018, transparent: true, opacity: 0.5 }),
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = -0.28;
+  fishRoot.add(shadow);
+  fishDrops = [];
+  const dropMat = new THREE.MeshBasicMaterial({ color: 0xd7eef2, transparent: true, opacity: 0.85 });
+  for (let i = 0; i < 6; i++) {
+    const drop = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 5), dropMat);
+    fishRoot.add(drop);
+    fishDrops.push(drop);
+  }
   shownFish = id;
 }
 
@@ -278,15 +299,45 @@ for (const id of Object.keys(AUDIO_CLIPS)) {
   if (AUDIO_CLIPS[id].loop) el.loop = true;
   audio[id] = el;
 }
-function playClip(id: string): void {
+const sliceEnd: { [id: string]: number } = {};
+function playClip(id: string, rate = 1, gain = 1): void {
   const el = audio[id];
   const clip = AUDIO_CLIPS[id];
   if (!el || !clip) return;
   const slice = clip.slices?.[Math.floor(Math.random() * clip.slices.length)];
+  const start = slice ? slice[0] : 0;
   try {
-    el.currentTime = slice ? slice[0] : 0;
+    el.playbackRate = mediaRate(rate);
+    el.volume = Math.min(1, Math.max(0, gain));
+    el.currentTime = start;
+    sliceEnd[id] = slice ? start + slice[1] : 0;
     void el.play();
   } catch { /* 浏览器还没允许声音 */ }
+}
+function tickSlices(): void {
+  for (const id of Object.keys(sliceEnd)) {
+    const end = sliceEnd[id];
+    const el = audio[id];
+    if (end > 0 && el && el.currentTime >= end - 0.02) {
+      el.pause();
+      delete sliceEnd[id];
+    }
+  }
+}
+function mediaRate(rate: number): number {
+  if (!Number.isFinite(rate)) return 1;
+  return Math.min(4, Math.max(0.5, rate));
+}
+function loopAt(id: string, on: boolean, rate: number, gain: number): void {
+  const el = audio[id];
+  if (!el) return;
+  try {
+    el.playbackRate = mediaRate(rate);
+    el.volume = Math.min(1, Math.max(0, gain));
+  } catch { /* 浏览器不接受这个速率 */ }
+  if (on && gain > 0.001) {
+    if (el.paused) void el.play().catch(() => undefined);
+  } else if (!el.paused) el.pause();
 }
 
 if (debug) document.body.classList.add("debug");
@@ -302,6 +353,9 @@ hud.innerHTML = `
   <div class="bite" id="bite">！</div>
   <div class="cast" id="cast"><i></i></div>
   <div class="hint" id="hint"></div>
+  <div id="cross" aria-hidden="true"></div>
+  <div id="finder"></div>
+  <button id="replay" class="chrome icon" type="button">再看引导</button>
   <button id="hold" type="button">按住蓄力 / 提竿 / 收线</button>
   <div class="map" id="map" aria-hidden="true"></div>
   <div class="tip" id="tip"></div>
@@ -340,6 +394,45 @@ document.getElementById("spot")!.addEventListener("click", () => {
 });
 document.getElementById("cooler-btn")!.addEventListener("click", () => onAct("cooler"));
 document.getElementById("retrieve-btn")!.addEventListener("click", () => onAct("retrieve"));
+document.getElementById("replay")!.addEventListener("click", () => onAct("replay"));
+document.getElementById("map")!.addEventListener("click", (event) => {
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const x = (event.clientX - rect.left) / rect.width;
+  const y = (event.clientY - rect.top) / rect.height;
+  const marks = [
+    { x: 0.42, y: 0.78, act: "joe" },
+    { x: 0.7, y: 0.55, act: "marta" },
+    { x: 0.58, y: 0.3, act: "boat" },
+    { x: 0.5, y: 0.62, act: "pier" },
+  ];
+  let best = marks[0];
+  let bestD = 99;
+  for (const mark of marks) {
+    const d = Math.hypot(mark.x - x, mark.y - y);
+    if (d < bestD) {
+      best = mark;
+      bestD = d;
+    }
+  }
+  if (bestD < 0.22) onAct(best.act);
+});
+const viewEl = document.getElementById("view")!;
+let yawDrag = false;
+let yawX = 0;
+viewEl.addEventListener("pointerdown", (event) => {
+  if ((event.target as HTMLElement).closest("button, .panel, .guide")) return;
+  yawDrag = true;
+  yawX = event.clientX;
+});
+addEventListener("pointermove", (event) => {
+  if (!yawDrag) return;
+  const limit = 25 * Math.PI / 180;
+  aimYaw = Math.max(-limit, Math.min(limit, aimYaw + (event.clientX - yawX) / Math.max(1, innerWidth) * 1.2));
+  yawX = event.clientX;
+  trip.setAimYaw(aimYaw);
+});
+addEventListener("pointerup", () => { yawDrag = false; });
+addEventListener("pointercancel", () => { yawDrag = false; });
 const talks = document.getElementById("talks")!;
 
 let panelKind = "";
@@ -362,6 +455,8 @@ function onAct(act: string): void {
   else if (act === "fuel") trip.refuel();
   else if (act === "close") panelKind = "";
   else if (act === "again") trip.toReady();
+  else if (act === "replay") trip.replayGuide();
+  else if (act.startsWith("release:")) trip.releaseFish(Number(act.slice(8)));
   paintPanel();
 }
 
@@ -414,7 +509,7 @@ function paintPanel(): void {
     const list = rows.map((row) => `<div class="fish-row"><div class="fish-copy"><b>${row.name}</b><small>${row.cm} cm · ${row.kg.toFixed(2)} kg</small></div><button type="button" data-act="sell:${row.id}">卖掉 ${row.value}</button></div>`).join("");
     panel.innerHTML = `<h2>乔 · 鱼贩</h2><p class="sub">${rows.length ? JOE_GREETING : JOE_IDLE}</p>${list || `<p class="sub">冷藏箱是空的。</p>`}<div class="foot"><button type="button" data-act="close">离开</button><button type="button" data-act="sellall" ${rows.length ? "" : "disabled"}>全部卖掉 · ${trip.view.holdValue}</button></div>`;
   } else {
-    const rows = trip.holdRows().map((row) => `<div class="fish-row"><div class="fish-copy"><b>${row.name}</b><small>${row.cm} cm · ${row.kg.toFixed(2)} kg</small></div><span>${row.value} 金</span></div>`).join("");
+    const rows = trip.holdRows().map((row) => `<div class="fish-row"><div class="fish-copy"><b>${row.name}</b><small>${row.cm} cm · ${row.kg.toFixed(2)} kg</small></div><button type="button" data-act="release:${row.id}">放生</button></div>`).join("");
     const log = trip.logRows().map((row) => `${row.name}：${row.count} 条，最好 ${row.bestKg.toFixed(2)} kg`).join("<br>");
     panel.innerHTML = `<h2>${trip.state.upgrades.hold > 0 ? "鱼舱" : "冷藏箱"}</h2><p class="sub">${trip.view.holdCount} 条 · ${trip.view.holdKg.toFixed(1)} / ${trip.view.holdCap} kg</p>${rows || `<p class="sub">还没有。从沙滩、码头或船上抛。</p>`}${log ? `<p class="sub">${log}</p>` : ""}<div class="foot"><button type="button" data-act="close">离开</button><button type="button" data-act="ready">拿出鱼竿</button></div>`;
   }
@@ -437,7 +532,9 @@ function paintCatch(): void {
       : trip.view.isNew
         ? "第一次写进鱼录。"
         : `你的最好成绩：${trip.view.prevBestKg.toFixed(2)} kg · ${trip.view.prevBestCm} cm`;
-  root.innerHTML = `<div>${badge}<h2>${trip.view.speciesName}</h2><div class="sci">${fish?.sci ?? ""}</div></div><div class="stage"></div><div><div class="stats"><div class="stat"><span>体长</span><b>${trip.view.cm}</b></div><div class="stat"><span>体重</span><b>${trip.view.kg.toFixed(trip.view.kg < 1 ? 2 : 1)}</b></div><div class="stat"><span>价值</span><b>${trip.view.value}</b></div></div><p>${note}</p><p>点按住键继续</p></div>`;
+  const inches = (trip.view.cm / 2.54).toFixed(1);
+  const pounds = (trip.view.kg * 2.20462).toFixed(2);
+  root.innerHTML = `<div>${badge}<h2>${trip.view.speciesName}</h2><div class="sci">${fish?.sci ?? ""}</div></div><div class="stage"></div><div><div class="stats"><div class="stat"><span>体长</span><b>${trip.view.cm}</b><small>${inches} in</small></div><div class="stat"><span>体重</span><b>${trip.view.kg.toFixed(trip.view.kg < 1 ? 2 : 1)}</b><small>${pounds} lb</small></div><div class="stat"><span>价值</span><b>${trip.view.value}</b></div></div><div class="card-timer"><i id="cardBar"></i></div><p>${note}</p><p>点一下继续，或等它自己收起</p></div>`;
 }
 
 let panelStamp = "";
@@ -499,16 +596,32 @@ function syncHud(): void {
   }
   const spotBtn = document.getElementById("spot")!;
   spotBtn.textContent = v.spot === "boat" ? `换钓点\n${v.waypointName}` : "换钓点";
+  const finder = document.getElementById("finder")!;
+  const showFinder = v.spot === "boat" && v.finder && !overlay;
+  finder.classList.toggle("on", showFinder);
+  if (showFinder) finder.textContent = `水深 ${v.finderDepth.toFixed(1)} m   鱼讯 ${Math.round(v.finderSignal * 100)}%`;
+  const cardBar = document.getElementById("cardBar");
+  if (cardBar && v.phase === "card") cardBar.style.width = `${Math.max(0, v.cardLeft / 9) * 100}%`;
 }
 
-function lookTarget(spot: string, eyeX: number, eyeZ: number): { x: number; y: number; z: number } {
-  return fishingLook(spot as SpotId, eyeX, eyeZ);
+function applySky(): void {
+  const id = trip.view.periodId as PeriodId;
+  const look = PERIOD_LOOK[id] ?? PERIOD_LOOK.dusk;
+  const nightLift = id === "night" && trip.view.deckLights;
+  const lit = nightLift ? PERIOD_LOOK.dusk : look;
+  renderer.setClearColor(look.clear, 1);
+  scene.fog = new THREE.Fog(look.fog, 26, 95);
+  ambient.color.set(look.ambient);
+  sun.color.set(lit.sun);
+  sun.intensity = lit.sunInt;
+  deckLamp.intensity = nightLift ? 2.4 : 0;
+  deckLamp.position.set(trip.view.eyeX, trip.view.eyeY + 1.2, trip.view.eyeZ);
 }
 
 function syncRig(dt: number): void {
   const v = trip.view;
   rig.setGear(v.castM, v.reelSpeed);
-  const look = lookTarget(v.spot, v.eyeX, v.eyeZ);
+  const look = aimLook(v.spot as SpotId, v.eyeX, v.eyeZ, aimYaw);
   const frame: RodFrame = {
     camX: v.eyeX,
     camY: v.eyeY,
@@ -523,15 +636,14 @@ function syncRig(dt: number): void {
     rig.startWindup();
     castArmed = true;
   }
-  if (lastPhase === "charging" && v.phase === "waiting" && castArmed) {
+  if (lastPhase === "charging" && v.phase === "flying" && castArmed) {
     rig.release(v.bobX, v.bobZ);
-    playClip("rod_swish");
+    playClip("rod_swish", swishRate(v.power), swishGain(v.power));
     playClip("line_out");
     castArmed = false;
   }
   if ((v.phase === "hook" || v.phase === "fighting") && rig.state === "floating") {
-    rig.hook();
-    if (lastPhase !== "fighting" && lastPhase !== "hook") playClip("fish_splash");
+    if (rig.hook() && lastPhase !== "fighting" && lastPhase !== "hook") playClip("fish_splash");
   }
   if (v.phase === "card" && lastPhase !== "card") {
     rig.land();
@@ -542,9 +654,14 @@ function syncRig(dt: number): void {
     if (v.notice.includes("断")) playClip("line_snap");
     rig.retrieve();
   }
-  if (rig.state === "flying" && rig.splash > 0.95) playClip("plop");
+  const prevRig = rig.state;
   rig.update(dt, frame);
-  lastPhase = v.phase;
+  if (prevRig !== "floating" && rig.state === "floating") {
+    playClip("plop");
+    trip.bobberLanded(rig.splashLine, depthAt(rig.bobX, rig.bobZ));
+    if (trip.view.phase === "miss") rig.retrieve();
+  }
+  lastPhase = trip.view.phase;
 
   camera.position.set(v.eyeX, v.eyeY, v.eyeZ);
   camera.up.set(0, 1, 0);
@@ -555,14 +672,7 @@ function syncRig(dt: number): void {
   } else boat.visible = v.spot === "pier";
   if (v.spot === "pier") boat.position.set(64.5, 0.15, 36.5);
 
-  const raw = blankCameraPoints(rig, ROD_N + 1);
-  const pts = new Float32Array(raw.length);
-  for (let i = 0; i < raw.length; i += 3) {
-    const p = presentRodPoint(raw[i], raw[i + 1], raw[i + 2]);
-    pts[i] = p[0];
-    pts[i + 1] = p[1];
-    pts[i + 2] = p[2];
-  }
+  const pts = blankCameraPoints(rig, ROD_N + 1);
   const yAxis = new THREE.Vector3(0, 1, 0);
   const dir = new THREE.Vector3();
   for (let i = 0; i < segments.length; i++) {
@@ -607,83 +717,97 @@ function syncRig(dt: number): void {
   bail.position.copy(reel.position);
   bail.rotation.x = -rig.bail * 1.4;
 
-  const castOut = rig.state === "flying" || rig.state === "floating" || rig.state === "fighting" || rig.state === "retrieving" || rig.state === "landing";
-  let pierHits = 0;
-  let bobX = rig.bobX;
-  let bobY = rig.bobY;
-  let bobZ = rig.bobZ;
-  if (!castOut) {
-    const rest = sampleCast(v.spot, v.waypoint, 0.35, v.castM);
-    bobX = rest.x;
-    bobY = 0.08 + Math.sin(performance.now() / 1000 * 2.1) * 0.035 - v.dip * 0.09;
-    bobZ = rest.z;
-  }
-  const showLine = v.phase !== "card" && v.phase !== "miss";
+  const showBobber = rig.state === "flying" || rig.state === "floating" || rig.state === "fighting" || rig.state === "retrieving";
+  const showLine = showBobber || rig.state === "landing";
+  const bobX = rig.bobX;
+  const bobY = rig.bobY;
+  const bobZ = rig.bobZ;
   lineMesh.visible = showLine;
-  bobber.visible = showLine;
+  bobber.visible = showBobber;
   bobber.position.set(bobX, bobY, bobZ);
+  let pierHits = 0;
   if (showLine) {
     const dist = Math.hypot(bobX - v.eyeX, bobY - v.eyeY, bobZ - v.eyeZ);
-    bobber.scale.setScalar(Math.max(3.4, dist / 3.2));
+    bobber.scale.setScalar(Math.max(1, dist / 7));
     camera.updateMatrixWorld(true);
-    const tip = pts.length / 3 - 1;
-    const tipV = new THREE.Vector3(pts[tip * 3], pts[tip * 3 + 1], pts[tip * 3 + 2]);
-    const bobL = camera.worldToLocal(new THREE.Vector3(bobX, bobY, bobZ));
-    const sag = Math.min(0.55, dist * 0.06);
     const arr = lineGeo.attributes.position.array as Float32Array;
+    const local: THREE.Vector3[] = [];
     for (let i = 0; i <= LINE_SEGS; i++) {
-      const t = i / LINE_SEGS;
-      const a = 1 - t;
-      const mx = (tipV.x + bobL.x) * 0.5;
-      const my = (tipV.y + bobL.y) * 0.5 - sag;
-      const mz = (tipV.z + bobL.z) * 0.5;
-      const x = a * a * tipV.x + 2 * a * t * mx + t * t * bobL.x;
-      const y = a * a * tipV.y + 2 * a * t * my + t * t * bobL.y;
-      const z = a * a * tipV.z + 2 * a * t * mz + t * t * bobL.z;
-      const nx = bobL.x - tipV.x;
-      const nz = bobL.z - tipV.z;
+      const world = new THREE.Vector3(rig.line[i * 3], rig.line[i * 3 + 1], rig.line[i * 3 + 2]);
+      local.push(camera.worldToLocal(world));
+    }
+    for (let i = 0; i <= LINE_SEGS; i++) {
+      const curr = local[i];
+      const next = local[Math.min(LINE_SEGS, i + 1)];
+      const nx = next.x - curr.x;
+      const nz = next.z - curr.z;
       const len = Math.hypot(nx, nz) || 1;
-      const ox = (-nz / len) * 0.028;
-      const oz = (nx / len) * 0.028;
-      arr[i * 6] = x + ox;
-      arr[i * 6 + 1] = y;
-      arr[i * 6 + 2] = z + oz;
-      arr[i * 6 + 3] = x - ox;
-      arr[i * 6 + 4] = y;
-      arr[i * 6 + 5] = z - oz;
+      const ox = (-nz / len) * 0.016;
+      const oz = (nx / len) * 0.016;
+      arr[i * 6] = curr.x + ox;
+      arr[i * 6 + 1] = curr.y;
+      arr[i * 6 + 2] = curr.z + oz;
+      arr[i * 6 + 3] = curr.x - ox;
+      arr[i * 6 + 4] = curr.y;
+      arr[i * 6 + 5] = curr.z - oz;
     }
     lineGeo.attributes.position.needsUpdate = true;
     lineGeo.computeBoundingSphere();
-    pierHits = 0;
     for (let i = 0; i <= LINE_SEGS; i += 3) {
-      const wx = camera.localToWorld(new THREE.Vector3(arr[i * 6], arr[i * 6 + 1], arr[i * 6 + 2]));
-      if (wx.y > 1.7 && wx.y < 3.75 && pierDistance(wx.x, wx.z) < 0.3) pierHits++;
+      const y = rig.line[i * 3 + 1];
+      const x = rig.line[i * 3];
+      const z = rig.line[i * 3 + 2];
+      if (y > 1.7 && y < 3.75 && pierDistance(x, z) < 0.3) pierHits++;
     }
-  } else pierHits = 0;
+  }
   splashBits.forEach((bit, i) => {
-    bit.visible = rig.splash > 0.05;
+    bit.visible = showBobber && rig.splash > 0.05;
     const a = (i / splashBits.length) * Math.PI * 2;
     bit.position.set(bobX + Math.cos(a) * rig.splash * 0.35, bobY + rig.splash * 0.15, bobZ + Math.sin(a) * rig.splash * 0.35);
     bit.scale.setScalar(0.4 + rig.splash);
   });
+  let shaft = 0;
+  for (let i = 0; i < pts.length / 3; i++) {
+    if (pts[i * 3 + 2] < -0.3) {
+      shaft = i;
+      break;
+    }
+  }
   lastPose = {
     butt: [pts[0], pts[1], pts[2]],
+    shaft: [pts[shaft * 3], pts[shaft * 3 + 1], pts[shaft * 3 + 2]],
     tip: [pts[pts.length - 3], pts[pts.length - 2], pts[pts.length - 1]],
     bob: [bobX, bobY, bobZ],
     radius: 0.0215,
     pierHits,
+    bobVisible: showBobber,
   };
-  fishRoot.visible = v.phase === "card";
-  if (v.phase === "card") {
-    fishRoot.position.set(0.0, 0.02, -1.55);
-    fishRoot.rotation.y = Math.sin(performance.now() / 1000 * 0.55) * 0.25;
+  const shown = trip.view;
+  fishRoot.visible = shown.phase === "card";
+  if (shown.phase === "card") {
+    const t = Math.max(0, 9 - shown.cardLeft);
+    const slide = Math.min(1, t / 0.7);
+    const ease = slide * slide * (3 - 2 * slide);
+    const scale = Math.max(0.12, shown.cm / 100);
+    fishRoot.position.set(-0.95 * (1 - ease), -0.02, -1.6);
+    fishRoot.scale.setScalar(scale);
+    fishRoot.rotation.z = Math.sin(t * 13) * 0.9 * Math.exp(-t * 1.6);
+    fishRoot.rotation.y = Math.sin(t * 0.55) * 0.2;
+    fishDrops.forEach((drop, i) => {
+      const fall = Math.min(1, t / 0.7);
+      const a = (i / fishDrops.length) * Math.PI * 2;
+      drop.position.set(Math.cos(a) * 0.45, 0.45 - fall * 0.85, Math.sin(a) * 0.15);
+      drop.visible = t < 1.3;
+    });
   }
-  if (v.phase === "fighting" && v.tension > 0.9) {
-    if (audio.line_strain.paused) void audio.line_strain.play().catch(() => undefined);
-  } else audio.line_strain.pause();
-  if (v.reeling) {
-    if (audio.reel_wind.paused) void audio.reel_wind.play().catch(() => undefined);
-  } else audio.reel_wind.pause();
+  tickSlices();
+  const strain = shown.phase === "fighting" ? strainGain(shown.tension) : 0;
+  loopAt("reel_wind", rig.crankSpeed > 0.02, reelWindRate(rig.crankSpeed), 0.85);
+  loopAt("reel_drag", rig.state === "fighting" && rig.payOut > 0.02, reelDragRate(Math.min(8, rig.payOut)), 0.8);
+  loopAt("line_strain", strain > 0.001, 1, strain);
+  const bailOpen = rig.state === "windup" || rig.state === "flick" || rig.state === "flying";
+  if (bailOpen !== bailWasOpen) playClip("bail_click");
+  bailWasOpen = bailOpen;
 }
 
 let waveT = 0;
@@ -705,23 +829,14 @@ addEventListener("resize", () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 
-const PERIOD_ORDER = ["dawn", "day", "dusk", "night"] as const;
-let periodClock = 0;
+let bailWasOpen = false;
 let last = performance.now();
 function frame(now: number): void {
   const wall = Math.min(0.05, (now - last) / 1000);
   const dt = wall * speed;
   last = now;
-  if (!debug) {
-    periodClock += wall;
-    if (periodClock > 50) {
-      periodClock = 0;
-      const order = PERIOD_ORDER.indexOf(trip.view.periodId);
-      const next = PERIOD_ORDER[(order + 1) % PERIOD_ORDER.length];
-      trip.setPeriod(next);
-    }
-  }
   if (!trip.view.guideOpen) trip.tick(dt);
+  applySky();
   syncRig(dt);
   wave(dt);
   syncHud();
@@ -754,14 +869,16 @@ const api = {
       };
     };
     const depth = Math.max(0.2, -lastPose.butt[2]);
-    const tanH = Math.tan((58 * Math.PI) / 360) * (innerWidth / Math.max(1, innerHeight));
+    const tanH = Math.tan((62 * Math.PI) / 360) * (innerWidth / Math.max(1, innerHeight));
     const dock = document.querySelector(".dock");
     return {
       butt: project(lastPose.butt[0], lastPose.butt[1], lastPose.butt[2], true),
+      shaft: project(lastPose.shaft[0], lastPose.shaft[1], lastPose.shaft[2], true),
       tip: project(lastPose.tip[0], lastPose.tip[1], lastPose.tip[2], true),
       bob: project(lastPose.bob[0], lastPose.bob[1], lastPose.bob[2], false),
       diamPct: (lastPose.radius * 2) / depth / (2 * tanH) * 100,
       pierHits: lastPose.pierHits,
+      bobVisible: lastPose.bobVisible,
       bobWorldY: lastPose.bob[1],
       dock: dock ? getComputedStyle(dock).display : "missing",
       w: innerWidth,

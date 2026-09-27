@@ -26,6 +26,16 @@ export function fishingLook(spot: SpotId, eyeX: number, eyeZ: number): { x: numb
   return { x: eyeX + PIER_LOOK_X, y: 0.64, z: eyeZ + PIER_LOOK_Z };
 }
 
+/** 在默认视线左右转一个偏航角。旋转和 sampleCast 的落点一致。 */
+export function aimLook(spot: SpotId, eyeX: number, eyeZ: number, yaw: number): { x: number; y: number; z: number } {
+  const look = fishingLook(spot, eyeX, eyeZ);
+  const dx = look.x - eyeX;
+  const dz = look.z - eyeZ;
+  const c = Math.cos(yaw);
+  const s = Math.sin(yaw);
+  return { x: eyeX + dx * c - dz * s, y: look.y, z: eyeZ + dx * s + dz * c };
+}
+
 export const WAYPOINTS: {
   [id in WaypointId]: { x: number; z: number; depth: number; reefDist: number; pierDist: number };
 } = {
@@ -98,6 +108,7 @@ export function sampleCast(
   waypoint: WaypointId,
   power: number,
   castM: number,
+  yaw = 0,
 ): CastSample {
   const clamped = Math.min(1, Math.max(0, power));
   const reach = castM * (0.35 + 0.65 * clamped);
@@ -114,11 +125,13 @@ export function sampleCast(
     };
   }
   const eye = SPOT_EYE[spot];
-  // 人站在栈桥上朝侧面的水抛。落点沿镜头水平方向，离栈桥几米，不落在甲板上。
-  const span = Math.hypot(PIER_LOOK_X, PIER_LOOK_Z);
-  const dist = 4.4 + clamped * 6.2;
-  const x = spot === "pier" ? eye.x + (PIER_LOOK_X / span) * dist : eye.x;
-  const z = spot === "pier" ? eye.z + (PIER_LOOK_Z / span) * dist : eye.z + reach;
+  const span = Math.hypot(PIER_LOOK_X, PIER_LOOK_Z) || 1;
+  const fx = spot === "pier" ? PIER_LOOK_X / span : 0;
+  const fz = spot === "pier" ? PIER_LOOK_Z / span : 1;
+  const c = Math.cos(yaw);
+  const s = Math.sin(yaw);
+  const x = eye.x + (fx * c - fz * s) * reach;
+  const z = eye.z + (fx * s + fz * c) * reach;
   const depth = depthAt(x, z);
   const reefDist = reefDistance(x, z);
   const pierDist = pierDistance(x, z);
