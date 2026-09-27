@@ -1,12 +1,13 @@
 # 出海钓鱼预览画面
 
-这些图来自 `docs/fishing-play/` 的无头 Chrome 实跑（three.js），不是手绘，也不是 Cocos Creator 实机。录的时候地址不带 `?debug=1`，顶部调试按钮不出现。
+这些图来自 `docs/fishing-play/` 的无头 Chrome 实跑（three.js），不是手绘，也不是 Cocos Creator 实机。录的时候地址不带 `?debug=1`，顶部调试按钮不出现。竿在画面右下，竿尖不过中线；鱼线是细抛物线，接在变换后的竿尖上。默认黄昏海面是暖蓝色，带一点橙色反光。
 
 - `01-idle.png` 码头待机：原版持竿姿态，没有浮标
 - `02-cast.png` 蓄力抛竿
 - `02-fly.png` 浮标还在飞
 - `02-wait.png` 等咬：浮标落在水面上
-- `03-fight.png` 拉力对抗，竿身弯曲，线被拉直
+- `03-fight.png` 拉力对抗，竿身弯在画面右下，线被拉直
+- `03-fight-375.png` 同一段对抗，375×667 手机竖屏
 - `04-card.png` 渔获卡，带 9 秒进度条
 - `05-stall.png` 乔的鱼摊
 - `05-shop.png` 玛塔的渔具店（1280×720）

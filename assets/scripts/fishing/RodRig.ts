@@ -488,8 +488,8 @@ function basisToWorld(
 }
 
 /**
- * 把源码姿态摆进镜头：握把在画面右下，竿身斜向水面，不穿过画面中央。
- * 只改展示，弹簧和 POSES 仍是源码的数。弯竿会跟着这组旋转一起动。
+ * 把源码姿态摆进镜头：握把在画面右下，竿身只占右下大约三分之一，竿尖不越过中线。
+ * 线和竿都走 presentViewPoint。弹簧和 POSES 仍是源码的数。弯竿会跟着这组旋转一起动。
  */
 const PRESENT_R = [
   0.886632, 0.242863, -0.393575,
@@ -504,6 +504,205 @@ export function presentRodPoint(x: number, y: number, z: number): [number, numbe
     PRESENT_R[3] * x + PRESENT_R[4] * y + PRESENT_R[5] * z + PRESENT_T[1],
     PRESENT_R[6] * x + PRESENT_R[7] * y + PRESENT_R[8] * z + PRESENT_T[2],
   ];
+}
+
+/** 在右下角那组旋转上再缩小、再压低，让竿尖留在画面中线的右下方。 */
+const VIEW_ANCHOR: readonly [number, number, number] = [0.48, -0.31, -0.58];
+const VIEW_SCALE = 1;
+const VIEW_PITCH = 0;
+
+export function presentViewPoint(x: number, y: number, z: number): [number, number, number] {
+  const p = presentRodPoint(x, y, z);
+  const x1 = VIEW_ANCHOR[0] + (p[0] - VIEW_ANCHOR[0]) * VIEW_SCALE;
+  const y1 = VIEW_ANCHOR[1] + (p[1] - VIEW_ANCHOR[1]) * VIEW_SCALE;
+  const z1 = VIEW_ANCHOR[2] + (p[2] - VIEW_ANCHOR[2]) * VIEW_SCALE;
+  const c = Math.cos(VIEW_PITCH);
+  const s = Math.sin(VIEW_PITCH);
+  return [x1, y1 * c - z1 * s, y1 * s + z1 * c];
+}
+
+/** 世界坐标转到和 blankCameraPoints 相同的水平相机空间，不含镜头俯仰。 */
+export function yawLocalPoint(
+  x: number,
+  y: number,
+  z: number,
+  camX: number,
+  camY: number,
+  camZ: number,
+  yaw: number,
+): [number, number, number] {
+  const dx = x - camX;
+  const dy = y - camY;
+  const dz = z - camZ;
+  const cy = Math.cos(yaw);
+  const sy = Math.sin(yaw);
+  return [dx * cy - dz * sy, dy, dx * sy + dz * cy];
+}
+
+/**
+ * 48 段线跟竿走同一个 presentViewPoint。
+ * 起点是变换后的竿尖；末端再钉到浮标的真实相机坐标，这样俯仰不会把线甩到画面外。
+ */
+export function presentLinePoint(
+  index: number,
+  segments: number,
+  x: number,
+  y: number,
+  z: number,
+  camX: number,
+  camY: number,
+  camZ: number,
+  yaw: number,
+  bobPresented: readonly [number, number, number],
+  bobTrue: readonly [number, number, number],
+): [number, number, number] {
+  const yl = yawLocalPoint(x, y, z, camX, camY, camZ, yaw);
+  const pr = presentViewPoint(yl[0], yl[1], yl[2]);
+  const t = segments > 0 ? index / segments : 1;
+  const px = pr[0] + (bobTrue[0] - bobPresented[0]) * t;
+  const py = pr[1] + (bobTrue[1] - bobPresented[1]) * t;
+  let pz = pr[2] + (bobTrue[2] - bobPresented[2]) * t;
+  if (pz > -0.15) pz = -0.15;
+  return [px, py, pz];
+}
+
+export interface CornerFit {
+  pitch: number;
+  yaw: number;
+  butt: readonly [number, number, number];
+}
+
+/** 绕握把补一点点俯仰或偏航，让竿尖留在画面中线的右下方。待机已经在右下时角度是 0。 */
+export function fitLowerRight(pts: Float32Array): CornerFit {
+  const butt: [number, number, number] = [pts[0], pts[1], pts[2]];
+  const tip = pts.length - 3;
+  const pitch = solveAxis(pts[tip + 1], pts[tip + 2], butt[1], butt[2], -0.58, true);
+  rotatePitch(pts, butt, pitch);
+  let yaw = solveAxis(pts[tip], pts[tip + 2], butt[0], butt[2], 0.045, false);
+  rotateYaw(pts, butt, yaw);
+  const pull = solvePortrait(pts, tip, butt);
+  rotateYaw(pts, butt, pull);
+  yaw += pull;
+  return { pitch, yaw, butt };
+}
+
+/** 竖屏水平视野更窄。竿尖留在画面里，不要甩出右边缘。 */
+function solvePortrait(pts: Float32Array, tip: number, butt: readonly [number, number, number]): number {
+  const maxSlope = 0.82 * (375 / 667) * Math.tan((62 * Math.PI) / 360);
+  const at = (angle: number) => {
+    const dx = pts[tip] - butt[0];
+    const dz = pts[tip + 2] - butt[2];
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    return {
+      x: butt[0] + dx * c + dz * s,
+      z: butt[2] - dx * s + dz * c,
+    };
+  };
+  const wide = (angle: number) => {
+    const p = at(angle);
+    return p.z > -0.25 || p.x > maxSlope * -p.z;
+  };
+  if (!wide(0)) return 0;
+  let lo = 0;
+  let hi = 1.3;
+  for (let i = 0; i < 22; i++) {
+    const mid = (lo + hi) / 2;
+    if (wide(mid)) lo = mid;
+    else hi = mid;
+  }
+  const fitted = at(hi);
+  if (fitted.x < 0.04) return 0;
+  return hi;
+}
+
+export function applyCornerFit(
+  x: number,
+  y: number,
+  z: number,
+  fit: CornerFit,
+): [number, number, number] {
+  let px = x;
+  let py = y;
+  let pz = z;
+  if (fit.pitch !== 0) {
+    const dy = py - fit.butt[1];
+    const dz = pz - fit.butt[2];
+    const c = Math.cos(fit.pitch);
+    const s = Math.sin(fit.pitch);
+    py = fit.butt[1] + dy * c - dz * s;
+    pz = fit.butt[2] + dy * s + dz * c;
+  }
+  if (fit.yaw !== 0) {
+    const dx = px - fit.butt[0];
+    const dz = pz - fit.butt[2];
+    const c = Math.cos(fit.yaw);
+    const s = Math.sin(fit.yaw);
+    px = fit.butt[0] + dx * c + dz * s;
+    pz = fit.butt[2] - dx * s + dz * c;
+  }
+  return [px, py, pz];
+}
+
+function solveAxis(a: number, b: number, originA: number, originB: number, targetA: number, pitchDown: boolean): number {
+  const da = a - originA;
+  const db = b - originB;
+  const at = (angle: number) => {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    return pitchDown ? originA + da * c - db * s : originA + da * c + db * s;
+  };
+  const tooFar = pitchDown ? at(0) > targetA : at(0) < targetA;
+  if (!tooFar) return 0;
+  let lo = pitchDown ? -1.5 : 0;
+  let hi = pitchDown ? 0 : 1.5;
+  for (let i = 0; i < 22; i++) {
+    const mid = (lo + hi) / 2;
+    const value = at(mid);
+    const still = pitchDown ? value > targetA : value < targetA;
+    if (still) {
+      if (pitchDown) hi = mid;
+      else lo = mid;
+    } else if (pitchDown) lo = mid;
+    else hi = mid;
+  }
+  return pitchDown ? lo : hi;
+}
+
+function rotatePitch(pts: Float32Array, butt: readonly [number, number, number], pitch: number): void {
+  if (pitch === 0) return;
+  const c = Math.cos(pitch);
+  const s = Math.sin(pitch);
+  for (let i = 0; i < pts.length; i += 3) {
+    const y = pts[i + 1] - butt[1];
+    const z = pts[i + 2] - butt[2];
+    pts[i + 1] = butt[1] + y * c - z * s;
+    pts[i + 2] = butt[2] + y * s + z * c;
+  }
+}
+
+function rotateYaw(pts: Float32Array, butt: readonly [number, number, number], yaw: number): void {
+  if (yaw === 0) return;
+  const c = Math.cos(yaw);
+  const s = Math.sin(yaw);
+  for (let i = 0; i < pts.length; i += 3) {
+    const x = pts[i] - butt[0];
+    const z = pts[i + 2] - butt[2];
+    pts[i] = butt[0] + x * c + z * s;
+    pts[i + 2] = butt[2] - x * s + z * c;
+  }
+}
+
+/** 物理放大仍是 max(1, 距离/7)。375 宽上再保底大约 11 像素直径。 */
+export function bobberPixelScale(distance: number, viewWidth: number, viewHeight: number): number {
+  const physical = Math.max(1, distance / 7);
+  const radius = 0.028 * physical;
+  const fov = (62 * Math.PI) / 180;
+  const pxPerM = (viewHeight * 0.5) / Math.max(0.4, distance) / Math.tan(fov * 0.5);
+  const diameterPx = radius * 2 * pxPerM;
+  const minPx = 11 * (viewWidth / 375);
+  if (diameterPx >= minPx) return physical;
+  return physical * (minPx / Math.max(diameterPx, 0.01));
 }
 
 /** 竿身在相机空间里的折线。侧向跟着弯曲方向，角度用这一帧的 drawElev / drawSide。 */

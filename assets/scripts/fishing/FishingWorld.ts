@@ -2,13 +2,13 @@
  * 第一人称低多边形钓场。网格用 StageBuild 的方块，姿态数字来自 RodRig。
  * 不改港口舞台。从 RuntimeHome 进来时港口已经卸掉。
  */
-import { Camera, Color, DirectionalLight, Layers, Node, Quat, Vec3 } from "cc";
+import { Camera, Color, DirectionalLight, Layers, MeshRenderer, Node, Quat, UITransform, Vec3 } from "cc";
 import { waterAmp } from "../domain/ProcGeom";
 import type { StagePart } from "../domain/ProcGeom";
 import { rippleWater, spawnPart, spawnParts } from "../world/StageBuild";
-import { blankCameraPoints, LINE_SEGS, type RodRig } from "./RodRig";
+import { applyCornerFit, blankCameraPoints, bobberPixelScale, fitLowerRight, LINE_SEGS, presentLinePoint, presentViewPoint, yawLocalPoint, type RodRig } from "./RodRig";
 import { aimLook, type SpotId } from "./SpotQuery";
-import { PERIOD_LOOK, type PeriodId } from "./Waters";
+import { PERIOD_LOOK, WATER_RGB, type PeriodId } from "./Waters";
 
 export interface FishingPose {
   eyeX: number;
@@ -44,6 +44,8 @@ export class FishingWorld {
   private savedPriority = 0;
   private savedVisibility = 0;
   private water?: Node;
+  private waterRenderer?: MeshRenderer;
+  private splashRing?: Node;
   private boat!: Node;
   private segments: Node[] = [];
   private reel!: Node;
@@ -61,7 +63,7 @@ export class FishingWorld {
   private readonly quat = new Quat();
   private readonly look = new Vec3();
   private readonly tmp = new Vec3();
-  private readonly bobLocal = new Vec3();
+  private readonly bobTrue = new Vec3();
 
   static ensure(canvas: Node): FishingWorld {
     if (FishingWorld.current?.alive && FishingWorld.current.root?.isValid) {
@@ -146,7 +148,7 @@ export class FishingWorld {
       { name: "PierHead", kind: "box", x: 55, y: 2.24, z: 36.5, sx: 14, sy: 0.18, sz: 7, color: WOOD, finish: "wood" },
       { name: "Beach", kind: "box", x: 20, y: -0.15, z: -58, sx: 90, sy: 0.4, sz: 36, color: SAND, finish: "land" },
       { name: "WetSand", kind: "box", x: 20, y: -0.05, z: -42, sx: 90, sy: 0.2, sz: 8, color: WET, finish: "land" },
-      { name: "Water", kind: "plane", x: 40, y: 0, z: 30, sx: 220, sy: 1, sz: 180, color: [70, 150, 176], finish: "water", wave: true },
+      { name: "Water", kind: "plane", x: 40, y: 0, z: 30, sx: 220, sy: 1, sz: 180, color: [...WATER_RGB.dusk], finish: "water", wave: true },
     ];
     for (let z = 14; z <= 40; z += 3.2) {
       parts.push(
@@ -158,6 +160,7 @@ export class FishingWorld {
     }
     const spawned = spawnParts(this.root, layer, parts);
     this.water = spawned.find((node) => node.name === "Water");
+    this.waterRenderer = this.water?.getComponent(MeshRenderer) ?? undefined;
     this.boat = new Node("FishingBoat");
     this.boat.layer = layer;
     this.boat.parent = this.root;
@@ -221,10 +224,10 @@ export class FishingWorld {
         x: 0,
         y: -2,
         z: 0,
-        sx: 0.025,
-        sy: 0.025,
-        sz: 0.025,
-        color: [223, 231, 200],
+        sx: 0.006,
+        sy: 0.006,
+        sz: 0.006,
+        color: [232, 226, 206],
         finish: "prop",
       });
       bit.active = false;
@@ -234,8 +237,8 @@ export class FishingWorld {
     this.bobber.layer = Layers.Enum.DEFAULT;
     this.bobber.parent = this.root;
     spawnParts(this.bobber, Layers.Enum.DEFAULT, [
-      { name: "BobTop", kind: "sphere", x: 0, y: 0.01, z: 0, sx: 0.056, sy: 0.04, sz: 0.056, color: [210, 74, 58], finish: "prop" },
-      { name: "BobBot", kind: "sphere", x: 0, y: -0.008, z: 0, sx: 0.056, sy: 0.04, sz: 0.056, color: [244, 239, 228], finish: "prop" },
+      { name: "BobTop", kind: "sphere", x: 0, y: 0.014, z: 0, sx: 0.056, sy: 0.028, sz: 0.056, color: [255, 122, 26], finish: "prop" },
+      { name: "BobBot", kind: "sphere", x: 0, y: -0.014, z: 0, sx: 0.056, sy: 0.028, sz: 0.056, color: [255, 246, 238], finish: "prop" },
     ]);
     this.bobber.active = false;
     for (let i = 0; i < 8; i++) {
@@ -254,6 +257,19 @@ export class FishingWorld {
       bit.active = false;
       this.splash.push(bit);
     }
+    this.splashRing = spawnPart(this.root, Layers.Enum.DEFAULT, {
+      name: "SplashRing",
+      kind: "sphere",
+      x: 0,
+      y: 0.03,
+      z: 0,
+      sx: 0.24,
+      sy: 0.02,
+      sz: 0.24,
+      color: [215, 243, 246],
+      finish: "water",
+    });
+    this.splashRing.active = false;
     this.fish = spawnPart(this.rodRoot, Layers.Enum.DEFAULT, {
       name: "CatchFish",
       kind: "sphere",
@@ -297,7 +313,15 @@ export class FishingWorld {
   }
 
   private placeRod(rig: RodRig): void {
-    const pts = blankCameraPoints(rig, this.segments.length + 1);
+    const raw = blankCameraPoints(rig, this.segments.length + 1);
+    const pts = new Float32Array(raw.length);
+    for (let i = 0; i < raw.length; i += 3) {
+      const p = presentViewPoint(raw[i], raw[i + 1], raw[i + 2]);
+      pts[i] = p[0];
+      pts[i + 1] = p[1];
+      pts[i + 2] = p[2];
+    }
+    fitLowerRight(pts);
     for (let i = 0; i < this.segments.length; i++) {
       const ax = pts[i * 3];
       const ay = pts[i * 3 + 1];
@@ -315,7 +339,7 @@ export class FishingWorld {
         node.setRotation(this.quat);
       }
       const t = 1 - i / this.segments.length;
-      const thick = 0.009 + t * 0.034;
+      const thick = 0.0056 + t * 0.008;
       node.setScale(thick, len, thick);
     }
     const hx = pts[4];
@@ -328,33 +352,89 @@ export class FishingWorld {
   private placeLine(rig: RodRig, pose: FishingPose): void {
     const show = pose.showBobber;
     this.bobber.active = show;
+    const look = aimLook(pose.spot as SpotId, pose.eyeX, pose.eyeZ, pose.aimYaw);
+    const yaw = Math.atan2(-(look.x - pose.eyeX), -(look.z - pose.eyeZ));
     if (show) {
       this.bobber.setPosition(rig.bobX, rig.bobY, rig.bobZ);
       const dist = Math.hypot(rig.bobX - pose.eyeX, rig.bobY - pose.eyeY, rig.bobZ - pose.eyeZ);
-      const bobScale = Math.max(1, dist / 7);
+      const [viewW, viewH] = this.viewSize();
+      const bobScale = bobberPixelScale(dist, viewW, viewH);
       this.bobber.setScale(bobScale, bobScale, bobScale);
     }
     const showLine = show || rig.state === "landing";
     this.camNode.updateWorldTransform();
+    this.tmp.set(rig.bobX, rig.bobY, rig.bobZ);
+    this.camNode.inverseTransformPoint(this.bobTrue, this.tmp);
+    const bobYL = yawLocalPoint(rig.bobX, rig.bobY, rig.bobZ, pose.eyeX, pose.eyeY, pose.eyeZ, yaw);
+    const bobP = presentViewPoint(bobYL[0], bobYL[1], bobYL[2]);
+    const bobTrue: [number, number, number] = [this.bobTrue.x, this.bobTrue.y, this.bobTrue.z];
+    const rawBlank = blankCameraPoints(rig, 8);
+    const fitted = new Float32Array(rawBlank.length);
+    for (let i = 0; i < rawBlank.length; i += 3) {
+      const p = presentViewPoint(rawBlank[i], rawBlank[i + 1], rawBlank[i + 2]);
+      fitted[i] = p[0];
+      fitted[i + 1] = p[1];
+      fitted[i + 2] = p[2];
+    }
+    const fit = fitLowerRight(fitted);
     for (let i = 0; i < this.lineBits.length; i++) {
       const bit = this.lineBits[i];
       bit.active = showLine;
       if (!showLine) continue;
-      this.tmp.set(rig.line[i * 3], rig.line[i * 3 + 1], rig.line[i * 3 + 2]);
-      this.camNode.inverseTransformPoint(this.bobLocal, this.tmp);
-      bit.setPosition(this.bobLocal);
+      const p = presentLinePoint(
+        i,
+        LINE_SEGS,
+        rig.line[i * 3],
+        rig.line[i * 3 + 1],
+        rig.line[i * 3 + 2],
+        pose.eyeX,
+        pose.eyeY,
+        pose.eyeZ,
+        yaw,
+        bobP,
+        bobTrue,
+      );
+      const spun = applyCornerFit(p[0], p[1], p[2], fit);
+      const t = LINE_SEGS > 0 ? i / LINE_SEGS : 1;
+      let x = spun[0];
+      let y = spun[1];
+      let z = spun[2];
+      if (fit.pitch !== 0 || fit.yaw !== 0) {
+        const end = applyCornerFit(bobTrue[0], bobTrue[1], bobTrue[2], fit);
+        x += (bobTrue[0] - end[0]) * t;
+        y += (bobTrue[1] - end[1]) * t;
+        z += (bobTrue[2] - end[2]) * t;
+      }
+      if (z > -0.15) z = -0.15;
+      bit.setPosition(x, y, z);
     }
-    const splashOn = rig.splash > 0.05;
+    const splashOn = show && rig.splash > 0.05 && rig.state !== "flying";
     this.splash.forEach((bit, i) => {
       bit.active = splashOn;
       if (!splashOn) return;
       const a = (i / this.splash.length) * Math.PI * 2;
       bit.setPosition(
-        rig.bobX + Math.cos(a) * rig.splash * 0.35,
-        rig.bobY + rig.splash * 0.12,
-        rig.bobZ + Math.sin(a) * rig.splash * 0.35,
+        rig.bobX + Math.cos(a) * rig.splash * 0.22,
+        0.04 + rig.splash * 0.05,
+        rig.bobZ + Math.sin(a) * rig.splash * 0.22,
       );
     });
+    if (this.splashRing) {
+      this.splashRing.active = splashOn;
+      if (splashOn) {
+        const grow = 0.28 + (1 - rig.splash) * 1.5;
+        this.splashRing.setPosition(rig.bobX, 0.03, rig.bobZ);
+        this.splashRing.setScale(grow, 0.02, grow);
+      }
+    }
+  }
+
+  private viewSize(): [number, number] {
+    const ui = this.canvas.getComponent(UITransform);
+    const w = ui?.contentSize.width ?? 0;
+    const h = ui?.contentSize.height ?? 0;
+    if (w > 1 && h > 1) return [w, h];
+    return [1280, 720];
   }
 
   private bindUiCamera(): void {
@@ -405,6 +485,8 @@ export class FishingWorld {
     this.viewCam.clearColor = hexColor(look.clear);
     this.sun.color = hexColor(lit.sun);
     this.sun.illuminance = 76000 * lit.sunInt;
+    const rgb = WATER_RGB[id];
+    this.waterRenderer?.material?.setProperty("mainColor", new Color(rgb[0], rgb[1], rgb[2], 255));
   }
 }
 

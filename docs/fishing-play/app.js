@@ -18240,6 +18240,164 @@ void main() {
       return data;
     }
   };
+  var LineBasicMaterial = class extends Material {
+    static get type() {
+      return "LineBasicMaterial";
+    }
+    constructor(parameters) {
+      super();
+      this.isLineBasicMaterial = true;
+      this.color = new Color(16777215);
+      this.map = null;
+      this.linewidth = 1;
+      this.linecap = "round";
+      this.linejoin = "round";
+      this.fog = true;
+      this.setValues(parameters);
+    }
+    copy(source) {
+      super.copy(source);
+      this.color.copy(source.color);
+      this.map = source.map;
+      this.linewidth = source.linewidth;
+      this.linecap = source.linecap;
+      this.linejoin = source.linejoin;
+      this.fog = source.fog;
+      return this;
+    }
+  };
+  var _vStart = /* @__PURE__ */ new Vector3();
+  var _vEnd = /* @__PURE__ */ new Vector3();
+  var _inverseMatrix$1 = /* @__PURE__ */ new Matrix4();
+  var _ray$1 = /* @__PURE__ */ new Ray();
+  var _sphere$1 = /* @__PURE__ */ new Sphere();
+  var _intersectPointOnRay = /* @__PURE__ */ new Vector3();
+  var _intersectPointOnSegment = /* @__PURE__ */ new Vector3();
+  var Line = class extends Object3D {
+    constructor(geometry = new BufferGeometry(), material = new LineBasicMaterial()) {
+      super();
+      this.isLine = true;
+      this.type = "Line";
+      this.geometry = geometry;
+      this.material = material;
+      this.updateMorphTargets();
+    }
+    copy(source, recursive) {
+      super.copy(source, recursive);
+      this.material = Array.isArray(source.material) ? source.material.slice() : source.material;
+      this.geometry = source.geometry;
+      return this;
+    }
+    computeLineDistances() {
+      const geometry = this.geometry;
+      if (geometry.index === null) {
+        const positionAttribute = geometry.attributes.position;
+        const lineDistances = [0];
+        for (let i = 1, l = positionAttribute.count; i < l; i++) {
+          _vStart.fromBufferAttribute(positionAttribute, i - 1);
+          _vEnd.fromBufferAttribute(positionAttribute, i);
+          lineDistances[i] = lineDistances[i - 1];
+          lineDistances[i] += _vStart.distanceTo(_vEnd);
+        }
+        geometry.setAttribute("lineDistance", new Float32BufferAttribute(lineDistances, 1));
+      } else {
+        console.warn("THREE.Line.computeLineDistances(): Computation only possible with non-indexed BufferGeometry.");
+      }
+      return this;
+    }
+    raycast(raycaster, intersects) {
+      const geometry = this.geometry;
+      const matrixWorld = this.matrixWorld;
+      const threshold = raycaster.params.Line.threshold;
+      const drawRange = geometry.drawRange;
+      if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
+      _sphere$1.copy(geometry.boundingSphere);
+      _sphere$1.applyMatrix4(matrixWorld);
+      _sphere$1.radius += threshold;
+      if (raycaster.ray.intersectsSphere(_sphere$1) === false) return;
+      _inverseMatrix$1.copy(matrixWorld).invert();
+      _ray$1.copy(raycaster.ray).applyMatrix4(_inverseMatrix$1);
+      const localThreshold = threshold / ((this.scale.x + this.scale.y + this.scale.z) / 3);
+      const localThresholdSq = localThreshold * localThreshold;
+      const step = this.isLineSegments ? 2 : 1;
+      const index = geometry.index;
+      const attributes = geometry.attributes;
+      const positionAttribute = attributes.position;
+      if (index !== null) {
+        const start = Math.max(0, drawRange.start);
+        const end = Math.min(index.count, drawRange.start + drawRange.count);
+        for (let i = start, l = end - 1; i < l; i += step) {
+          const a = index.getX(i);
+          const b = index.getX(i + 1);
+          const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, a, b);
+          if (intersect) {
+            intersects.push(intersect);
+          }
+        }
+        if (this.isLineLoop) {
+          const a = index.getX(end - 1);
+          const b = index.getX(start);
+          const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, a, b);
+          if (intersect) {
+            intersects.push(intersect);
+          }
+        }
+      } else {
+        const start = Math.max(0, drawRange.start);
+        const end = Math.min(positionAttribute.count, drawRange.start + drawRange.count);
+        for (let i = start, l = end - 1; i < l; i += step) {
+          const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, i, i + 1);
+          if (intersect) {
+            intersects.push(intersect);
+          }
+        }
+        if (this.isLineLoop) {
+          const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, end - 1, start);
+          if (intersect) {
+            intersects.push(intersect);
+          }
+        }
+      }
+    }
+    updateMorphTargets() {
+      const geometry = this.geometry;
+      const morphAttributes = geometry.morphAttributes;
+      const keys = Object.keys(morphAttributes);
+      if (keys.length > 0) {
+        const morphAttribute = morphAttributes[keys[0]];
+        if (morphAttribute !== void 0) {
+          this.morphTargetInfluences = [];
+          this.morphTargetDictionary = {};
+          for (let m = 0, ml = morphAttribute.length; m < ml; m++) {
+            const name = morphAttribute[m].name || String(m);
+            this.morphTargetInfluences.push(0);
+            this.morphTargetDictionary[name] = m;
+          }
+        }
+      }
+    }
+  };
+  function checkIntersection(object, raycaster, ray, thresholdSq, a, b) {
+    const positionAttribute = object.geometry.attributes.position;
+    _vStart.fromBufferAttribute(positionAttribute, a);
+    _vEnd.fromBufferAttribute(positionAttribute, b);
+    const distSq = ray.distanceSqToSegment(_vStart, _vEnd, _intersectPointOnRay, _intersectPointOnSegment);
+    if (distSq > thresholdSq) return;
+    _intersectPointOnRay.applyMatrix4(object.matrixWorld);
+    const distance = raycaster.ray.origin.distanceTo(_intersectPointOnRay);
+    if (distance < raycaster.near || distance > raycaster.far) return;
+    return {
+      distance,
+      // What do we want? intersection point on the ray or on the segment??
+      // point: raycaster.ray.at( distance ),
+      point: _intersectPointOnSegment.clone().applyMatrix4(object.matrixWorld),
+      index: a,
+      face: null,
+      faceIndex: null,
+      barycoord: null,
+      object
+    };
+  }
   var CircleGeometry = class _CircleGeometry extends BufferGeometry {
     constructor(radius = 1, segments2 = 32, thetaStart = 0, thetaLength = Math.PI * 2) {
       super();
@@ -18415,6 +18573,67 @@ void main() {
     }
     static fromJSON(data) {
       return new _CylinderGeometry(data.radiusTop, data.radiusBottom, data.height, data.radialSegments, data.heightSegments, data.openEnded, data.thetaStart, data.thetaLength);
+    }
+  };
+  var RingGeometry = class _RingGeometry extends BufferGeometry {
+    constructor(innerRadius = 0.5, outerRadius = 1, thetaSegments = 32, phiSegments = 1, thetaStart = 0, thetaLength = Math.PI * 2) {
+      super();
+      this.type = "RingGeometry";
+      this.parameters = {
+        innerRadius,
+        outerRadius,
+        thetaSegments,
+        phiSegments,
+        thetaStart,
+        thetaLength
+      };
+      thetaSegments = Math.max(3, thetaSegments);
+      phiSegments = Math.max(1, phiSegments);
+      const indices = [];
+      const vertices = [];
+      const normals = [];
+      const uvs = [];
+      let radius = innerRadius;
+      const radiusStep = (outerRadius - innerRadius) / phiSegments;
+      const vertex2 = new Vector3();
+      const uv = new Vector2();
+      for (let j = 0; j <= phiSegments; j++) {
+        for (let i = 0; i <= thetaSegments; i++) {
+          const segment = thetaStart + i / thetaSegments * thetaLength;
+          vertex2.x = radius * Math.cos(segment);
+          vertex2.y = radius * Math.sin(segment);
+          vertices.push(vertex2.x, vertex2.y, vertex2.z);
+          normals.push(0, 0, 1);
+          uv.x = (vertex2.x / outerRadius + 1) / 2;
+          uv.y = (vertex2.y / outerRadius + 1) / 2;
+          uvs.push(uv.x, uv.y);
+        }
+        radius += radiusStep;
+      }
+      for (let j = 0; j < phiSegments; j++) {
+        const thetaSegmentLevel = j * (thetaSegments + 1);
+        for (let i = 0; i < thetaSegments; i++) {
+          const segment = i + thetaSegmentLevel;
+          const a = segment;
+          const b = segment + thetaSegments + 1;
+          const c = segment + thetaSegments + 2;
+          const d = segment + 1;
+          indices.push(a, b, d);
+          indices.push(b, c, d);
+        }
+      }
+      this.setIndex(indices);
+      this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+      this.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+      this.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+    }
+    copy(source) {
+      super.copy(source);
+      this.parameters = Object.assign({}, source.parameters);
+      return this;
+    }
+    static fromJSON(data) {
+      return new _RingGeometry(data.innerRadius, data.outerRadius, data.thetaSegments, data.phiSegments, data.thetaStart, data.thetaLength);
     }
   };
   var SphereGeometry = class _SphereGeometry extends BufferGeometry {
@@ -20680,10 +20899,10 @@ void main() {
   };
   var PERIOD_IDS = Object.keys(PERIODS);
   var PERIOD_LOOK = {
-    dawn: { clear: 15774858, fog: 15188900, sun: 16761504, ambient: 13152416, sunInt: 1.15 },
-    day: { clear: 10406114, fog: 12047590, sun: 16773330, ambient: 10401992, sunInt: 1.45 },
-    dusk: { clear: 14715490, fog: 13206648, sun: 16756858, ambient: 12619904, sunInt: 1.05 },
-    night: { clear: 1846340, fog: 2372684, sun: 9086152, ambient: 3820130, sunInt: 0.35 }
+    dawn: { clear: 15774858, fog: 15247496, sun: 16761504, ambient: 10401492, sunInt: 1.05 },
+    day: { clear: 8304352, fog: 9357546, sun: 16774368, ambient: 9353436, sunInt: 1.2 },
+    dusk: { clear: 14715490, fog: 13668456, sun: 16756848, ambient: 8301519, sunInt: 1.12 },
+    night: { clear: 924208, fog: 1054760, sun: 6981808, ambient: 1716304, sunInt: 0.28 }
   };
 
   // assets/scripts/fishing/FishingTrip.ts
@@ -21662,6 +21881,173 @@ void main() {
       z: frame2.camZ - lx * sy + lz * cy
     };
   }
+  var PRESENT_R = [
+    0.886632,
+    0.242863,
+    -0.393575,
+    -0.199849,
+    0.968659,
+    0.147515,
+    0.417066,
+    -0.052136,
+    0.90738
+  ];
+  var PRESENT_T = [0.297124, -0.021098, -0.600602];
+  function presentRodPoint(x, y, z) {
+    return [
+      PRESENT_R[0] * x + PRESENT_R[1] * y + PRESENT_R[2] * z + PRESENT_T[0],
+      PRESENT_R[3] * x + PRESENT_R[4] * y + PRESENT_R[5] * z + PRESENT_T[1],
+      PRESENT_R[6] * x + PRESENT_R[7] * y + PRESENT_R[8] * z + PRESENT_T[2]
+    ];
+  }
+  var VIEW_ANCHOR = [0.48, -0.31, -0.58];
+  var VIEW_SCALE = 1;
+  var VIEW_PITCH = 0;
+  function presentViewPoint(x, y, z) {
+    const p = presentRodPoint(x, y, z);
+    const x1 = VIEW_ANCHOR[0] + (p[0] - VIEW_ANCHOR[0]) * VIEW_SCALE;
+    const y1 = VIEW_ANCHOR[1] + (p[1] - VIEW_ANCHOR[1]) * VIEW_SCALE;
+    const z1 = VIEW_ANCHOR[2] + (p[2] - VIEW_ANCHOR[2]) * VIEW_SCALE;
+    const c = Math.cos(VIEW_PITCH);
+    const s = Math.sin(VIEW_PITCH);
+    return [x1, y1 * c - z1 * s, y1 * s + z1 * c];
+  }
+  function yawLocalPoint(x, y, z, camX, camY, camZ, yaw) {
+    const dx = x - camX;
+    const dy = y - camY;
+    const dz = z - camZ;
+    const cy = Math.cos(yaw);
+    const sy = Math.sin(yaw);
+    return [dx * cy - dz * sy, dy, dx * sy + dz * cy];
+  }
+  function presentLinePoint(index, segments2, x, y, z, camX, camY, camZ, yaw, bobPresented, bobTrue) {
+    const yl = yawLocalPoint(x, y, z, camX, camY, camZ, yaw);
+    const pr = presentViewPoint(yl[0], yl[1], yl[2]);
+    const t = segments2 > 0 ? index / segments2 : 1;
+    const px = pr[0] + (bobTrue[0] - bobPresented[0]) * t;
+    const py = pr[1] + (bobTrue[1] - bobPresented[1]) * t;
+    let pz = pr[2] + (bobTrue[2] - bobPresented[2]) * t;
+    if (pz > -0.15) pz = -0.15;
+    return [px, py, pz];
+  }
+  function fitLowerRight(pts) {
+    const butt = [pts[0], pts[1], pts[2]];
+    const tip = pts.length - 3;
+    const pitch = solveAxis(pts[tip + 1], pts[tip + 2], butt[1], butt[2], -0.58, true);
+    rotatePitch(pts, butt, pitch);
+    let yaw = solveAxis(pts[tip], pts[tip + 2], butt[0], butt[2], 0.045, false);
+    rotateYaw(pts, butt, yaw);
+    const pull = solvePortrait(pts, tip, butt);
+    rotateYaw(pts, butt, pull);
+    yaw += pull;
+    return { pitch, yaw, butt };
+  }
+  function solvePortrait(pts, tip, butt) {
+    const maxSlope = 0.82 * (375 / 667) * Math.tan(62 * Math.PI / 360);
+    const at = (angle) => {
+      const dx = pts[tip] - butt[0];
+      const dz = pts[tip + 2] - butt[2];
+      const c = Math.cos(angle);
+      const s = Math.sin(angle);
+      return {
+        x: butt[0] + dx * c + dz * s,
+        z: butt[2] - dx * s + dz * c
+      };
+    };
+    const wide = (angle) => {
+      const p = at(angle);
+      return p.z > -0.25 || p.x > maxSlope * -p.z;
+    };
+    if (!wide(0)) return 0;
+    let lo = 0;
+    let hi = 1.3;
+    for (let i = 0; i < 22; i++) {
+      const mid = (lo + hi) / 2;
+      if (wide(mid)) lo = mid;
+      else hi = mid;
+    }
+    const fitted = at(hi);
+    if (fitted.x < 0.04) return 0;
+    return hi;
+  }
+  function applyCornerFit(x, y, z, fit) {
+    let px = x;
+    let py = y;
+    let pz = z;
+    if (fit.pitch !== 0) {
+      const dy = py - fit.butt[1];
+      const dz = pz - fit.butt[2];
+      const c = Math.cos(fit.pitch);
+      const s = Math.sin(fit.pitch);
+      py = fit.butt[1] + dy * c - dz * s;
+      pz = fit.butt[2] + dy * s + dz * c;
+    }
+    if (fit.yaw !== 0) {
+      const dx = px - fit.butt[0];
+      const dz = pz - fit.butt[2];
+      const c = Math.cos(fit.yaw);
+      const s = Math.sin(fit.yaw);
+      px = fit.butt[0] + dx * c + dz * s;
+      pz = fit.butt[2] - dx * s + dz * c;
+    }
+    return [px, py, pz];
+  }
+  function solveAxis(a, b, originA, originB, targetA, pitchDown) {
+    const da = a - originA;
+    const db = b - originB;
+    const at = (angle) => {
+      const c = Math.cos(angle);
+      const s = Math.sin(angle);
+      return pitchDown ? originA + da * c - db * s : originA + da * c + db * s;
+    };
+    const tooFar = pitchDown ? at(0) > targetA : at(0) < targetA;
+    if (!tooFar) return 0;
+    let lo = pitchDown ? -1.5 : 0;
+    let hi = pitchDown ? 0 : 1.5;
+    for (let i = 0; i < 22; i++) {
+      const mid = (lo + hi) / 2;
+      const value = at(mid);
+      const still = pitchDown ? value > targetA : value < targetA;
+      if (still) {
+        if (pitchDown) hi = mid;
+        else lo = mid;
+      } else if (pitchDown) lo = mid;
+      else hi = mid;
+    }
+    return pitchDown ? lo : hi;
+  }
+  function rotatePitch(pts, butt, pitch) {
+    if (pitch === 0) return;
+    const c = Math.cos(pitch);
+    const s = Math.sin(pitch);
+    for (let i = 0; i < pts.length; i += 3) {
+      const y = pts[i + 1] - butt[1];
+      const z = pts[i + 2] - butt[2];
+      pts[i + 1] = butt[1] + y * c - z * s;
+      pts[i + 2] = butt[2] + y * s + z * c;
+    }
+  }
+  function rotateYaw(pts, butt, yaw) {
+    if (yaw === 0) return;
+    const c = Math.cos(yaw);
+    const s = Math.sin(yaw);
+    for (let i = 0; i < pts.length; i += 3) {
+      const x = pts[i] - butt[0];
+      const z = pts[i + 2] - butt[2];
+      pts[i] = butt[0] + x * c + z * s;
+      pts[i + 2] = butt[2] - x * s + z * c;
+    }
+  }
+  function bobberPixelScale(distance, viewWidth, viewHeight) {
+    const physical = Math.max(1, distance / 7);
+    const radius = 0.028 * physical;
+    const fov2 = 62 * Math.PI / 180;
+    const pxPerM = viewHeight * 0.5 / Math.max(0.4, distance) / Math.tan(fov2 * 0.5);
+    const diameterPx = radius * 2 * pxPerM;
+    const minPx = 11 * (viewWidth / 375);
+    if (diameterPx >= minPx) return physical;
+    return physical * (minPx / Math.max(diameterPx, 0.01));
+  }
   function blankCameraPoints(rig2, count = 12) {
     const b = rodBasis(rig2.drawElev, rig2.drawSide, rig2.hand.x, rig2.hand.y, rig2.hand.z);
     const out = new Float32Array(count * 3);
@@ -21702,7 +22088,7 @@ void main() {
     shaft: [0, 0, 0],
     tip: [0, 0, 0],
     bob: [0, 0, 0],
-    radius: 0.0215,
+    radius: 68e-4,
     pierHits: 0,
     bobVisible: false
   };
@@ -21714,8 +22100,8 @@ void main() {
   renderer.setClearColor(PERIOD_LOOK.dusk.clear, 1);
   document.getElementById("view").append(renderer.domElement);
   var scene = new Scene();
-  scene.fog = new Fog(PERIOD_LOOK.dusk.fog, 26, 95);
-  var ambient = new AmbientLight(PERIOD_LOOK.dusk.ambient, 0.62);
+  scene.fog = new Fog(PERIOD_LOOK.dusk.fog, 72, 165);
+  var ambient = new AmbientLight(PERIOD_LOOK.dusk.ambient, 0.5);
   scene.add(ambient);
   var sun = new DirectionalLight(PERIOD_LOOK.dusk.sun, PERIOD_LOOK.dusk.sunInt);
   sun.position.set(-12, 18, 8);
@@ -21809,23 +22195,15 @@ void main() {
   waterGeo.rotateX(-Math.PI / 2);
   var baseY = waterGeo.attributes.position.array.slice();
   var colors = new Float32Array(waterGeo.attributes.position.count * 3);
-  var pos0 = waterGeo.attributes.position;
-  for (let i = 0; i < pos0.count; i++) {
-    const z = pos0.getZ(i);
-    const t = Math.min(1, Math.max(0, (z + 40) / 120));
-    colors[i * 3] = 0.25 + (0.05 - 0.25) * t;
-    colors[i * 3 + 1] = 0.72 + (0.28 - 0.72) * t;
-    colors[i * 3 + 2] = 0.78 + (0.42 - 0.78) * t;
-  }
   waterGeo.setAttribute("color", new BufferAttribute(colors, 3));
   var water = new Mesh(
     waterGeo,
-    new MeshLambertMaterial({ vertexColors: true })
+    new MeshBasicMaterial({ vertexColors: true })
   );
   water.position.set(40, 0, 30);
   scene.add(water);
-  var blankMat = new MeshLambertMaterial({ color: 3823216 });
-  var highlightMat = new MeshLambertMaterial({ color: 10404054 });
+  var blankMat = new MeshLambertMaterial({ color: 2764338 });
+  var highlightMat = new MeshLambertMaterial({ color: 12963542 });
   var reelMat = new MeshLambertMaterial({ color: 6056564 });
   var goldMat = new MeshLambertMaterial({ color: 14135642 });
   var guideMat = new MeshLambertMaterial({ color: 15199988 });
@@ -21833,63 +22211,65 @@ void main() {
   var segments = [];
   var highlights = [];
   for (let i = 0; i < ROD_N; i++) {
-    const mesh = new Mesh(new CylinderGeometry(0.01, 0.01, 1, 24), i % 4 === 0 ? highlightMat : blankMat);
+    const mesh = new Mesh(new CylinderGeometry(0.01, 0.01, 1, 12), i % 4 === 0 ? highlightMat : blankMat);
     rodRoot.add(mesh);
     segments.push(mesh);
     if (i % 4 === 2) {
-      const stripe = new Mesh(new BoxGeometry(6e-3, 1, 6e-3), highlightMat);
+      const stripe = new Mesh(new BoxGeometry(3e-3, 1, 3e-3), highlightMat);
       rodRoot.add(stripe);
       highlights.push(stripe);
     }
   }
   var guides = [];
   for (let i = 0; i < 4; i++) {
-    const guide = new Mesh(new TorusGeometry(0.028, 5e-3, 8, 16), guideMat);
+    const guide = new Mesh(new TorusGeometry(0.011, 16e-4, 6, 12), guideMat);
     rodRoot.add(guide);
     guides.push(guide);
   }
-  var reel = new Mesh(new CylinderGeometry(0.036, 0.036, 0.026, 16), reelMat);
+  var reel = new Mesh(new CylinderGeometry(0.016, 0.016, 0.012, 12), reelMat);
   reel.rotation.z = Math.PI / 2;
   rodRoot.add(reel);
-  var spool = new Mesh(new CylinderGeometry(0.028, 0.028, 0.02, 16), goldMat);
+  var spool = new Mesh(new CylinderGeometry(0.012, 0.012, 9e-3, 12), goldMat);
   spool.rotation.z = Math.PI / 2;
   rodRoot.add(spool);
-  var rotor = new Mesh(new TorusGeometry(0.042, 4e-3, 8, 16), goldMat);
+  var rotor = new Mesh(new TorusGeometry(0.018, 16e-4, 6, 12), goldMat);
   rodRoot.add(rotor);
   var crank = new Mesh(new BoxGeometry(6e-3, 0.07, 6e-3), goldMat);
   rodRoot.add(crank);
   var bail = new Mesh(new TorusGeometry(0.04, 25e-4, 6, 14, Math.PI), new MeshLambertMaterial({ color: 15199986 }));
   rodRoot.add(bail);
   var lineGeo = new BufferGeometry();
-  var linePos = new Float32Array((LINE_SEGS + 1) * 2 * 3);
+  var linePos = new Float32Array((LINE_SEGS + 1) * 3);
   lineGeo.setAttribute("position", new BufferAttribute(linePos, 3));
-  var lineIdx = [];
-  for (let i = 0; i < LINE_SEGS; i++) {
-    const a = i * 2;
-    lineIdx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
-  }
-  lineGeo.setIndex(lineIdx);
-  var lineMesh = new Mesh(lineGeo, new MeshBasicMaterial({ color: 16054250, side: DoubleSide }));
+  var lineMesh = new Line(lineGeo, new LineBasicMaterial({ color: 16249830 }));
   camera.add(lineMesh);
   var bobber = new Group();
-  var bobTop = new Mesh(new SphereGeometry(0.028, 12, 10), new MeshLambertMaterial({ color: 13781562 }));
-  var bobBot = new Mesh(new SphereGeometry(0.028, 12, 10), new MeshLambertMaterial({ color: 16052196 }));
+  var bobTop = new Mesh(new SphereGeometry(0.028, 12, 10), new MeshBasicMaterial({ color: 16742938 }));
+  var bobBot = new Mesh(new SphereGeometry(0.028, 12, 10), new MeshBasicMaterial({ color: 16774894 }));
   bobTop.scale.y = 0.5;
   bobBot.scale.y = 0.5;
-  bobTop.position.y = 0.02;
-  bobBot.position.y = -0.02;
+  bobTop.position.y = 0.014;
+  bobBot.position.y = -0.014;
   bobber.add(bobTop, bobBot);
-  var stick = new Mesh(new CylinderGeometry(8e-3, 8e-3, 0.16, 5), new MeshLambertMaterial({ color: 15782474 }));
-  stick.position.y = 0.12;
+  var stick = new Mesh(new CylinderGeometry(25e-4, 25e-4, 0.055, 5), new MeshBasicMaterial({ color: 15782474 }));
+  stick.position.y = 0.042;
   bobber.add(stick);
   scene.add(bobber);
   var splashBits = [];
-  for (let i = 0; i < 10; i++) {
-    const bit = new Mesh(new SphereGeometry(0.05, 6, 5), new MeshBasicMaterial({ color: 15202040, transparent: true, opacity: 0.8 }));
+  for (let i = 0; i < 8; i++) {
+    const bit = new Mesh(new SphereGeometry(0.028, 6, 5), new MeshBasicMaterial({ color: 15202040, transparent: true, opacity: 0.75 }));
     bit.visible = false;
     scene.add(bit);
     splashBits.push(bit);
   }
+  var splashRing = new Mesh(
+    new RingGeometry(0.08, 0.12, 24),
+    new MeshBasicMaterial({ color: 14152694, transparent: true, opacity: 0.8, side: DoubleSide })
+  );
+  splashRing.rotation.x = -Math.PI / 2;
+  splashRing.visible = false;
+  scene.add(splashRing);
+  var bobCam = new Vector3();
   var fishRoot = new Group();
   camera.add(fishRoot);
   fishRoot.visible = false;
@@ -22242,18 +22622,63 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
     const cardBar = document.getElementById("cardBar");
     if (cardBar && v.phase === "card") cardBar.style.width = `${Math.max(0, v.cardLeft / 9) * 100}%`;
   }
+  var WATER_TINT = {
+    dawn: { near: [0.04, 0.16, 0.48], far: [0.05, 0.12, 0.32], glint: [1, 0.48, 0.18], pow: 1.35 },
+    day: { near: [0.015, 0.2, 0.62], far: [0.01, 0.12, 0.4], glint: [0.9, 0.96, 0.92], pow: 2.4 },
+    dusk: { near: [0.02, 0.14, 0.5], far: [0.035, 0.1, 0.3], glint: [1, 0.42, 0.1], pow: 1.25 },
+    night: { near: [8e-3, 0.03, 0.1], far: [4e-3, 0.012, 0.04], glint: [0.06, 0.12, 0.22], pow: 2.6 }
+  };
+  var FOG_RANGE = {
+    dawn: [58, 150],
+    day: [90, 190],
+    dusk: [72, 165],
+    night: [36, 110]
+  };
+  var AMBIENT_INT = { dawn: 0.55, day: 0.68, dusk: 0.5, night: 0.32 };
+  var paintedPeriod = "";
+  function paintWaterVertex(i, x, z, period, out) {
+    const tint = WATER_TINT[period] ?? WATER_TINT.dusk;
+    const wx = x + 40;
+    const wz = z + 30;
+    const dx = wx - 56.45;
+    const dz = wz - 20;
+    const span = Math.hypot(8.84, 7.41) || 1;
+    const fx = 8.84 / span;
+    const fz = 7.41 / span;
+    const alongM = dx * fx + dz * fz;
+    const sideM = Math.abs(-dx * fz + dz * fx);
+    const t = Math.min(1, Math.max(0, alongM / 70));
+    const streak = Math.exp(-Math.pow((alongM - 22) / 16, 2)) * Math.exp(-Math.pow(sideM / 3.2, 2));
+    const band = Math.min(0.62, Math.pow(streak, tint.pow));
+    const r = tint.near[0] + (tint.far[0] - tint.near[0]) * t;
+    const g = tint.near[1] + (tint.far[1] - tint.near[1]) * t;
+    const b = tint.near[2] + (tint.far[2] - tint.near[2]) * t;
+    out[i * 3] = r + (tint.glint[0] - r) * band;
+    out[i * 3 + 1] = g + (tint.glint[1] - g) * band;
+    out[i * 3 + 2] = b + (tint.glint[2] - b) * band;
+  }
+  function paintWater(period) {
+    if (paintedPeriod === period) return;
+    paintedPeriod = period;
+    const pos = waterGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) paintWaterVertex(i, pos.getX(i), pos.getZ(i), period, colors);
+    waterGeo.attributes.color.needsUpdate = true;
+  }
   function applySky() {
-    const id = trip.view.periodId;
-    const look = PERIOD_LOOK[id] ?? PERIOD_LOOK.dusk;
+    const id = trip.view.periodId in PERIOD_LOOK ? trip.view.periodId : "dusk";
+    const look = PERIOD_LOOK[id];
     const nightLift = id === "night" && trip.view.deckLights;
     const lit = nightLift ? PERIOD_LOOK.dusk : look;
+    const fog = FOG_RANGE[id];
     renderer.setClearColor(look.clear, 1);
-    scene.fog = new Fog(look.fog, 26, 95);
+    scene.fog = new Fog(look.fog, fog[0], fog[1]);
     ambient.color.set(look.ambient);
+    ambient.intensity = AMBIENT_INT[id];
     sun.color.set(lit.sun);
     sun.intensity = lit.sunInt;
     deckLamp.intensity = nightLift ? 2.4 : 0;
     deckLamp.position.set(trip.view.eyeX, trip.view.eyeY + 1.2, trip.view.eyeZ);
+    paintWater(id);
   }
   function syncRig(dt) {
     const v = trip.view;
@@ -22307,9 +22732,18 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
       boat.position.set(v.eyeX, 0.15, v.eyeZ + 1.2);
     } else boat.visible = v.spot === "pier";
     if (v.spot === "pier") boat.position.set(64.5, 0.15, 36.5);
-    const pts = blankCameraPoints(rig, ROD_N + 1);
+    const rawBlank = blankCameraPoints(rig, ROD_N + 1);
+    const pts = new Float32Array(rawBlank.length);
+    for (let i = 0; i < rawBlank.length; i += 3) {
+      const p = presentViewPoint(rawBlank[i], rawBlank[i + 1], rawBlank[i + 2]);
+      pts[i] = p[0];
+      pts[i + 1] = p[1];
+      pts[i + 2] = p[2];
+    }
+    const fit = fitLowerRight(pts);
     const yAxis = new Vector3(0, 1, 0);
     const dir = new Vector3();
+    let buttRadius = 68e-4;
     for (let i = 0; i < segments.length; i++) {
       const ax = pts[i * 3];
       const ay = pts[i * 3 + 1];
@@ -22322,7 +22756,8 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
       dir.set(bx - ax, by - ay, bz - az).normalize();
       segments[i].quaternion.setFromUnitVectors(yAxis, dir);
       const taper = 1 - i / segments.length;
-      const radius = 45e-4 + taper * 0.017;
+      const radius = 28e-4 + taper * 4e-3;
+      if (i === 0) buttRadius = radius;
       segments[i].scale.set(radius / 0.01, len, radius / 0.01);
     }
     highlights.forEach((stripe, index) => {
@@ -22331,7 +22766,7 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
       stripe.position.copy(segments[i].position);
       stripe.quaternion.copy(segments[i].quaternion);
       stripe.scale.set(1, segments[i].scale.y, 1);
-      stripe.position.x += 8e-3;
+      stripe.position.x += 2e-3;
     });
     guides.forEach((guide, index) => {
       const i = ROD_N - 1 - index * 4;
@@ -22362,28 +22797,43 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
     let pierHits = 0;
     if (showLine) {
       const dist = Math.hypot(bobX - v.eyeX, bobY - v.eyeY, bobZ - v.eyeZ);
-      bobber.scale.setScalar(Math.max(1, dist / 7));
+      bobber.scale.setScalar(bobberPixelScale(dist, innerWidth, innerHeight));
       camera.updateMatrixWorld(true);
+      bobCam.set(bobX, bobY, bobZ);
+      camera.worldToLocal(bobCam);
+      const bobYL = yawLocalPoint(bobX, bobY, bobZ, v.eyeX, v.eyeY, v.eyeZ, frame2.yaw);
+      const bobP = presentViewPoint(bobYL[0], bobYL[1], bobYL[2]);
+      const bobTrue = [bobCam.x, bobCam.y, bobCam.z];
       const arr = lineGeo.attributes.position.array;
-      const local = [];
       for (let i = 0; i <= LINE_SEGS; i++) {
-        const world = new Vector3(rig.line[i * 3], rig.line[i * 3 + 1], rig.line[i * 3 + 2]);
-        local.push(camera.worldToLocal(world));
-      }
-      for (let i = 0; i <= LINE_SEGS; i++) {
-        const curr = local[i];
-        const next = local[Math.min(LINE_SEGS, i + 1)];
-        const nx = next.x - curr.x;
-        const nz = next.z - curr.z;
-        const len = Math.hypot(nx, nz) || 1;
-        const ox = -nz / len * 0.016;
-        const oz = nx / len * 0.016;
-        arr[i * 6] = curr.x + ox;
-        arr[i * 6 + 1] = curr.y;
-        arr[i * 6 + 2] = curr.z + oz;
-        arr[i * 6 + 3] = curr.x - ox;
-        arr[i * 6 + 4] = curr.y;
-        arr[i * 6 + 5] = curr.z - oz;
+        const p = presentLinePoint(
+          i,
+          LINE_SEGS,
+          rig.line[i * 3],
+          rig.line[i * 3 + 1],
+          rig.line[i * 3 + 2],
+          v.eyeX,
+          v.eyeY,
+          v.eyeZ,
+          frame2.yaw,
+          bobP,
+          bobTrue
+        );
+        const spun = applyCornerFit(p[0], p[1], p[2], fit);
+        const t = i / LINE_SEGS;
+        let x = spun[0];
+        let y = spun[1];
+        let z = spun[2];
+        if (fit.pitch !== 0 || fit.yaw !== 0) {
+          const end = applyCornerFit(bobTrue[0], bobTrue[1], bobTrue[2], fit);
+          x += (bobTrue[0] - end[0]) * t;
+          y += (bobTrue[1] - end[1]) * t;
+          z += (bobTrue[2] - end[2]) * t;
+        }
+        if (z > -0.15) z = -0.15;
+        arr[i * 3] = x;
+        arr[i * 3 + 1] = y;
+        arr[i * 3 + 2] = z;
       }
       lineGeo.attributes.position.needsUpdate = true;
       lineGeo.computeBoundingSphere();
@@ -22394,12 +22844,20 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
         if (y > 1.7 && y < 3.75 && pierDistance(x, z) < 0.3) pierHits++;
       }
     }
+    const splashOn = showBobber && rig.splash > 0.05 && rig.state !== "flying";
     splashBits.forEach((bit, i) => {
-      bit.visible = showBobber && rig.splash > 0.05;
+      bit.visible = splashOn;
       const a = i / splashBits.length * Math.PI * 2;
-      bit.position.set(bobX + Math.cos(a) * rig.splash * 0.35, bobY + rig.splash * 0.15, bobZ + Math.sin(a) * rig.splash * 0.35);
-      bit.scale.setScalar(0.4 + rig.splash);
+      bit.position.set(bobX + Math.cos(a) * rig.splash * 0.22, 0.04 + rig.splash * 0.05, bobZ + Math.sin(a) * rig.splash * 0.22);
+      bit.scale.setScalar(0.35 + rig.splash);
     });
+    splashRing.visible = splashOn;
+    if (splashOn) {
+      const grow = 0.55 + (1 - rig.splash) * 2.4;
+      splashRing.position.set(bobX, 0.03, bobZ);
+      splashRing.scale.setScalar(grow);
+      splashRing.material.opacity = rig.splash * 0.85;
+    }
     let shaft = 0;
     for (let i = 0; i < pts.length / 3; i++) {
       if (pts[i * 3 + 2] < -0.3) {
@@ -22412,7 +22870,7 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
       shaft: [pts[shaft * 3], pts[shaft * 3 + 1], pts[shaft * 3 + 2]],
       tip: [pts[pts.length - 3], pts[pts.length - 2], pts[pts.length - 1]],
       bob: [bobX, bobY, bobZ],
-      radius: 0.0215,
+      radius: buttRadius,
       pierHits,
       bobVisible: showBobber
     };
@@ -22488,6 +22946,7 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
       paintPanel();
     },
     bend: () => rig.bend,
+    splash: () => rig.splash,
     pose: () => lastPose,
     composition: () => {
       camera.updateMatrixWorld(true);
@@ -22506,15 +22965,28 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
       const depth = Math.max(0.2, -lastPose.butt[2]);
       const tanH = Math.tan(62 * Math.PI / 360) * (innerWidth / Math.max(1, innerHeight));
       const dock2 = document.querySelector(".dock");
+      const tip = project(lastPose.tip[0], lastPose.tip[1], lastPose.tip[2], true);
+      const arr = lineGeo.attributes.position.array;
+      let lineTop = innerHeight;
+      let lineStart = tip;
+      if (lineMesh.visible) {
+        for (let i = 0; i <= LINE_SEGS; i++) {
+          const p = project(arr[i * 3], arr[i * 3 + 1], arr[i * 3 + 2], true);
+          if (i === 0) lineStart = p;
+          if (!p.behind && p.y < lineTop) lineTop = p.y;
+        }
+      }
       return {
         butt: project(lastPose.butt[0], lastPose.butt[1], lastPose.butt[2], true),
         shaft: project(lastPose.shaft[0], lastPose.shaft[1], lastPose.shaft[2], true),
-        tip: project(lastPose.tip[0], lastPose.tip[1], lastPose.tip[2], true),
+        tip,
         bob: project(lastPose.bob[0], lastPose.bob[1], lastPose.bob[2], false),
         diamPct: lastPose.radius * 2 / depth / (2 * tanH) * 100,
         pierHits: lastPose.pierHits,
         bobVisible: lastPose.bobVisible,
         bobWorldY: lastPose.bob[1],
+        lineTop,
+        lineGap: Math.hypot(lineStart.x - tip.x, lineStart.y - tip.y),
         dock: dock2 ? getComputedStyle(dock2).display : "missing",
         w: innerWidth,
         h: innerHeight

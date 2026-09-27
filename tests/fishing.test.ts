@@ -18,7 +18,7 @@ import { GameState } from "../assets/scripts/fishing/GameState";
 import { gearStats, UPGRADES } from "../assets/scripts/fishing/Gear";
 import { fishingHarborGate } from "../assets/scripts/fishing/HarborGate";
 import { reelDragRate, reelWindRate, strainGain, swishGain, swishRate } from "../assets/scripts/fishing/audio/mix";
-import { bendExponent, RodRig } from "../assets/scripts/fishing/RodRig";
+import { applyCornerFit, blankCameraPoints, bendExponent, bobberPixelScale, fitLowerRight, presentLinePoint, presentViewPoint, RodRig, yawLocalPoint } from "../assets/scripts/fishing/RodRig";
 import { dominantHabitat, sampleCast } from "../assets/scripts/fishing/SpotQuery";
 import { PERIODS } from "../assets/scripts/fishing/Waters";
 
@@ -557,7 +557,83 @@ describe("rod rig feel", () => {
     expect(rig.bendP).toBeLessThan(2.4);
     expect(Math.abs(rig.bend)).toBeGreaterThan(0.05);
   });
+
+  it("pins the presented line on the transformed tip and keeps that tip in the lower right", () => {
+    const rig = new RodRig();
+    rig.equip(true);
+    const frame = { camX: 56.45, camY: 3.95, camZ: 20, yaw: -0.7, waterY: 0, fight: null, dip: 0 };
+    rig.update(0.2, frame);
+    const pts = blankCameraPoints(rig, 12);
+    const tip = [pts[pts.length - 3], pts[pts.length - 2], pts[pts.length - 1]];
+    const yl = yawLocalPoint(rig.tipX, rig.tipY, rig.tipZ, frame.camX, frame.camY, frame.camZ, frame.yaw);
+    expect(yl[0]).toBeCloseTo(tip[0], 4);
+    expect(yl[1]).toBeCloseTo(tip[1], 4);
+    expect(yl[2]).toBeCloseTo(tip[2], 4);
+    const shown = presentViewPoint(tip[0], tip[1], tip[2]);
+    const start = presentLinePoint(0, 48, rig.tipX, rig.tipY, rig.tipZ, frame.camX, frame.camY, frame.camZ, frame.yaw, shown, shown);
+    expect(start[0]).toBeCloseTo(shown[0], 4);
+    expect(start[1]).toBeCloseTo(shown[1], 4);
+    expect(start[2]).toBeCloseTo(shown[2], 4);
+    const fitted = presentBlank(pts);
+    const fit = fitted.fit;
+    expect(fit.pitch).toBe(0);
+    const idleTip = fitted.tip;
+    const idle = projectCam(idleTip[0], idleTip[1], idleTip[2], 1280, 720);
+    expect(idle.x, JSON.stringify(idle)).toBeGreaterThan(640);
+    expect(idle.y, JSON.stringify(idle)).toBeGreaterThan(360);
+    expect(idle.y, JSON.stringify(idle)).toBeLessThan(680);
+    const phone = projectCam(idleTip[0], idleTip[1], idleTip[2], 375, 667);
+    expect(phone.x, JSON.stringify(phone)).toBeGreaterThan(375 / 2);
+    expect(phone.y, JSON.stringify(phone)).toBeGreaterThan(667 / 2);
+    const joined = applyCornerFit(start[0], start[1], start[2], fit);
+    expect(joined[0]).toBeCloseTo(idleTip[0], 4);
+    expect(joined[1]).toBeCloseTo(idleTip[1], 4);
+
+    rig.drawElev = 1.02;
+    rig.drawSide = 0.24;
+    rig.bend = 0.2;
+    const raised = presentBlank(blankCameraPoints(rig, 12));
+    expect(raised.tip[0]).toBeGreaterThan(0.03);
+    expect(raised.tip[1]).toBeLessThan(-0.03);
+    const fight = projectCam(raised.tip[0], raised.tip[1], raised.tip[2], 1280, 720);
+    expect(fight.x, JSON.stringify(fight)).toBeGreaterThan(640);
+    expect(fight.y, JSON.stringify(fight)).toBeGreaterThan(360);
+    const fightPhone = projectCam(raised.tip[0], raised.tip[1], raised.tip[2], 375, 667);
+    expect(fightPhone.x, JSON.stringify(fightPhone)).toBeGreaterThan(375 / 2);
+    expect(fightPhone.x, JSON.stringify(fightPhone)).toBeLessThan(375 - 8);
+    expect(fightPhone.y, JSON.stringify(fightPhone)).toBeGreaterThan(667 / 2);
+    expect(fightPhone.y, JSON.stringify(fightPhone)).toBeLessThan(667 - 8);
+  });
+
+  it("adds a pixel floor without restoring the oversized bobber", () => {
+    const physical = Math.max(1, 15 / 7);
+    const far = bobberPixelScale(15, 375, 667);
+    expect(far).toBeGreaterThan(physical);
+    const old = (0.09 / 0.028) * Math.max(3.4, 15 / 3.2);
+    expect(far).toBeLessThan(old * 0.5);
+    expect(bobberPixelScale(1.5, 375, 667)).toBeCloseTo(1, 5);
+  });
 });
+
+function presentBlank(raw: Float32Array): { tip: [number, number, number]; fit: ReturnType<typeof fitLowerRight> } {
+  const pts = new Float32Array(raw.length);
+  for (let i = 0; i < raw.length; i += 3) {
+    const p = presentViewPoint(raw[i], raw[i + 1], raw[i + 2]);
+    pts[i] = p[0];
+    pts[i + 1] = p[1];
+    pts[i + 2] = p[2];
+  }
+  const fit = fitLowerRight(pts);
+  const tipI = pts.length - 3;
+  return { tip: [pts[tipI], pts[tipI + 1], pts[tipI + 2]], fit };
+}
+
+function projectCam(x: number, y: number, z: number, w: number, h: number): { x: number; y: number } {
+  const f = 1 / Math.tan((62 * Math.PI) / 360);
+  const ndcX = (x / -z) * (f / (w / h));
+  const ndcY = (y / -z) * f;
+  return { x: (ndcX * 0.5 + 0.5) * w, y: (-ndcY * 0.5 + 0.5) * h };
+}
 
 function LINE_MID(rig: RodRig): number {
   return rig.line[(48 / 2) * 3 + 1];

@@ -41,10 +41,18 @@ export const PERIOD_IDS = Object.keys(PERIODS) as PeriodId[];
 export const PERIOD_LOOK: {
   [id in PeriodId]: { clear: number; fog: number; sun: number; ambient: number; sunInt: number };
 } = {
-  dawn: { clear: 0xf0b48a, fog: 0xe7c3a4, sun: 0xffc2a0, ambient: 0xc8b0a0, sunInt: 1.15 },
-  day: { clear: 0x9ec8e2, fog: 0xb7d4e6, sun: 0xfff0d2, ambient: 0x9eb8c8, sunInt: 1.45 },
-  dusk: { clear: 0xe08a62, fog: 0xc98478, sun: 0xffb07a, ambient: 0xc09080, sunInt: 1.05 },
-  night: { clear: 0x1c2c44, fog: 0x24344c, sun: 0x8aa4c8, ambient: 0x3a4a62, sunInt: 0.35 },
+  dawn: { clear: 0xf0b48a, fog: 0xe8a888, sun: 0xffc2a0, ambient: 0x9eb6d4, sunInt: 1.05 },
+  day: { clear: 0x7eb6e0, fog: 0x8ec8ea, sun: 0xfff4e0, ambient: 0x8eb8dc, sunInt: 1.2 },
+  dusk: { clear: 0xe08a62, fog: 0xd09068, sun: 0xffb070, ambient: 0x7eabcf, sunInt: 1.12 },
+  night: { clear: 0x0e1a30, fog: 0x101828, sun: 0x6a88b0, ambient: 0x1a3050, sunInt: 0.28 },
+};
+
+/** Cocos 海面是一块无光纯色。饱和蓝，避开灰绿。预览在顶点色上再加暖色反光。 */
+export const WATER_RGB: { [id in PeriodId]: readonly [number, number, number] } = {
+  dawn: [58, 124, 178],
+  day: [28, 132, 200],
+  dusk: [24, 108, 178],
+  night: [8, 28, 64],
 };
 
 /** 蓄力 0..1 把落点推进该水域的深度带。 */

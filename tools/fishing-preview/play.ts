@@ -15,9 +15,15 @@ import {
   MARTA_GREETING,
 } from "../../assets/scripts/fishing/present";
 import {
+  applyCornerFit,
   blankCameraPoints,
+  bobberPixelScale,
+  fitLowerRight,
   LINE_SEGS,
+  presentLinePoint,
+  presentViewPoint,
   RodRig,
+  yawLocalPoint,
   type RodFrame,
 } from "../../assets/scripts/fishing/RodRig";
 import { aimLook, depthAt, pierDistance, type SpotId } from "../../assets/scripts/fishing/SpotQuery";
@@ -41,7 +47,7 @@ rig.equip(true);
 let speed = Number(params.get("speed") || 1);
 let lastPhase = trip.view.phase;
 let lastPose: { butt: number[]; shaft: number[]; tip: number[]; bob: number[]; radius: number; pierHits: number; bobVisible: boolean } = {
-  butt: [0, 0, 0], shaft: [0, 0, 0], tip: [0, 0, 0], bob: [0, 0, 0], radius: 0.0215, pierHits: 0, bobVisible: false,
+  butt: [0, 0, 0], shaft: [0, 0, 0], tip: [0, 0, 0], bob: [0, 0, 0], radius: 0.0068, pierHits: 0, bobVisible: false,
 };
 let castArmed = false;
 let aimYaw = 0;
@@ -53,8 +59,8 @@ renderer.setClearColor(PERIOD_LOOK.dusk.clear, 1);
 document.getElementById("view")!.append(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(PERIOD_LOOK.dusk.fog, 26, 95);
-const ambient = new THREE.AmbientLight(PERIOD_LOOK.dusk.ambient, 0.62);
+scene.fog = new THREE.Fog(PERIOD_LOOK.dusk.fog, 72, 165);
+const ambient = new THREE.AmbientLight(PERIOD_LOOK.dusk.ambient, 0.5);
 scene.add(ambient);
 const sun = new THREE.DirectionalLight(PERIOD_LOOK.dusk.sun, PERIOD_LOOK.dusk.sunInt);
 sun.position.set(-12, 18, 8);
@@ -158,24 +164,16 @@ const waterGeo = new THREE.PlaneGeometry(220, 180, 48, 24);
 waterGeo.rotateX(-Math.PI / 2);
 const baseY = waterGeo.attributes.position.array.slice();
 const colors = new Float32Array(waterGeo.attributes.position.count * 3);
-const pos0 = waterGeo.attributes.position;
-for (let i = 0; i < pos0.count; i++) {
-  const z = pos0.getZ(i);
-  const t = Math.min(1, Math.max(0, (z + 40) / 120));
-  colors[i * 3] = 0.25 + (0.05 - 0.25) * t;
-  colors[i * 3 + 1] = 0.72 + (0.28 - 0.72) * t;
-  colors[i * 3 + 2] = 0.78 + (0.42 - 0.78) * t;
-}
 waterGeo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 const water = new THREE.Mesh(
   waterGeo,
-  new THREE.MeshLambertMaterial({ vertexColors: true }),
+  new THREE.MeshBasicMaterial({ vertexColors: true }),
 );
 water.position.set(40, 0, 30);
 scene.add(water);
 
-const blankMat = new THREE.MeshLambertMaterial({ color: 0x3a5670 });
-const highlightMat = new THREE.MeshLambertMaterial({ color: 0x9ec0d6 });
+const blankMat = new THREE.MeshLambertMaterial({ color: 0x2a2e32 });
+const highlightMat = new THREE.MeshLambertMaterial({ color: 0xc5ced6 });
 const reelMat = new THREE.MeshLambertMaterial({ color: 0x5c6a74 });
 const goldMat = new THREE.MeshLambertMaterial({ color: 0xd7b15a });
 const guideMat = new THREE.MeshLambertMaterial({ color: 0xe7eef4 });
@@ -183,28 +181,28 @@ const ROD_N = 22;
 const segments: THREE.Mesh[] = [];
 const highlights: THREE.Mesh[] = [];
 for (let i = 0; i < ROD_N; i++) {
-  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 1, 24), i % 4 === 0 ? highlightMat : blankMat);
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 1, 12), i % 4 === 0 ? highlightMat : blankMat);
   rodRoot.add(mesh);
   segments.push(mesh);
   if (i % 4 === 2) {
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.006, 1, 0.006), highlightMat);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.003, 1, 0.003), highlightMat);
     rodRoot.add(stripe);
     highlights.push(stripe);
   }
 }
 const guides: THREE.Mesh[] = [];
 for (let i = 0; i < 4; i++) {
-  const guide = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.005, 8, 16), guideMat);
+  const guide = new THREE.Mesh(new THREE.TorusGeometry(0.011, 0.0016, 6, 12), guideMat);
   rodRoot.add(guide);
   guides.push(guide);
 }
-const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.026, 16), reelMat);
+const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.012, 12), reelMat);
 reel.rotation.z = Math.PI / 2;
 rodRoot.add(reel);
-const spool = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.02, 16), goldMat);
+const spool = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.009, 12), goldMat);
 spool.rotation.z = Math.PI / 2;
 rodRoot.add(spool);
-const rotor = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.004, 8, 16), goldMat);
+const rotor = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.0016, 6, 12), goldMat);
 rodRoot.add(rotor);
 const crank = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.07, 0.006), goldMat);
 rodRoot.add(crank);
@@ -212,37 +210,39 @@ const bail = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.0025, 6, 14, Math.PI
 rodRoot.add(bail);
 
 const lineGeo = new THREE.BufferGeometry();
-const linePos = new Float32Array((LINE_SEGS + 1) * 2 * 3);
+const linePos = new Float32Array((LINE_SEGS + 1) * 3);
 lineGeo.setAttribute("position", new THREE.BufferAttribute(linePos, 3));
-const lineIdx: number[] = [];
-for (let i = 0; i < LINE_SEGS; i++) {
-  const a = i * 2;
-  lineIdx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
-}
-lineGeo.setIndex(lineIdx);
-const lineMesh = new THREE.Mesh(lineGeo, new THREE.MeshBasicMaterial({ color: 0xf4f7ea, side: THREE.DoubleSide }));
+const lineMesh = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xf7f3e6 }));
 camera.add(lineMesh);
 
 const bobber = new THREE.Group();
-const bobTop = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10), new THREE.MeshLambertMaterial({ color: 0xd24a3a }));
-const bobBot = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10), new THREE.MeshLambertMaterial({ color: 0xf4efe4 }));
+const bobTop = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10), new THREE.MeshBasicMaterial({ color: 0xff7a1a }));
+const bobBot = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10), new THREE.MeshBasicMaterial({ color: 0xfff6ee }));
 bobTop.scale.y = 0.5;
 bobBot.scale.y = 0.5;
-bobTop.position.y = 0.02;
-bobBot.position.y = -0.02;
+bobTop.position.y = 0.014;
+bobBot.position.y = -0.014;
 bobber.add(bobTop, bobBot);
-const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.16, 5), new THREE.MeshLambertMaterial({ color: 0xf0d24a }));
-stick.position.y = 0.12;
+const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.0025, 0.0025, 0.055, 5), new THREE.MeshBasicMaterial({ color: 0xf0d24a }));
+stick.position.y = 0.042;
 bobber.add(stick);
 scene.add(bobber);
 
 const splashBits: THREE.Mesh[] = [];
-for (let i = 0; i < 10; i++) {
-  const bit = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), new THREE.MeshBasicMaterial({ color: 0xe7f6f8, transparent: true, opacity: 0.8 }));
+for (let i = 0; i < 8; i++) {
+  const bit = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 5), new THREE.MeshBasicMaterial({ color: 0xe7f6f8, transparent: true, opacity: 0.75 }));
   bit.visible = false;
   scene.add(bit);
   splashBits.push(bit);
 }
+const splashRing = new THREE.Mesh(
+  new THREE.RingGeometry(0.08, 0.12, 24),
+  new THREE.MeshBasicMaterial({ color: 0xd7f3f6, transparent: true, opacity: 0.8, side: THREE.DoubleSide }),
+);
+splashRing.rotation.x = -Math.PI / 2;
+splashRing.visible = false;
+scene.add(splashRing);
+const bobCam = new THREE.Vector3();
 
 const fishRoot = new THREE.Group();
 camera.add(fishRoot);
@@ -604,18 +604,68 @@ function syncHud(): void {
   if (cardBar && v.phase === "card") cardBar.style.width = `${Math.max(0, v.cardLeft / 9) * 100}%`;
 }
 
+const WATER_TINT: {
+  [id in PeriodId]: { near: [number, number, number]; far: [number, number, number]; glint: [number, number, number]; pow: number };
+} = {
+  dawn: { near: [0.04, 0.16, 0.48], far: [0.05, 0.12, 0.32], glint: [1, 0.48, 0.18], pow: 1.35 },
+  day: { near: [0.015, 0.2, 0.62], far: [0.01, 0.12, 0.4], glint: [0.9, 0.96, 0.92], pow: 2.4 },
+  dusk: { near: [0.02, 0.14, 0.5], far: [0.035, 0.1, 0.3], glint: [1, 0.42, 0.1], pow: 1.25 },
+  night: { near: [0.008, 0.03, 0.1], far: [0.004, 0.012, 0.04], glint: [0.06, 0.12, 0.22], pow: 2.6 },
+};
+const FOG_RANGE: { [id in PeriodId]: [number, number] } = {
+  dawn: [58, 150],
+  day: [90, 190],
+  dusk: [72, 165],
+  night: [36, 110],
+};
+const AMBIENT_INT: { [id in PeriodId]: number } = { dawn: 0.55, day: 0.68, dusk: 0.5, night: 0.32 };
+let paintedPeriod: PeriodId | "" = "";
+
+function paintWaterVertex(i: number, x: number, z: number, period: PeriodId, out: Float32Array): void {
+  const tint = WATER_TINT[period] ?? WATER_TINT.dusk;
+  const wx = x + 40;
+  const wz = z + 30;
+  const dx = wx - 56.45;
+  const dz = wz - 20;
+  const span = Math.hypot(8.84, 7.41) || 1;
+  const fx = 8.84 / span;
+  const fz = 7.41 / span;
+  const alongM = dx * fx + dz * fz;
+  const sideM = Math.abs(-dx * fz + dz * fx);
+  const t = Math.min(1, Math.max(0, alongM / 70));
+  const streak = Math.exp(-Math.pow((alongM - 22) / 16, 2)) * Math.exp(-Math.pow(sideM / 3.2, 2));
+  const band = Math.min(0.62, Math.pow(streak, tint.pow));
+  const r = tint.near[0] + (tint.far[0] - tint.near[0]) * t;
+  const g = tint.near[1] + (tint.far[1] - tint.near[1]) * t;
+  const b = tint.near[2] + (tint.far[2] - tint.near[2]) * t;
+  out[i * 3] = r + (tint.glint[0] - r) * band;
+  out[i * 3 + 1] = g + (tint.glint[1] - g) * band;
+  out[i * 3 + 2] = b + (tint.glint[2] - b) * band;
+}
+
+function paintWater(period: PeriodId): void {
+  if (paintedPeriod === period) return;
+  paintedPeriod = period;
+  const pos = waterGeo.attributes.position;
+  for (let i = 0; i < pos.count; i++) paintWaterVertex(i, pos.getX(i), pos.getZ(i), period, colors);
+  (waterGeo.attributes.color as THREE.BufferAttribute).needsUpdate = true;
+}
+
 function applySky(): void {
-  const id = trip.view.periodId as PeriodId;
-  const look = PERIOD_LOOK[id] ?? PERIOD_LOOK.dusk;
+  const id = (trip.view.periodId in PERIOD_LOOK ? trip.view.periodId : "dusk") as PeriodId;
+  const look = PERIOD_LOOK[id];
   const nightLift = id === "night" && trip.view.deckLights;
   const lit = nightLift ? PERIOD_LOOK.dusk : look;
+  const fog = FOG_RANGE[id];
   renderer.setClearColor(look.clear, 1);
-  scene.fog = new THREE.Fog(look.fog, 26, 95);
+  scene.fog = new THREE.Fog(look.fog, fog[0], fog[1]);
   ambient.color.set(look.ambient);
+  ambient.intensity = AMBIENT_INT[id];
   sun.color.set(lit.sun);
   sun.intensity = lit.sunInt;
   deckLamp.intensity = nightLift ? 2.4 : 0;
   deckLamp.position.set(trip.view.eyeX, trip.view.eyeY + 1.2, trip.view.eyeZ);
+  paintWater(id);
 }
 
 function syncRig(dt: number): void {
@@ -672,9 +722,18 @@ function syncRig(dt: number): void {
   } else boat.visible = v.spot === "pier";
   if (v.spot === "pier") boat.position.set(64.5, 0.15, 36.5);
 
-  const pts = blankCameraPoints(rig, ROD_N + 1);
+  const rawBlank = blankCameraPoints(rig, ROD_N + 1);
+  const pts = new Float32Array(rawBlank.length);
+  for (let i = 0; i < rawBlank.length; i += 3) {
+    const p = presentViewPoint(rawBlank[i], rawBlank[i + 1], rawBlank[i + 2]);
+    pts[i] = p[0];
+    pts[i + 1] = p[1];
+    pts[i + 2] = p[2];
+  }
+  const fit = fitLowerRight(pts);
   const yAxis = new THREE.Vector3(0, 1, 0);
   const dir = new THREE.Vector3();
+  let buttRadius = 0.0068;
   for (let i = 0; i < segments.length; i++) {
     const ax = pts[i * 3];
     const ay = pts[i * 3 + 1];
@@ -687,7 +746,8 @@ function syncRig(dt: number): void {
     dir.set(bx - ax, by - ay, bz - az).normalize();
     segments[i].quaternion.setFromUnitVectors(yAxis, dir);
     const taper = 1 - i / segments.length;
-    const radius = 0.0045 + taper * 0.017;
+    const radius = 0.0028 + taper * 0.004;
+    if (i === 0) buttRadius = radius;
     segments[i].scale.set(radius / 0.01, len, radius / 0.01);
   }
   highlights.forEach((stripe, index) => {
@@ -696,7 +756,7 @@ function syncRig(dt: number): void {
     stripe.position.copy(segments[i].position);
     stripe.quaternion.copy(segments[i].quaternion);
     stripe.scale.set(1, segments[i].scale.y, 1);
-    stripe.position.x += 0.008;
+    stripe.position.x += 0.002;
   });
   guides.forEach((guide, index) => {
     const i = ROD_N - 1 - index * 4;
@@ -728,28 +788,43 @@ function syncRig(dt: number): void {
   let pierHits = 0;
   if (showLine) {
     const dist = Math.hypot(bobX - v.eyeX, bobY - v.eyeY, bobZ - v.eyeZ);
-    bobber.scale.setScalar(Math.max(1, dist / 7));
+    bobber.scale.setScalar(bobberPixelScale(dist, innerWidth, innerHeight));
     camera.updateMatrixWorld(true);
+    bobCam.set(bobX, bobY, bobZ);
+    camera.worldToLocal(bobCam);
+    const bobYL = yawLocalPoint(bobX, bobY, bobZ, v.eyeX, v.eyeY, v.eyeZ, frame.yaw);
+    const bobP = presentViewPoint(bobYL[0], bobYL[1], bobYL[2]);
+    const bobTrue: [number, number, number] = [bobCam.x, bobCam.y, bobCam.z];
     const arr = lineGeo.attributes.position.array as Float32Array;
-    const local: THREE.Vector3[] = [];
     for (let i = 0; i <= LINE_SEGS; i++) {
-      const world = new THREE.Vector3(rig.line[i * 3], rig.line[i * 3 + 1], rig.line[i * 3 + 2]);
-      local.push(camera.worldToLocal(world));
-    }
-    for (let i = 0; i <= LINE_SEGS; i++) {
-      const curr = local[i];
-      const next = local[Math.min(LINE_SEGS, i + 1)];
-      const nx = next.x - curr.x;
-      const nz = next.z - curr.z;
-      const len = Math.hypot(nx, nz) || 1;
-      const ox = (-nz / len) * 0.016;
-      const oz = (nx / len) * 0.016;
-      arr[i * 6] = curr.x + ox;
-      arr[i * 6 + 1] = curr.y;
-      arr[i * 6 + 2] = curr.z + oz;
-      arr[i * 6 + 3] = curr.x - ox;
-      arr[i * 6 + 4] = curr.y;
-      arr[i * 6 + 5] = curr.z - oz;
+      const p = presentLinePoint(
+        i,
+        LINE_SEGS,
+        rig.line[i * 3],
+        rig.line[i * 3 + 1],
+        rig.line[i * 3 + 2],
+        v.eyeX,
+        v.eyeY,
+        v.eyeZ,
+        frame.yaw,
+        bobP,
+        bobTrue,
+      );
+      const spun = applyCornerFit(p[0], p[1], p[2], fit);
+      const t = i / LINE_SEGS;
+      let x = spun[0];
+      let y = spun[1];
+      let z = spun[2];
+      if (fit.pitch !== 0 || fit.yaw !== 0) {
+        const end = applyCornerFit(bobTrue[0], bobTrue[1], bobTrue[2], fit);
+        x += (bobTrue[0] - end[0]) * t;
+        y += (bobTrue[1] - end[1]) * t;
+        z += (bobTrue[2] - end[2]) * t;
+      }
+      if (z > -0.15) z = -0.15;
+      arr[i * 3] = x;
+      arr[i * 3 + 1] = y;
+      arr[i * 3 + 2] = z;
     }
     lineGeo.attributes.position.needsUpdate = true;
     lineGeo.computeBoundingSphere();
@@ -760,12 +835,20 @@ function syncRig(dt: number): void {
       if (y > 1.7 && y < 3.75 && pierDistance(x, z) < 0.3) pierHits++;
     }
   }
+  const splashOn = showBobber && rig.splash > 0.05 && rig.state !== "flying";
   splashBits.forEach((bit, i) => {
-    bit.visible = showBobber && rig.splash > 0.05;
+    bit.visible = splashOn;
     const a = (i / splashBits.length) * Math.PI * 2;
-    bit.position.set(bobX + Math.cos(a) * rig.splash * 0.35, bobY + rig.splash * 0.15, bobZ + Math.sin(a) * rig.splash * 0.35);
-    bit.scale.setScalar(0.4 + rig.splash);
+    bit.position.set(bobX + Math.cos(a) * rig.splash * 0.22, 0.04 + rig.splash * 0.05, bobZ + Math.sin(a) * rig.splash * 0.22);
+    bit.scale.setScalar(0.35 + rig.splash);
   });
+  splashRing.visible = splashOn;
+  if (splashOn) {
+    const grow = 0.55 + (1 - rig.splash) * 2.4;
+    splashRing.position.set(bobX, 0.03, bobZ);
+    splashRing.scale.setScalar(grow);
+    (splashRing.material as THREE.MeshBasicMaterial).opacity = rig.splash * 0.85;
+  }
   let shaft = 0;
   for (let i = 0; i < pts.length / 3; i++) {
     if (pts[i * 3 + 2] < -0.3) {
@@ -778,7 +861,7 @@ function syncRig(dt: number): void {
     shaft: [pts[shaft * 3], pts[shaft * 3 + 1], pts[shaft * 3 + 2]],
     tip: [pts[pts.length - 3], pts[pts.length - 2], pts[pts.length - 1]],
     bob: [bobX, bobY, bobZ],
-    radius: 0.0215,
+    radius: buttRadius,
     pierHits,
     bobVisible: showBobber,
   };
@@ -853,6 +936,7 @@ const api = {
   act: (name: string) => onAct(name),
   openShop: () => { panelKind = "marta"; paintPanel(); },
   bend: () => rig.bend,
+  splash: () => rig.splash,
   pose: () => lastPose,
   composition: () => {
     camera.updateMatrixWorld(true);
@@ -871,15 +955,28 @@ const api = {
     const depth = Math.max(0.2, -lastPose.butt[2]);
     const tanH = Math.tan((62 * Math.PI) / 360) * (innerWidth / Math.max(1, innerHeight));
     const dock = document.querySelector(".dock");
+    const tip = project(lastPose.tip[0], lastPose.tip[1], lastPose.tip[2], true);
+    const arr = lineGeo.attributes.position.array as Float32Array;
+    let lineTop = innerHeight;
+    let lineStart = tip;
+    if (lineMesh.visible) {
+      for (let i = 0; i <= LINE_SEGS; i++) {
+        const p = project(arr[i * 3], arr[i * 3 + 1], arr[i * 3 + 2], true);
+        if (i === 0) lineStart = p;
+        if (!p.behind && p.y < lineTop) lineTop = p.y;
+      }
+    }
     return {
       butt: project(lastPose.butt[0], lastPose.butt[1], lastPose.butt[2], true),
       shaft: project(lastPose.shaft[0], lastPose.shaft[1], lastPose.shaft[2], true),
-      tip: project(lastPose.tip[0], lastPose.tip[1], lastPose.tip[2], true),
+      tip,
       bob: project(lastPose.bob[0], lastPose.bob[1], lastPose.bob[2], false),
       diamPct: (lastPose.radius * 2) / depth / (2 * tanH) * 100,
       pierHits: lastPose.pierHits,
       bobVisible: lastPose.bobVisible,
       bobWorldY: lastPose.bob[1],
+      lineTop,
+      lineGap: Math.hypot(lineStart.x - tip.x, lineStart.y - tip.y),
       dock: dock ? getComputedStyle(dock).display : "missing",
       w: innerWidth,
       h: innerHeight,

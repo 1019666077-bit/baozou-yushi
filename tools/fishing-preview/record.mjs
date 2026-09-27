@@ -84,6 +84,19 @@ function assertRod(name, shot) {
   const problems = [];
   if (!shot.shaft || shot.shaft.behind || shot.tip.behind) problems.push(`竿不在画面里 ${JSON.stringify({ shaft: shot.shaft, tip: shot.tip })}`);
   if (shot.shaft && !(shot.tip.y < shot.shaft.y)) problems.push(`竿尖没有高于竿身 ${JSON.stringify({ tip: shot.tip, shaft: shot.shaft })}`);
+  if (!(shot.tip.x > shot.w * 0.5 && shot.tip.y > shot.h * 0.5)) {
+    problems.push(`竿尖越过中线 ${JSON.stringify(shot.tip)} ${shot.w}x${shot.h}`);
+  }
+  if (shot.tip.x >= shot.w - 4 || shot.tip.y >= shot.h - 4) {
+    problems.push(`竿尖出了画面 ${JSON.stringify(shot.tip)} ${shot.w}x${shot.h}`);
+  }
+  if (problems.length) throw new Error(`${name} ${problems.join("；")}`);
+}
+
+function assertLine(name, shot) {
+  const problems = [];
+  if (typeof shot.lineTop === "number" && shot.lineTop < -2) problems.push(`线冲出画面顶部 ${shot.lineTop}`);
+  if (typeof shot.lineGap === "number" && shot.lineGap > 28) problems.push(`线没有接到竿尖 gap=${shot.lineGap}`);
   if (problems.length) throw new Error(`${name} ${problems.join("；")}`);
 }
 
@@ -95,6 +108,7 @@ function assertIdle(name, shot) {
 
 function assertBob(name, shot, air) {
   assertRod(name, shot);
+  assertLine(name, shot);
   const problems = [];
   if (!shot.bobVisible) problems.push("浮标没显示");
   if (!air && (shot.bob.behind || shot.bobWorldY > 0.35)) problems.push(`浮标不在水面 ${JSON.stringify(shot.bob)} y=${shot.bobWorldY}`);
@@ -226,15 +240,14 @@ try {
 
   const frames = [];
   let capturing = false;
-  const timer = setInterval(async () => {
+  let shotBusy = Promise.resolve();
+  const timer = setInterval(() => {
     if (!capturing) return;
     const file = path.join(frameDir, `f${String(frames.length).padStart(4, "0")}.png`);
     frames.push(file);
-    try {
-      await page.screenshot({ path: file });
-    } catch {
+    shotBusy = page.screenshot({ path: file }).catch(() => {
       frames.pop();
-    }
+    });
   }, 125);
 
   async function steer(page) {
@@ -260,6 +273,9 @@ try {
       console.log("02-fly", JSON.stringify(flyShot));
       await shot(page, "02-fly.png");
     }
+    await page.evaluate(() => window.__fishing.setSpeed(1));
+    await until(page, (v) => v.rodState === "floating" || v.phase === "waiting", 8000);
+    await wait(160);
     await page.evaluate(() => window.__fishing.setSpeed(6));
     await until(page, (v) => (v.phase === "waiting" || v.phase === "nibbling") && v.rodState === "floating" && v.bobY < 0.45, 12000);
     await page.evaluate(() => window.__fishing.setSpeed(1));
@@ -284,9 +300,26 @@ try {
     ).catch(async () => view(page));
     const mid = posed.phase ? posed : await view(page);
     if (mid.phase === "fighting") {
+      await page.evaluate(() => window.__fishing.setSpeed(0.15));
       const fightShot = assertBob("03-fight", await composition(page), false);
       console.log("03-fight", JSON.stringify(fightShot));
       await shot(page, "03-fight.png");
+      capturing = false;
+      await shotBusy;
+      await page.setViewport({ width: 375, height: 667, deviceScaleFactor: 1 });
+      await page.waitForFunction(() => innerWidth === 375 && innerHeight === 667, { timeout: 3000 });
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const fightPhone = assertBob("03-fight-375", await composition(page), false);
+      if (fightPhone.w !== 375 || fightPhone.h !== 667) {
+        throw new Error(`03-fight-375 视口不对 ${fightPhone.w}x${fightPhone.h}`);
+      }
+      console.log("03-fight-375", JSON.stringify(fightPhone));
+      await shot(page, "03-fight-375.png");
+      await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
+      await page.waitForFunction(() => innerWidth === 1280 && innerHeight === 720, { timeout: 3000 });
+      await wait(160);
+      capturing = true;
+      await page.evaluate(() => window.__fishing.setSpeed(3));
     }
     const start = Date.now();
     let done = mid;
