@@ -49,14 +49,34 @@ body { overflow: hidden; }
   text-shadow: 0 1px 4px #000; font-size: 15px;
 }
 #hold {
-  position: absolute; left: 12px; right: 12px; bottom: 8px; height: 64px;
+  position: absolute; left: 80px; right: 72px; bottom: 8px; height: 56px;
   border: 0; border-radius: 16px; background: rgba(111, 214, 198, 0.88); color: #082018;
   font: 700 18px inherit;
 }
+body.overlay .chrome,
+body.overlay #hint,
+body.overlay #map,
+body.overlay #hold,
+body.overlay #tip,
+body.overlay .fight,
+body.overlay .cast,
+body.overlay .bite,
+body.overlay .purse { display: none !important; }
 .dock {
-  position: absolute; left: 12px; top: 12px; display: flex; flex-wrap: wrap; gap: 6px;
+  position: absolute; left: 12px; top: 12px; display: none; flex-wrap: wrap; gap: 6px;
   max-width: calc(100vw - 220px);
 }
+body.debug .dock { display: flex; }
+.chrome { pointer-events: auto; }
+#talks { position: absolute; left: 12px; bottom: 86px; display: flex; flex-direction: column; gap: 6px; }
+#spot { position: absolute; left: 8px; bottom: 12px; width: 64px; height: 48px; padding: 4px; }
+#retrieve-btn { position: absolute; right: 8px; bottom: 12px; width: 56px; height: 48px; padding: 4px; }
+#cooler-btn { position: absolute; right: 12px; top: 58px; width: 56px; height: 40px; padding: 4px; }
+.icon, #talks button {
+  border: 0; border-radius: 12px; background: rgba(8, 18, 28, 0.78);
+  color: #f4ead6; font: 600 13px inherit;
+}
+#talks button { padding: 8px 12px; }
 .dock button, .panel button, .guide button {
   border: 0; border-radius: 999px; padding: 8px 12px; background: rgba(255,255,255,0.14);
   color: #f4ead6; font: 600 14px inherit;
@@ -73,10 +93,11 @@ body { overflow: hidden; }
 }
 .tip.on { display: block; }
 .panel {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: min(420px, calc(100vw - 24px)); max-height: min(70vh, calc(100dvh - 24px));
+  position: absolute; left: 50%; top: 8px; transform: translateX(-50%);
+  width: min(420px, calc(100vw - 16px)); max-height: calc(100dvh - 16px);
   overflow: auto; box-sizing: border-box; padding: 16px 16px 12px; border-radius: 18px;
-  background: rgba(10, 18, 28, 0.94); border: 1px solid rgba(255,255,255,0.14); display: none;
+  background: rgba(10, 18, 28, 0.96); border: 1px solid rgba(255,255,255,0.14); display: none;
+  z-index: 6;
 }
 .panel.on { display: block; }
 .panel h2 { margin: 0 0 4px; font-size: 18px; }

@@ -12,9 +12,19 @@ export type WaypointId = "bay" | "reef" | "deep";
 
 export const SPOT_EYE: { [id in SpotId]: { x: number; y: number; z: number } } = {
   beach: { x: 20, y: 1.65, z: -40 },
-  pier: { x: 55, y: 3.95, z: 28 },
+  pier: { x: 56.45, y: 3.95, z: 20 },
   boat: { x: 64.5, y: 2.2, z: 36.5 },
 };
+
+/** 码头镜头朝侧面的水，不顺着栈桥中线。落点和这个水平方向一致。 */
+const PIER_LOOK_X = 8.84;
+const PIER_LOOK_Z = 7.41;
+
+export function fishingLook(spot: SpotId, eyeX: number, eyeZ: number): { x: number; y: number; z: number } {
+  if (spot === "beach") return { x: eyeX, y: 0.35, z: eyeZ + 12 };
+  if (spot === "boat") return { x: eyeX + 8, y: 0.4, z: eyeZ + 3 };
+  return { x: eyeX + PIER_LOOK_X, y: 0.64, z: eyeZ + PIER_LOOK_Z };
+}
 
 export const WAYPOINTS: {
   [id in WaypointId]: { x: number; z: number; depth: number; reefDist: number; pierDist: number };
@@ -104,9 +114,11 @@ export function sampleCast(
     };
   }
   const eye = SPOT_EYE[spot];
-  // 码头朝侧面的水里抛，落点贴着桩，不会一下抛进开阔的海湾。
-  const x = spot === "pier" ? eye.x + 3.1 : eye.x;
-  const z = spot === "pier" ? eye.z + 5 + clamped * 6 : eye.z + reach;
+  // 人站在栈桥上朝侧面的水抛。落点沿镜头水平方向，离栈桥几米，不落在甲板上。
+  const span = Math.hypot(PIER_LOOK_X, PIER_LOOK_Z);
+  const dist = 4.4 + clamped * 6.2;
+  const x = spot === "pier" ? eye.x + (PIER_LOOK_X / span) * dist : eye.x;
+  const z = spot === "pier" ? eye.z + (PIER_LOOK_Z / span) * dist : eye.z + reach;
   const depth = depthAt(x, z);
   const reefDist = reefDistance(x, z);
   const pierDist = pierDistance(x, z);

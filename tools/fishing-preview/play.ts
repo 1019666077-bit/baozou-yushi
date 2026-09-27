@@ -16,9 +16,11 @@ import {
 import {
   blankCameraPoints,
   LINE_SEGS,
+  presentRodPoint,
   RodRig,
   type RodFrame,
 } from "../../assets/scripts/fishing/RodRig";
+import { fishingLook, pierDistance, sampleCast, type SpotId } from "../../assets/scripts/fishing/SpotQuery";
 
 function seeded(seed: number): () => number {
   let x = seed || 1;
@@ -31,11 +33,15 @@ function seeded(seed: number): () => number {
 }
 
 const params = new URLSearchParams(location.search);
+const debug = params.get("debug") === "1";
 const trip = new FishingTrip({ rng: seeded(Number(params.get("seed") || 2)), money: 0 });
 const rig = new RodRig();
 rig.equip(true);
 let speed = Number(params.get("speed") || 1);
 let lastPhase = trip.view.phase;
+let lastPose: { butt: number[]; tip: number[]; bob: number[]; radius: number; pierHits: number } = {
+  butt: [0, 0, 0], tip: [0, 0, 0], bob: [0, 0, 0], radius: 0.0215, pierHits: 0,
+};
 let castArmed = false;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -136,8 +142,12 @@ function buildStall(x: number, z: number, shirt: THREE.Material, apron: THREE.Ma
 buildPier();
 buildBeach();
 const boat = buildBoat();
-const joe = buildStall(49.2, 14, shirtMat, apronMat, "乔");
-const marta = buildStall(62, 18, martaMat, new THREE.MeshLambertMaterial({ color: 0x3d5a4a }), "玛塔");
+const joe = buildStall(50.6, 16.6, shirtMat, apronMat, "乔");
+const marta = buildStall(50.4, 24.4, martaMat, new THREE.MeshLambertMaterial({ color: 0x3d5a4a }), "玛塔");
+const vendors = [
+  { id: "joe", name: "乔", x: 50.6, z: 16.6 },
+  { id: "marta", name: "玛塔", x: 50.4, z: 24.4 },
+];
 
 const waterGeo = new THREE.PlaneGeometry(220, 180, 48, 24);
 waterGeo.rotateX(-Math.PI / 2);
@@ -159,23 +169,41 @@ const water = new THREE.Mesh(
 water.position.set(40, 0, 30);
 scene.add(water);
 
-const blankMat = new THREE.MeshLambertMaterial({ color: 0x1c2128 });
-const reelMat = new THREE.MeshLambertMaterial({ color: 0x3a3e44 });
-const goldMat = new THREE.MeshLambertMaterial({ color: 0xc6a15a });
+const blankMat = new THREE.MeshLambertMaterial({ color: 0x3a5670 });
+const highlightMat = new THREE.MeshLambertMaterial({ color: 0x9ec0d6 });
+const reelMat = new THREE.MeshLambertMaterial({ color: 0x5c6a74 });
+const goldMat = new THREE.MeshLambertMaterial({ color: 0xd7b15a });
+const guideMat = new THREE.MeshLambertMaterial({ color: 0xe7eef4 });
+const ROD_N = 22;
 const segments: THREE.Mesh[] = [];
-for (let i = 0; i < 11; i++) {
-  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.03, 1, 6), blankMat);
+const highlights: THREE.Mesh[] = [];
+for (let i = 0; i < ROD_N; i++) {
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 1, 24), i % 4 === 0 ? highlightMat : blankMat);
   rodRoot.add(mesh);
   segments.push(mesh);
+  if (i % 4 === 2) {
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.006, 1, 0.006), highlightMat);
+    rodRoot.add(stripe);
+    highlights.push(stripe);
+  }
 }
-const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.05, 10), reelMat);
+const guides: THREE.Mesh[] = [];
+for (let i = 0; i < 4; i++) {
+  const guide = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.005, 8, 16), guideMat);
+  rodRoot.add(guide);
+  guides.push(guide);
+}
+const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.026, 16), reelMat);
 reel.rotation.z = Math.PI / 2;
 rodRoot.add(reel);
-const rotor = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.006, 6, 12), goldMat);
+const spool = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.02, 16), goldMat);
+spool.rotation.z = Math.PI / 2;
+rodRoot.add(spool);
+const rotor = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.004, 8, 16), goldMat);
 rodRoot.add(rotor);
-const crank = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.09, 0.012), goldMat);
+const crank = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.07, 0.006), goldMat);
 rodRoot.add(crank);
-const bail = new THREE.Mesh(new THREE.TorusGeometry(0.048, 0.004, 6, 10, Math.PI), new THREE.MeshLambertMaterial({ color: 0xd5dbdf }));
+const bail = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.0025, 6, 14, Math.PI), new THREE.MeshLambertMaterial({ color: 0xe7eef2 }));
 rodRoot.add(bail);
 
 const lineGeo = new THREE.BufferGeometry();
@@ -191,8 +219,8 @@ const lineMesh = new THREE.Mesh(lineGeo, new THREE.MeshBasicMaterial({ color: 0x
 camera.add(lineMesh);
 
 const bobber = new THREE.Group();
-const bobTop = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), new THREE.MeshLambertMaterial({ color: 0xd24a3a }));
-const bobBot = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), new THREE.MeshLambertMaterial({ color: 0xf4efe4 }));
+const bobTop = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), new THREE.MeshLambertMaterial({ color: 0xd24a3a }));
+const bobBot = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), new THREE.MeshLambertMaterial({ color: 0xf4efe4 }));
 bobTop.scale.y = 0.5;
 bobBot.scale.y = 0.5;
 bobTop.position.y = 0.02;
@@ -261,10 +289,15 @@ function playClip(id: string): void {
   } catch { /* 浏览器还没允许声音 */ }
 }
 
+if (debug) document.body.classList.add("debug");
 const hud = document.getElementById("hud")!;
 hud.innerHTML = `
   <div class="purse"><span class="money" id="money">0 金</span><span class="cooler"><span id="coolerLabel">冷藏箱</span> <b class="bar" id="coolerBar"><i></i></b> <span id="coolerKg">0 / 30 kg</span></span></div>
   <div class="dock" id="dock"></div>
+  <div class="chrome" id="talks"></div>
+  <button id="spot" class="chrome icon" type="button">换钓点</button>
+  <button id="cooler-btn" class="chrome icon" type="button">鱼舱</button>
+  <button id="retrieve-btn" class="chrome icon" type="button">收竿</button>
   <div class="fight" id="fight"><div class="fight-head"><span id="fightCall">收线</span><span id="fightDist">0 m</span></div><div class="tension"><span class="band" id="band"></span><span class="danger"></span><span class="needle" id="needle"></span></div><div class="stam"><i id="stam"></i></div></div>
   <div class="bite" id="bite">！</div>
   <div class="cast" id="cast"><i></i></div>
@@ -297,6 +330,17 @@ dockButton("玛塔", "marta");
 dockButton("鱼舱", "cooler");
 dockButton("拿出鱼竿", "ready");
 dockButton("收回", "retrieve");
+
+const SPOT_CYCLE = ["pier", "beach", "boat"] as const;
+document.getElementById("spot")!.addEventListener("click", () => {
+  const i = SPOT_CYCLE.indexOf(trip.view.spot);
+  const next = SPOT_CYCLE[(i + 1) % SPOT_CYCLE.length];
+  onAct(next);
+  if (next === "boat") onAct(trip.view.waypoint === "bay" ? "reef" : trip.view.waypoint === "reef" ? "deep" : "bay");
+});
+document.getElementById("cooler-btn")!.addEventListener("click", () => onAct("cooler"));
+document.getElementById("retrieve-btn")!.addEventListener("click", () => onAct("retrieve"));
+const talks = document.getElementById("talks")!;
 
 let panelKind = "";
 function onAct(act: string): void {
@@ -397,6 +441,7 @@ function paintCatch(): void {
 }
 
 let panelStamp = "";
+let talkStamp = "";
 function syncHud(): void {
   const v = trip.view;
   document.getElementById("money")!.textContent = `${v.coins} 金`;
@@ -440,18 +485,36 @@ function syncHud(): void {
   const map = document.getElementById("map")!;
   map.innerHTML = `<i style="left:50%;top:62%;background:#fff"></i><i style="left:42%;top:78%;background:#f0c46a" title="乔"></i><i style="left:70%;top:55%;background:#6fd6c6" title="玛塔"></i><i style="left:58%;top:30%;background:#f2efe6" title="船"></i>`;
   const browsing = v.phase === "dock" || v.phase === "ready" || v.phase === "miss";
-  dock.style.visibility = browsing && !v.guideOpen ? "visible" : "hidden";
+  dock.style.visibility = debug && browsing && !v.guideOpen ? "visible" : "hidden";
+  const overlay = (panelKind !== "" && v.phase !== "card") || v.phase === "card" || v.guideOpen;
+  document.body.classList.toggle("overlay", overlay);
+  const near = vendors.filter((vendor) => Math.hypot(vendor.x - v.eyeX, vendor.z - v.eyeZ) < 8);
+  const talkKey = near.map((vendor) => vendor.id).join(",");
+  if (talkKey !== talkStamp) {
+    talkStamp = talkKey;
+    talks.innerHTML = near.map((vendor) => `<button type="button" data-vendor="${vendor.id}">和${vendor.name}交谈</button>`).join("");
+    talks.querySelectorAll("button").forEach((button) => {
+      button.addEventListener("click", () => onAct((button as HTMLButtonElement).dataset.vendor || ""));
+    });
+  }
+  const spotBtn = document.getElementById("spot")!;
+  spotBtn.textContent = v.spot === "boat" ? `换钓点\n${v.waypointName}` : "换钓点";
+}
+
+function lookTarget(spot: string, eyeX: number, eyeZ: number): { x: number; y: number; z: number } {
+  return fishingLook(spot as SpotId, eyeX, eyeZ);
 }
 
 function syncRig(dt: number): void {
   const v = trip.view;
   rig.setGear(v.castM, v.reelSpeed);
+  const look = lookTarget(v.spot, v.eyeX, v.eyeZ);
   const frame: RodFrame = {
     camX: v.eyeX,
     camY: v.eyeY,
     camZ: v.eyeZ,
-    yaw: 0,
-    waterY: v.spot === "beach" ? 0 : 0,
+    yaw: Math.atan2(-(look.x - v.eyeX), -(look.z - v.eyeZ)),
+    waterY: 0,
     fight: v.phase === "fighting" ? { distance: v.distance, tension: v.tension, surge: v.surge } : null,
     dip: v.dip,
   };
@@ -485,14 +548,23 @@ function syncRig(dt: number): void {
 
   camera.position.set(v.eyeX, v.eyeY, v.eyeZ);
   camera.up.set(0, 1, 0);
-  camera.lookAt(v.eyeX, 2.35, v.eyeZ + 8);
+  camera.lookAt(look.x, look.y, look.z);
   if (v.spot === "boat") {
     boat.visible = true;
     boat.position.set(v.eyeX, 0.15, v.eyeZ + 1.2);
   } else boat.visible = v.spot === "pier";
   if (v.spot === "pier") boat.position.set(64.5, 0.15, 36.5);
 
-  const pts = blankCameraPoints(rig, 12);
+  const raw = blankCameraPoints(rig, ROD_N + 1);
+  const pts = new Float32Array(raw.length);
+  for (let i = 0; i < raw.length; i += 3) {
+    const p = presentRodPoint(raw[i], raw[i + 1], raw[i + 2]);
+    pts[i] = p[0];
+    pts[i + 1] = p[1];
+    pts[i + 2] = p[2];
+  }
+  const yAxis = new THREE.Vector3(0, 1, 0);
+  const dir = new THREE.Vector3();
   for (let i = 0; i < segments.length; i++) {
     const ax = pts[i * 3];
     const ay = pts[i * 3 + 1];
@@ -501,36 +573,63 @@ function syncRig(dt: number): void {
     const by = pts[(i + 1) * 3 + 1];
     const bz = pts[(i + 1) * 3 + 2];
     segments[i].position.set((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2);
-    segments[i].scale.set(1, Math.max(0.05, Math.hypot(bx - ax, by - ay, bz - az)), 1);
-    segments[i].quaternion.setFromUnitVectors(
-      new THREE.Vector3(0, 1, 0),
-      new THREE.Vector3(bx - ax, by - ay, bz - az).normalize(),
-    );
+    const len = Math.max(0.02, Math.hypot(bx - ax, by - ay, bz - az));
+    dir.set(bx - ax, by - ay, bz - az).normalize();
+    segments[i].quaternion.setFromUnitVectors(yAxis, dir);
     const taper = 1 - i / segments.length;
-    segments[i].scale.x = 0.45 + taper;
-    segments[i].scale.z = 0.45 + taper;
+    const radius = 0.0045 + taper * 0.017;
+    segments[i].scale.set(radius / 0.01, len, radius / 0.01);
   }
-  const hand = pts[2 * 3];
-  reel.position.set(hand, pts[2 * 3 + 1] - 0.05, pts[2 * 3 + 2] - 0.04);
+  highlights.forEach((stripe, index) => {
+    const i = index * 5 + 2;
+    if (!segments[i]) return;
+    stripe.position.copy(segments[i].position);
+    stripe.quaternion.copy(segments[i].quaternion);
+    stripe.scale.set(1, segments[i].scale.y, 1);
+    stripe.position.x += 0.008;
+  });
+  guides.forEach((guide, index) => {
+    const i = ROD_N - 1 - index * 4;
+    const at = Math.max(0, i);
+    guide.position.set(pts[at * 3], pts[at * 3 + 1], pts[at * 3 + 2]);
+    const nx = pts[Math.min(ROD_N, at + 1) * 3] - pts[at * 3];
+    const ny = pts[Math.min(ROD_N, at + 1) * 3 + 1] - pts[at * 3 + 1];
+    const nz = pts[Math.min(ROD_N, at + 1) * 3 + 2] - pts[at * 3 + 2];
+    guide.quaternion.setFromUnitVectors(yAxis, dir.set(nx, ny, nz).normalize());
+  });
+  const hand = 3;
+  reel.position.set(pts[hand * 3] + 0.02, pts[hand * 3 + 1] - 0.02, pts[hand * 3 + 2]);
+  spool.position.copy(reel.position);
   rotor.position.copy(reel.position);
   rotor.rotation.y = rig.rotor;
-  crank.position.set(reel.position.x - 0.06, reel.position.y, reel.position.z);
+  crank.position.set(reel.position.x - 0.045, reel.position.y, reel.position.z);
   crank.rotation.x = rig.crank;
   bail.position.copy(reel.position);
   bail.rotation.x = -rig.bail * 1.4;
 
-  const showLine = rig.state === "flying" || rig.state === "floating" || rig.state === "fighting" || rig.state === "retrieving" || rig.state === "landing";
+  const castOut = rig.state === "flying" || rig.state === "floating" || rig.state === "fighting" || rig.state === "retrieving" || rig.state === "landing";
+  let pierHits = 0;
+  let bobX = rig.bobX;
+  let bobY = rig.bobY;
+  let bobZ = rig.bobZ;
+  if (!castOut) {
+    const rest = sampleCast(v.spot, v.waypoint, 0.35, v.castM);
+    bobX = rest.x;
+    bobY = 0.08 + Math.sin(performance.now() / 1000 * 2.1) * 0.035 - v.dip * 0.09;
+    bobZ = rest.z;
+  }
+  const showLine = v.phase !== "card" && v.phase !== "miss";
   lineMesh.visible = showLine;
-  bobber.visible = showLine && rig.state !== "landing";
-  bobber.position.set(rig.bobX, rig.bobY, rig.bobZ);
+  bobber.visible = showLine;
+  bobber.position.set(bobX, bobY, bobZ);
   if (showLine) {
-    const dist = Math.hypot(rig.bobX - v.eyeX, rig.bobY - v.eyeY, rig.bobZ - v.eyeZ);
-    bobber.scale.setScalar(Math.max(1.4, dist / 6));
+    const dist = Math.hypot(bobX - v.eyeX, bobY - v.eyeY, bobZ - v.eyeZ);
+    bobber.scale.setScalar(Math.max(3.4, dist / 3.2));
     camera.updateMatrixWorld(true);
     const tip = pts.length / 3 - 1;
     const tipV = new THREE.Vector3(pts[tip * 3], pts[tip * 3 + 1], pts[tip * 3 + 2]);
-    const bobL = camera.worldToLocal(new THREE.Vector3(rig.bobX, rig.bobY, rig.bobZ));
-    const sag = Math.min(1.2, dist * 0.08);
+    const bobL = camera.worldToLocal(new THREE.Vector3(bobX, bobY, bobZ));
+    const sag = Math.min(0.55, dist * 0.06);
     const arr = lineGeo.attributes.position.array as Float32Array;
     for (let i = 0; i <= LINE_SEGS; i++) {
       const t = i / LINE_SEGS;
@@ -544,8 +643,8 @@ function syncRig(dt: number): void {
       const nx = bobL.x - tipV.x;
       const nz = bobL.z - tipV.z;
       const len = Math.hypot(nx, nz) || 1;
-      const ox = (-nz / len) * 0.02;
-      const oz = (nx / len) * 0.02;
+      const ox = (-nz / len) * 0.028;
+      const oz = (nx / len) * 0.028;
       arr[i * 6] = x + ox;
       arr[i * 6 + 1] = y;
       arr[i * 6 + 2] = z + oz;
@@ -555,13 +654,25 @@ function syncRig(dt: number): void {
     }
     lineGeo.attributes.position.needsUpdate = true;
     lineGeo.computeBoundingSphere();
-  }
+    pierHits = 0;
+    for (let i = 0; i <= LINE_SEGS; i += 3) {
+      const wx = camera.localToWorld(new THREE.Vector3(arr[i * 6], arr[i * 6 + 1], arr[i * 6 + 2]));
+      if (wx.y > 1.7 && wx.y < 3.75 && pierDistance(wx.x, wx.z) < 0.3) pierHits++;
+    }
+  } else pierHits = 0;
   splashBits.forEach((bit, i) => {
     bit.visible = rig.splash > 0.05;
     const a = (i / splashBits.length) * Math.PI * 2;
-    bit.position.set(rig.bobX + Math.cos(a) * rig.splash * 0.35, rig.bobY + rig.splash * 0.15, rig.bobZ + Math.sin(a) * rig.splash * 0.35);
+    bit.position.set(bobX + Math.cos(a) * rig.splash * 0.35, bobY + rig.splash * 0.15, bobZ + Math.sin(a) * rig.splash * 0.35);
     bit.scale.setScalar(0.4 + rig.splash);
   });
+  lastPose = {
+    butt: [pts[0], pts[1], pts[2]],
+    tip: [pts[pts.length - 3], pts[pts.length - 2], pts[pts.length - 1]],
+    bob: [bobX, bobY, bobZ],
+    radius: 0.0215,
+    pierHits,
+  };
   fishRoot.visible = v.phase === "card";
   if (v.phase === "card") {
     fishRoot.position.set(0.0, 0.02, -1.55);
@@ -594,10 +705,22 @@ addEventListener("resize", () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 
+const PERIOD_ORDER = ["dawn", "day", "dusk", "night"] as const;
+let periodClock = 0;
 let last = performance.now();
 function frame(now: number): void {
-  const dt = Math.min(0.05, (now - last) / 1000) * speed;
+  const wall = Math.min(0.05, (now - last) / 1000);
+  const dt = wall * speed;
   last = now;
+  if (!debug) {
+    periodClock += wall;
+    if (periodClock > 50) {
+      periodClock = 0;
+      const order = PERIOD_ORDER.indexOf(trip.view.periodId);
+      const next = PERIOD_ORDER[(order + 1) % PERIOD_ORDER.length];
+      trip.setPeriod(next);
+    }
+  }
   if (!trip.view.guideOpen) trip.tick(dt);
   syncRig(dt);
   wave(dt);
@@ -615,6 +738,36 @@ const api = {
   act: (name: string) => onAct(name),
   openShop: () => { panelKind = "marta"; paintPanel(); },
   bend: () => rig.bend,
+  pose: () => lastPose,
+  composition: () => {
+    camera.updateMatrixWorld(true);
+    const project = (x: number, y: number, z: number, local: boolean) => {
+      const point = new THREE.Vector3(x, y, z);
+      if (local) camera.localToWorld(point);
+      const worldY = point.y;
+      point.project(camera);
+      return {
+        x: (point.x * 0.5 + 0.5) * innerWidth,
+        y: (-point.y * 0.5 + 0.5) * innerHeight,
+        behind: point.z < -1 || point.z > 1,
+        worldY,
+      };
+    };
+    const depth = Math.max(0.2, -lastPose.butt[2]);
+    const tanH = Math.tan((58 * Math.PI) / 360) * (innerWidth / Math.max(1, innerHeight));
+    const dock = document.querySelector(".dock");
+    return {
+      butt: project(lastPose.butt[0], lastPose.butt[1], lastPose.butt[2], true),
+      tip: project(lastPose.tip[0], lastPose.tip[1], lastPose.tip[2], true),
+      bob: project(lastPose.bob[0], lastPose.bob[1], lastPose.bob[2], false),
+      diamPct: (lastPose.radius * 2) / depth / (2 * tanH) * 100,
+      pierHits: lastPose.pierHits,
+      bobWorldY: lastPose.bob[1],
+      dock: dock ? getComputedStyle(dock).display : "missing",
+      w: innerWidth,
+      h: innerHeight,
+    };
+  },
   bobY: () => rig.bobY,
   rodState: () => rig.state,
   trip,

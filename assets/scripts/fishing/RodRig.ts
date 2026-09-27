@@ -424,6 +424,25 @@ function basisToWorld(
   };
 }
 
+/**
+ * 把源码姿态摆进镜头：握把在画面右下，竿身斜向水面，不穿过画面中央。
+ * 只改展示，弹簧和 POSES 仍是源码的数。弯竿会跟着这组旋转一起动。
+ */
+const PRESENT_R = [
+  0.886632, 0.242863, -0.393575,
+  -0.199849, 0.968659, 0.147515,
+  0.417066, -0.052136, 0.90738,
+];
+const PRESENT_T = [0.297124, -0.021098, -0.600602];
+
+export function presentRodPoint(x: number, y: number, z: number): [number, number, number] {
+  return [
+    PRESENT_R[0] * x + PRESENT_R[1] * y + PRESENT_R[2] * z + PRESENT_T[0],
+    PRESENT_R[3] * x + PRESENT_R[4] * y + PRESENT_R[5] * z + PRESENT_T[1],
+    PRESENT_R[6] * x + PRESENT_R[7] * y + PRESENT_R[8] * z + PRESENT_T[2],
+  ];
+}
+
 /** 竿身在相机空间里的折线。视图按这些点摆低多边形竿段。 */
 export function blankCameraPoints(rig: RodRig, count = 12): Float32Array {
   const b = rodBasis(rig.elev.now, rig.side.now, rig.hand.x, rig.hand.y, rig.hand.z);

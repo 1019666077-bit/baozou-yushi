@@ -20386,9 +20386,16 @@ void main() {
   // assets/scripts/fishing/SpotQuery.ts
   var SPOT_EYE = {
     beach: { x: 20, y: 1.65, z: -40 },
-    pier: { x: 55, y: 3.95, z: 28 },
+    pier: { x: 56.45, y: 3.95, z: 20 },
     boat: { x: 64.5, y: 2.2, z: 36.5 }
   };
+  var PIER_LOOK_X = 8.84;
+  var PIER_LOOK_Z = 7.41;
+  function fishingLook(spot, eyeX, eyeZ) {
+    if (spot === "beach") return { x: eyeX, y: 0.35, z: eyeZ + 12 };
+    if (spot === "boat") return { x: eyeX + 8, y: 0.4, z: eyeZ + 3 };
+    return { x: eyeX + PIER_LOOK_X, y: 0.64, z: eyeZ + PIER_LOOK_Z };
+  }
   var WAYPOINTS = {
     bay: { x: 0, z: 80, depth: 10, reefDist: 50, pierDist: 50 },
     reef: { x: -78, z: 58, depth: 6, reefDist: -4, pierDist: 80 },
@@ -20459,8 +20466,10 @@ void main() {
       };
     }
     const eye = SPOT_EYE[spot];
-    const x = spot === "pier" ? eye.x + 3.1 : eye.x;
-    const z = spot === "pier" ? eye.z + 5 + clamped * 6 : eye.z + reach;
+    const span = Math.hypot(PIER_LOOK_X, PIER_LOOK_Z);
+    const dist = 4.4 + clamped * 6.2;
+    const x = spot === "pier" ? eye.x + PIER_LOOK_X / span * dist : eye.x;
+    const z = spot === "pier" ? eye.z + PIER_LOOK_Z / span * dist : eye.z + reach;
     const depth = depthAt(x, z);
     const reefDist = reefDistance(x, z);
     const pierDist = pierDistance(x, z);
@@ -21353,6 +21362,25 @@ void main() {
       z: frame2.camZ - lx * sy + lz * cy
     };
   }
+  var PRESENT_R = [
+    0.886632,
+    0.242863,
+    -0.393575,
+    -0.199849,
+    0.968659,
+    0.147515,
+    0.417066,
+    -0.052136,
+    0.90738
+  ];
+  var PRESENT_T = [0.297124, -0.021098, -0.600602];
+  function presentRodPoint(x, y, z) {
+    return [
+      PRESENT_R[0] * x + PRESENT_R[1] * y + PRESENT_R[2] * z + PRESENT_T[0],
+      PRESENT_R[3] * x + PRESENT_R[4] * y + PRESENT_R[5] * z + PRESENT_T[1],
+      PRESENT_R[6] * x + PRESENT_R[7] * y + PRESENT_R[8] * z + PRESENT_T[2]
+    ];
+  }
   function blankCameraPoints(rig2, count = 12) {
     const b = rodBasis(rig2.elev.now, rig2.side.now, rig2.hand.x, rig2.hand.y, rig2.hand.z);
     const out = new Float32Array(count * 3);
@@ -21382,11 +21410,19 @@ void main() {
     };
   }
   var params = new URLSearchParams(location.search);
+  var debug = params.get("debug") === "1";
   var trip = new FishingTrip({ rng: seeded(Number(params.get("seed") || 2)), money: 0 });
   var rig = new RodRig();
   rig.equip(true);
   var speed = Number(params.get("speed") || 1);
   var lastPhase = trip.view.phase;
+  var lastPose = {
+    butt: [0, 0, 0],
+    tip: [0, 0, 0],
+    bob: [0, 0, 0],
+    radius: 0.0215,
+    pierHits: 0
+  };
   var castArmed = false;
   var renderer = new WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
@@ -21476,8 +21512,12 @@ void main() {
   buildPier();
   buildBeach();
   var boat = buildBoat();
-  var joe = buildStall(49.2, 14, shirtMat, apronMat, "\u4E54");
-  var marta = buildStall(62, 18, martaMat, new MeshLambertMaterial({ color: 4020810 }), "\u739B\u5854");
+  var joe = buildStall(50.6, 16.6, shirtMat, apronMat, "\u4E54");
+  var marta = buildStall(50.4, 24.4, martaMat, new MeshLambertMaterial({ color: 4020810 }), "\u739B\u5854");
+  var vendors = [
+    { id: "joe", name: "\u4E54", x: 50.6, z: 16.6 },
+    { id: "marta", name: "\u739B\u5854", x: 50.4, z: 24.4 }
+  ];
   var waterGeo = new PlaneGeometry(220, 180, 48, 24);
   waterGeo.rotateX(-Math.PI / 2);
   var baseY = waterGeo.attributes.position.array.slice();
@@ -21497,23 +21537,41 @@ void main() {
   );
   water.position.set(40, 0, 30);
   scene.add(water);
-  var blankMat = new MeshLambertMaterial({ color: 1843496 });
-  var reelMat = new MeshLambertMaterial({ color: 3817028 });
-  var goldMat = new MeshLambertMaterial({ color: 13017434 });
+  var blankMat = new MeshLambertMaterial({ color: 3823216 });
+  var highlightMat = new MeshLambertMaterial({ color: 10404054 });
+  var reelMat = new MeshLambertMaterial({ color: 6056564 });
+  var goldMat = new MeshLambertMaterial({ color: 14135642 });
+  var guideMat = new MeshLambertMaterial({ color: 15199988 });
+  var ROD_N = 22;
   var segments = [];
-  for (let i = 0; i < 11; i++) {
-    const mesh = new Mesh(new CylinderGeometry(0.022, 0.03, 1, 6), blankMat);
+  var highlights = [];
+  for (let i = 0; i < ROD_N; i++) {
+    const mesh = new Mesh(new CylinderGeometry(0.01, 0.01, 1, 24), i % 4 === 0 ? highlightMat : blankMat);
     rodRoot.add(mesh);
     segments.push(mesh);
+    if (i % 4 === 2) {
+      const stripe = new Mesh(new BoxGeometry(6e-3, 1, 6e-3), highlightMat);
+      rodRoot.add(stripe);
+      highlights.push(stripe);
+    }
   }
-  var reel = new Mesh(new CylinderGeometry(0.045, 0.045, 0.05, 10), reelMat);
+  var guides = [];
+  for (let i = 0; i < 4; i++) {
+    const guide = new Mesh(new TorusGeometry(0.028, 5e-3, 8, 16), guideMat);
+    rodRoot.add(guide);
+    guides.push(guide);
+  }
+  var reel = new Mesh(new CylinderGeometry(0.036, 0.036, 0.026, 16), reelMat);
   reel.rotation.z = Math.PI / 2;
   rodRoot.add(reel);
-  var rotor = new Mesh(new TorusGeometry(0.05, 6e-3, 6, 12), goldMat);
+  var spool = new Mesh(new CylinderGeometry(0.028, 0.028, 0.02, 16), goldMat);
+  spool.rotation.z = Math.PI / 2;
+  rodRoot.add(spool);
+  var rotor = new Mesh(new TorusGeometry(0.042, 4e-3, 8, 16), goldMat);
   rodRoot.add(rotor);
-  var crank = new Mesh(new BoxGeometry(0.012, 0.09, 0.012), goldMat);
+  var crank = new Mesh(new BoxGeometry(6e-3, 0.07, 6e-3), goldMat);
   rodRoot.add(crank);
-  var bail = new Mesh(new TorusGeometry(0.048, 4e-3, 6, 10, Math.PI), new MeshLambertMaterial({ color: 14015455 }));
+  var bail = new Mesh(new TorusGeometry(0.04, 25e-4, 6, 14, Math.PI), new MeshLambertMaterial({ color: 15199986 }));
   rodRoot.add(bail);
   var lineGeo = new BufferGeometry();
   var linePos = new Float32Array((LINE_SEGS + 1) * 2 * 3);
@@ -21527,8 +21585,8 @@ void main() {
   var lineMesh = new Mesh(lineGeo, new MeshBasicMaterial({ color: 16054250, side: DoubleSide }));
   camera.add(lineMesh);
   var bobber = new Group();
-  var bobTop = new Mesh(new SphereGeometry(0.06, 10, 8), new MeshLambertMaterial({ color: 13781562 }));
-  var bobBot = new Mesh(new SphereGeometry(0.06, 10, 8), new MeshLambertMaterial({ color: 16052196 }));
+  var bobTop = new Mesh(new SphereGeometry(0.09, 12, 10), new MeshLambertMaterial({ color: 13781562 }));
+  var bobBot = new Mesh(new SphereGeometry(0.09, 12, 10), new MeshLambertMaterial({ color: 16052196 }));
   bobTop.scale.y = 0.5;
   bobBot.scale.y = 0.5;
   bobTop.position.y = 0.02;
@@ -21592,10 +21650,15 @@ void main() {
     } catch {
     }
   }
+  if (debug) document.body.classList.add("debug");
   var hud = document.getElementById("hud");
   hud.innerHTML = `
   <div class="purse"><span class="money" id="money">0 \u91D1</span><span class="cooler"><span id="coolerLabel">\u51B7\u85CF\u7BB1</span> <b class="bar" id="coolerBar"><i></i></b> <span id="coolerKg">0 / 30 kg</span></span></div>
   <div class="dock" id="dock"></div>
+  <div class="chrome" id="talks"></div>
+  <button id="spot" class="chrome icon" type="button">\u6362\u9493\u70B9</button>
+  <button id="cooler-btn" class="chrome icon" type="button">\u9C7C\u8231</button>
+  <button id="retrieve-btn" class="chrome icon" type="button">\u6536\u7AFF</button>
   <div class="fight" id="fight"><div class="fight-head"><span id="fightCall">\u6536\u7EBF</span><span id="fightDist">0 m</span></div><div class="tension"><span class="band" id="band"></span><span class="danger"></span><span class="needle" id="needle"></span></div><div class="stam"><i id="stam"></i></div></div>
   <div class="bite" id="bite">\uFF01</div>
   <div class="cast" id="cast"><i></i></div>
@@ -21627,6 +21690,16 @@ void main() {
   dockButton("\u9C7C\u8231", "cooler");
   dockButton("\u62FF\u51FA\u9C7C\u7AFF", "ready");
   dockButton("\u6536\u56DE", "retrieve");
+  var SPOT_CYCLE = ["pier", "beach", "boat"];
+  document.getElementById("spot").addEventListener("click", () => {
+    const i = SPOT_CYCLE.indexOf(trip.view.spot);
+    const next = SPOT_CYCLE[(i + 1) % SPOT_CYCLE.length];
+    onAct(next);
+    if (next === "boat") onAct(trip.view.waypoint === "bay" ? "reef" : trip.view.waypoint === "reef" ? "deep" : "bay");
+  });
+  document.getElementById("cooler-btn").addEventListener("click", () => onAct("cooler"));
+  document.getElementById("retrieve-btn").addEventListener("click", () => onAct("retrieve"));
+  var talks = document.getElementById("talks");
   var panelKind = "";
   function onAct(act) {
     if (act === "pier" || act === "beach" || act === "boat") {
@@ -21719,6 +21792,7 @@ void main() {
     root.innerHTML = `<div>${badge}<h2>${trip.view.speciesName}</h2><div class="sci">${fish?.sci ?? ""}</div></div><div class="stage"></div><div><div class="stats"><div class="stat"><span>\u4F53\u957F</span><b>${trip.view.cm}</b></div><div class="stat"><span>\u4F53\u91CD</span><b>${trip.view.kg.toFixed(trip.view.kg < 1 ? 2 : 1)}</b></div><div class="stat"><span>\u4EF7\u503C</span><b>${trip.view.value}</b></div></div><p>${note}</p><p>\u70B9\u6309\u4F4F\u952E\u7EE7\u7EED</p></div>`;
   }
   var panelStamp = "";
+  var talkStamp = "";
   function syncHud() {
     const v = trip.view;
     document.getElementById("money").textContent = `${v.coins} \u91D1`;
@@ -21762,17 +21836,35 @@ void main() {
     const map = document.getElementById("map");
     map.innerHTML = `<i style="left:50%;top:62%;background:#fff"></i><i style="left:42%;top:78%;background:#f0c46a" title="\u4E54"></i><i style="left:70%;top:55%;background:#6fd6c6" title="\u739B\u5854"></i><i style="left:58%;top:30%;background:#f2efe6" title="\u8239"></i>`;
     const browsing = v.phase === "dock" || v.phase === "ready" || v.phase === "miss";
-    dock.style.visibility = browsing && !v.guideOpen ? "visible" : "hidden";
+    dock.style.visibility = debug && browsing && !v.guideOpen ? "visible" : "hidden";
+    const overlay = panelKind !== "" && v.phase !== "card" || v.phase === "card" || v.guideOpen;
+    document.body.classList.toggle("overlay", overlay);
+    const near = vendors.filter((vendor) => Math.hypot(vendor.x - v.eyeX, vendor.z - v.eyeZ) < 8);
+    const talkKey = near.map((vendor) => vendor.id).join(",");
+    if (talkKey !== talkStamp) {
+      talkStamp = talkKey;
+      talks.innerHTML = near.map((vendor) => `<button type="button" data-vendor="${vendor.id}">\u548C${vendor.name}\u4EA4\u8C08</button>`).join("");
+      talks.querySelectorAll("button").forEach((button) => {
+        button.addEventListener("click", () => onAct(button.dataset.vendor || ""));
+      });
+    }
+    const spotBtn = document.getElementById("spot");
+    spotBtn.textContent = v.spot === "boat" ? `\u6362\u9493\u70B9
+${v.waypointName}` : "\u6362\u9493\u70B9";
+  }
+  function lookTarget(spot, eyeX, eyeZ) {
+    return fishingLook(spot, eyeX, eyeZ);
   }
   function syncRig(dt) {
     const v = trip.view;
     rig.setGear(v.castM, v.reelSpeed);
+    const look = lookTarget(v.spot, v.eyeX, v.eyeZ);
     const frame2 = {
       camX: v.eyeX,
       camY: v.eyeY,
       camZ: v.eyeZ,
-      yaw: 0,
-      waterY: v.spot === "beach" ? 0 : 0,
+      yaw: Math.atan2(-(look.x - v.eyeX), -(look.z - v.eyeZ)),
+      waterY: 0,
       fight: v.phase === "fighting" ? { distance: v.distance, tension: v.tension, surge: v.surge } : null,
       dip: v.dip
     };
@@ -21805,13 +21897,22 @@ void main() {
     lastPhase = v.phase;
     camera.position.set(v.eyeX, v.eyeY, v.eyeZ);
     camera.up.set(0, 1, 0);
-    camera.lookAt(v.eyeX, 2.35, v.eyeZ + 8);
+    camera.lookAt(look.x, look.y, look.z);
     if (v.spot === "boat") {
       boat.visible = true;
       boat.position.set(v.eyeX, 0.15, v.eyeZ + 1.2);
     } else boat.visible = v.spot === "pier";
     if (v.spot === "pier") boat.position.set(64.5, 0.15, 36.5);
-    const pts = blankCameraPoints(rig, 12);
+    const raw = blankCameraPoints(rig, ROD_N + 1);
+    const pts = new Float32Array(raw.length);
+    for (let i = 0; i < raw.length; i += 3) {
+      const p = presentRodPoint(raw[i], raw[i + 1], raw[i + 2]);
+      pts[i] = p[0];
+      pts[i + 1] = p[1];
+      pts[i + 2] = p[2];
+    }
+    const yAxis = new Vector3(0, 1, 0);
+    const dir = new Vector3();
     for (let i = 0; i < segments.length; i++) {
       const ax = pts[i * 3];
       const ay = pts[i * 3 + 1];
@@ -21820,35 +21921,62 @@ void main() {
       const by = pts[(i + 1) * 3 + 1];
       const bz = pts[(i + 1) * 3 + 2];
       segments[i].position.set((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2);
-      segments[i].scale.set(1, Math.max(0.05, Math.hypot(bx - ax, by - ay, bz - az)), 1);
-      segments[i].quaternion.setFromUnitVectors(
-        new Vector3(0, 1, 0),
-        new Vector3(bx - ax, by - ay, bz - az).normalize()
-      );
+      const len = Math.max(0.02, Math.hypot(bx - ax, by - ay, bz - az));
+      dir.set(bx - ax, by - ay, bz - az).normalize();
+      segments[i].quaternion.setFromUnitVectors(yAxis, dir);
       const taper = 1 - i / segments.length;
-      segments[i].scale.x = 0.45 + taper;
-      segments[i].scale.z = 0.45 + taper;
+      const radius = 45e-4 + taper * 0.017;
+      segments[i].scale.set(radius / 0.01, len, radius / 0.01);
     }
-    const hand = pts[2 * 3];
-    reel.position.set(hand, pts[2 * 3 + 1] - 0.05, pts[2 * 3 + 2] - 0.04);
+    highlights.forEach((stripe, index) => {
+      const i = index * 5 + 2;
+      if (!segments[i]) return;
+      stripe.position.copy(segments[i].position);
+      stripe.quaternion.copy(segments[i].quaternion);
+      stripe.scale.set(1, segments[i].scale.y, 1);
+      stripe.position.x += 8e-3;
+    });
+    guides.forEach((guide, index) => {
+      const i = ROD_N - 1 - index * 4;
+      const at = Math.max(0, i);
+      guide.position.set(pts[at * 3], pts[at * 3 + 1], pts[at * 3 + 2]);
+      const nx = pts[Math.min(ROD_N, at + 1) * 3] - pts[at * 3];
+      const ny = pts[Math.min(ROD_N, at + 1) * 3 + 1] - pts[at * 3 + 1];
+      const nz = pts[Math.min(ROD_N, at + 1) * 3 + 2] - pts[at * 3 + 2];
+      guide.quaternion.setFromUnitVectors(yAxis, dir.set(nx, ny, nz).normalize());
+    });
+    const hand = 3;
+    reel.position.set(pts[hand * 3] + 0.02, pts[hand * 3 + 1] - 0.02, pts[hand * 3 + 2]);
+    spool.position.copy(reel.position);
     rotor.position.copy(reel.position);
     rotor.rotation.y = rig.rotor;
-    crank.position.set(reel.position.x - 0.06, reel.position.y, reel.position.z);
+    crank.position.set(reel.position.x - 0.045, reel.position.y, reel.position.z);
     crank.rotation.x = rig.crank;
     bail.position.copy(reel.position);
     bail.rotation.x = -rig.bail * 1.4;
-    const showLine = rig.state === "flying" || rig.state === "floating" || rig.state === "fighting" || rig.state === "retrieving" || rig.state === "landing";
+    const castOut = rig.state === "flying" || rig.state === "floating" || rig.state === "fighting" || rig.state === "retrieving" || rig.state === "landing";
+    let pierHits = 0;
+    let bobX = rig.bobX;
+    let bobY = rig.bobY;
+    let bobZ = rig.bobZ;
+    if (!castOut) {
+      const rest = sampleCast(v.spot, v.waypoint, 0.35, v.castM);
+      bobX = rest.x;
+      bobY = 0.08 + Math.sin(performance.now() / 1e3 * 2.1) * 0.035 - v.dip * 0.09;
+      bobZ = rest.z;
+    }
+    const showLine = v.phase !== "card" && v.phase !== "miss";
     lineMesh.visible = showLine;
-    bobber.visible = showLine && rig.state !== "landing";
-    bobber.position.set(rig.bobX, rig.bobY, rig.bobZ);
+    bobber.visible = showLine;
+    bobber.position.set(bobX, bobY, bobZ);
     if (showLine) {
-      const dist = Math.hypot(rig.bobX - v.eyeX, rig.bobY - v.eyeY, rig.bobZ - v.eyeZ);
-      bobber.scale.setScalar(Math.max(1.4, dist / 6));
+      const dist = Math.hypot(bobX - v.eyeX, bobY - v.eyeY, bobZ - v.eyeZ);
+      bobber.scale.setScalar(Math.max(3.4, dist / 3.2));
       camera.updateMatrixWorld(true);
       const tip = pts.length / 3 - 1;
       const tipV = new Vector3(pts[tip * 3], pts[tip * 3 + 1], pts[tip * 3 + 2]);
-      const bobL = camera.worldToLocal(new Vector3(rig.bobX, rig.bobY, rig.bobZ));
-      const sag = Math.min(1.2, dist * 0.08);
+      const bobL = camera.worldToLocal(new Vector3(bobX, bobY, bobZ));
+      const sag = Math.min(0.55, dist * 0.06);
       const arr = lineGeo.attributes.position.array;
       for (let i = 0; i <= LINE_SEGS; i++) {
         const t = i / LINE_SEGS;
@@ -21862,8 +21990,8 @@ void main() {
         const nx = bobL.x - tipV.x;
         const nz = bobL.z - tipV.z;
         const len = Math.hypot(nx, nz) || 1;
-        const ox = -nz / len * 0.02;
-        const oz = nx / len * 0.02;
+        const ox = -nz / len * 0.028;
+        const oz = nx / len * 0.028;
         arr[i * 6] = x + ox;
         arr[i * 6 + 1] = y;
         arr[i * 6 + 2] = z + oz;
@@ -21873,13 +22001,25 @@ void main() {
       }
       lineGeo.attributes.position.needsUpdate = true;
       lineGeo.computeBoundingSphere();
-    }
+      pierHits = 0;
+      for (let i = 0; i <= LINE_SEGS; i += 3) {
+        const wx = camera.localToWorld(new Vector3(arr[i * 6], arr[i * 6 + 1], arr[i * 6 + 2]));
+        if (wx.y > 1.7 && wx.y < 3.75 && pierDistance(wx.x, wx.z) < 0.3) pierHits++;
+      }
+    } else pierHits = 0;
     splashBits.forEach((bit, i) => {
       bit.visible = rig.splash > 0.05;
       const a = i / splashBits.length * Math.PI * 2;
-      bit.position.set(rig.bobX + Math.cos(a) * rig.splash * 0.35, rig.bobY + rig.splash * 0.15, rig.bobZ + Math.sin(a) * rig.splash * 0.35);
+      bit.position.set(bobX + Math.cos(a) * rig.splash * 0.35, bobY + rig.splash * 0.15, bobZ + Math.sin(a) * rig.splash * 0.35);
       bit.scale.setScalar(0.4 + rig.splash);
     });
+    lastPose = {
+      butt: [pts[0], pts[1], pts[2]],
+      tip: [pts[pts.length - 3], pts[pts.length - 2], pts[pts.length - 1]],
+      bob: [bobX, bobY, bobZ],
+      radius: 0.0215,
+      pierHits
+    };
     fishRoot.visible = v.phase === "card";
     if (v.phase === "card") {
       fishRoot.position.set(0, 0.02, -1.55);
@@ -21909,10 +22049,22 @@ void main() {
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
   });
+  var PERIOD_ORDER = ["dawn", "day", "dusk", "night"];
+  var periodClock = 0;
   var last = performance.now();
   function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1e3) * speed;
+    const wall = Math.min(0.05, (now - last) / 1e3);
+    const dt = wall * speed;
     last = now;
+    if (!debug) {
+      periodClock += wall;
+      if (periodClock > 50) {
+        periodClock = 0;
+        const order = PERIOD_ORDER.indexOf(trip.view.periodId);
+        const next = PERIOD_ORDER[(order + 1) % PERIOD_ORDER.length];
+        trip.setPeriod(next);
+      }
+    }
     if (!trip.view.guideOpen) trip.tick(dt);
     syncRig(dt);
     wave(dt);
@@ -21934,6 +22086,36 @@ void main() {
       paintPanel();
     },
     bend: () => rig.bend,
+    pose: () => lastPose,
+    composition: () => {
+      camera.updateMatrixWorld(true);
+      const project = (x, y, z, local) => {
+        const point = new Vector3(x, y, z);
+        if (local) camera.localToWorld(point);
+        const worldY = point.y;
+        point.project(camera);
+        return {
+          x: (point.x * 0.5 + 0.5) * innerWidth,
+          y: (-point.y * 0.5 + 0.5) * innerHeight,
+          behind: point.z < -1 || point.z > 1,
+          worldY
+        };
+      };
+      const depth = Math.max(0.2, -lastPose.butt[2]);
+      const tanH = Math.tan(58 * Math.PI / 360) * (innerWidth / Math.max(1, innerHeight));
+      const dock2 = document.querySelector(".dock");
+      return {
+        butt: project(lastPose.butt[0], lastPose.butt[1], lastPose.butt[2], true),
+        tip: project(lastPose.tip[0], lastPose.tip[1], lastPose.tip[2], true),
+        bob: project(lastPose.bob[0], lastPose.bob[1], lastPose.bob[2], false),
+        diamPct: lastPose.radius * 2 / depth / (2 * tanH) * 100,
+        pierHits: lastPose.pierHits,
+        bobWorldY: lastPose.bob[1],
+        dock: dock2 ? getComputedStyle(dock2).display : "missing",
+        w: innerWidth,
+        h: innerHeight
+      };
+    },
     bobY: () => rig.bobY,
     rodState: () => rig.state,
     trip

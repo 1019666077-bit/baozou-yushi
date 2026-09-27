@@ -71,35 +71,84 @@ async function until(page, pred, ms = 20000) {
   throw new Error(`超时 ${JSON.stringify(last)}`);
 }
 
+async function composition(page) {
+  return page.evaluate(() => window.__fishing.composition());
+}
+
+function assertCast(name, shot) {
+  const problems = [];
+  if (shot.dock !== "none") problems.push(`调试条可见 ${shot.dock}`);
+  if (shot.butt.behind || shot.butt.x < shot.w * 0.72 || shot.butt.y < shot.h * 0.7 || shot.butt.y > shot.h * 1.25) problems.push(`竿尾不在右下 ${JSON.stringify(shot.butt)}`);
+  if (shot.tip.behind || shot.tip.x < shot.w * 0.55 || shot.tip.y < 8 || shot.tip.y > shot.h * 0.55) problems.push(`竿尖不在右上方 ${JSON.stringify(shot.tip)}`);
+  if (shot.diamPct < 2.8 || shot.diamPct > 4.4) problems.push(`竿尾直径 ${shot.diamPct.toFixed(2)}%`);
+  if (shot.bob.behind || shot.bob.x < shot.w * 0.15 || shot.bob.x > shot.w * 0.88 || shot.bob.y < shot.h * 0.18 || shot.bob.y > shot.h * 0.9) {
+    problems.push(`浮标不在水面画面里 ${JSON.stringify(shot.bob)}`);
+  }
+  if (shot.bobWorldY > 0.5) problems.push(`浮标离开水面 y=${shot.bobWorldY}`);
+  if (shot.pierHits > 0) problems.push(`鱼线穿过码头 ${shot.pierHits}`);
+  if (problems.length) throw new Error(`${name} ${problems.join("；")}`);
+  return shot;
+}
+
 async function shot(page, name) {
   const file = path.join(outDir, name);
   await page.screenshot({ path: file });
   return file;
 }
 
+async function measureHud(page) {
+  return page.evaluate(() => {
+    const panel = document.getElementById("panel");
+    if (panel) panel.scrollTop = panel.scrollHeight;
+    function shown(el) {
+      const style = getComputedStyle(el);
+      if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) return null;
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 2 || rect.height < 2) return null;
+      const inside = rect.top >= -1 && rect.left >= -1 && rect.bottom <= innerHeight + 1 && rect.right <= innerWidth + 1;
+      let parent = el.parentElement;
+      let clipped = false;
+      while (parent && parent !== document.body) {
+        const parentStyle = getComputedStyle(parent);
+        if (/(auto|scroll)/.test(parentStyle.overflowY) || /(auto|scroll)/.test(parentStyle.overflow)) {
+          const parentRect = parent.getBoundingClientRect();
+          if (rect.top < parentRect.top - 1 || rect.bottom > parentRect.bottom + 1 || rect.left < parentRect.left - 1 || rect.right > parentRect.right + 1) clipped = true;
+        }
+        parent = parent.parentElement;
+      }
+      if (!inside || clipped) return null;
+      return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, text: (el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 24) };
+    }
+    const nodes = [...document.querySelectorAll("#hud button, .shop-copy b, .shop-copy small, .fish-copy b, .fish-copy small, .panel h2, .panel > .sub, #hint")];
+    const boxes = nodes.map(shown).filter(Boolean);
+    const hits = [];
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i];
+        const b = boxes[j];
+        const overlap = !(a.right <= b.left + 1 || a.left >= b.right - 1 || a.bottom <= b.top + 1 || a.top >= b.bottom - 1);
+        if (overlap) hits.push(`${a.text} × ${b.text}`);
+      }
+    }
+    const labels = [...document.querySelectorAll(".shop-row b, .fish-row b")];
+    const lastLabel = labels[labels.length - 1];
+    const foot = document.querySelector(".panel .foot button");
+    const lastOk = (!lastLabel || shown(lastLabel) !== null) && (!foot || shown(foot) !== null);
+    const lastName = lastLabel ? (lastLabel.textContent || "").trim().slice(0, 24) : "";
+    const footName = foot ? (foot.textContent || "").trim().slice(0, 24) : "";
+    return { hits, count: boxes.length, lastOk, last: `${lastName} / ${footName}` };
+  });
+}
+
 async function assertShopClear(page, width, height) {
   await page.setViewport({ width, height, deviceScaleFactor: 1 });
   await act(page, "marta");
-  await wait(120);
-  const hits = await page.evaluate(() => {
-    function box(el) {
-      const r = el.getBoundingClientRect();
-      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
-    }
-    function hit(a, b) {
-      return !(a.right <= b.left + 1 || a.left >= b.right - 1 || a.bottom <= b.top + 1 || a.top >= b.bottom - 1);
-    }
-    const bad = [];
-    for (const row of document.querySelectorAll(".shop-row, .fish-row")) {
-      const copy = row.querySelector(".shop-copy, .fish-copy");
-      const button = row.querySelector("button");
-      if (!copy || !button) continue;
-      if (hit(box(copy), box(button))) bad.push(copy.textContent.slice(0, 24));
-    }
-    return bad;
-  });
-  if (hits.length) throw new Error(`${width}x${height} 商店文字和按钮重叠：${hits.join(" | ")}`);
-  await act(page, "close");
+  await wait(80);
+  const result = await measureHud(page);
+  if (result.hits.length || !result.lastOk) {
+    throw new Error(`${width}x${height} 重叠或最后一行不可见 ${JSON.stringify(result)}`);
+  }
+  return result;
 }
 
 const chrome = chromePath();
@@ -140,17 +189,21 @@ try {
   fs.mkdirSync(frameDir, { recursive: true });
 
   await act(page, "skip");
+  await act(page, "ready");
   await act(page, "pier");
-  await wait(400);
+  await wait(1200);
+  const idleShot = assertCast("01-idle", await composition(page));
+  console.log("01-idle", JSON.stringify(idleShot));
   await shot(page, "01-idle.png");
 
-  await assertShopClear(page, 375, 667);
-  await page.setViewport({ width: 375, height: 667, deviceScaleFactor: 1 });
-  await act(page, "marta");
-  await wait(150);
+  const overlap = {};
+  overlap["375x667"] = await assertShopClear(page, 375, 667);
   await shot(page, "06-shop-375.png");
   await act(page, "close");
-  await assertShopClear(page, 414, 896);
+  overlap["414x896"] = await assertShopClear(page, 414, 896);
+  await act(page, "close");
+  overlap["896x414"] = await assertShopClear(page, 896, 414);
+  await act(page, "close");
   await page.setViewport({ width: 896, height: 414, deviceScaleFactor: 1 });
   await act(page, "pier");
   await wait(250);
@@ -188,6 +241,13 @@ try {
     await shot(page, "02-cast.png");
     capturing = true;
     await page.evaluate(() => window.__fishing.setHeld(false));
+    await page.evaluate(() => window.__fishing.setSpeed(6));
+    await until(page, (v) => (v.phase === "waiting" || v.phase === "nibbling") && v.rodState === "floating" && v.bobY < 0.45, 12000);
+    await page.evaluate(() => window.__fishing.setSpeed(1));
+    await wait(180);
+    const waitShot = assertCast("02-wait", await composition(page));
+    console.log("02-wait", JSON.stringify(waitShot));
+    await shot(page, "02-wait.png");
     await page.evaluate(() => window.__fishing.setSpeed(10));
     const hooked = await until(page, (v) => v.phase === "hook" || v.phase === "miss" || v.phase === "card" || v.phase === "fighting");
     if (hooked.phase === "miss") {
@@ -204,7 +264,11 @@ try {
       8000,
     ).catch(async () => view(page));
     const mid = posed.phase ? posed : await view(page);
-    if (mid.phase === "fighting") await shot(page, "03-fight.png");
+    if (mid.phase === "fighting") {
+      const fightShot = assertCast("03-fight", await composition(page));
+      console.log("03-fight", JSON.stringify(fightShot));
+      await shot(page, "03-fight.png");
+    }
     const start = Date.now();
     let done = mid;
     while (Date.now() - start < 18000 && done.phase !== "card" && done.phase !== "miss") {
@@ -273,6 +337,7 @@ try {
     frames: picked.length,
     seconds,
     landed,
+    overlap,
   }, null, 2));
 } finally {
   await browser.close();

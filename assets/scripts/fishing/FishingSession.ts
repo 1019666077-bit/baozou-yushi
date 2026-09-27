@@ -10,8 +10,8 @@ import { FishingTrip, type TripPhase } from "./FishingTrip";
 import { FishingWorld } from "./FishingWorld";
 import { FISH_RGB, GUIDE_CARDS, JOE_GREETING, JOE_IDLE, MARTA_GREETING } from "./present";
 import { RodRig, type RodFrame } from "./RodRig";
+import { fishingLook, sampleCast, type SpotId } from "./SpotQuery";
 import { PERIODS, type PeriodId } from "./Waters";
-import type { SpotId } from "./SpotQuery";
 import type { ShopKey } from "./present";
 
 const { ccclass } = _decorator;
@@ -38,6 +38,7 @@ export class FishingSession extends Component {
   private panel: PanelKind = "";
   private lastPhase: TripPhase = "dock";
   private castArmed = false;
+  private shown = 0;
 
   onLoad(): void {
     this.leave = FishingSession.onHarbor ?? (() => {});
@@ -96,11 +97,12 @@ export class FishingSession extends Component {
   private syncRig(dt: number): void {
     const view = this.trip.view;
     this.rig.setGear(view.castM, view.reelSpeed);
+    const look = fishingLook(view.spot, view.eyeX, view.eyeZ);
     const frame: RodFrame = {
       camX: view.eyeX,
       camY: view.eyeY,
       camZ: view.eyeZ,
-      yaw: 0,
+      yaw: Math.atan2(-(look.x - view.eyeX), -(look.z - view.eyeZ)),
       waterY: 0,
       fight: view.phase === "fighting" ? { distance: view.distance, tension: view.tension, surge: view.surge } : null,
       dip: view.dip,
@@ -113,13 +115,24 @@ export class FishingSession extends Component {
       this.rig.release(view.bobX, view.bobZ);
       this.castArmed = false;
     }
-    if (view.phase === "fighting" && this.lastPhase !== "fighting" && this.rig.state !== "fighting") this.rig.hook();
+    if ((view.phase === "hook" || view.phase === "fighting") && this.rig.state === "floating") this.rig.hook();
     if (view.phase === "card" && this.lastPhase !== "card") this.rig.land();
     if (view.phase === "miss" && this.lastPhase !== "miss") this.rig.retrieve();
     if (view.phase === "ready" && this.rig.state !== "idle" && this.rig.state !== "windup") this.rig.equip(true);
     this.rig.update(dt, frame);
     this.lastPhase = view.phase;
     const rgb = view.species ? FISH_RGB[view.species] : undefined;
+    const castOut = this.rig.state === "flying" || this.rig.state === "floating" || this.rig.state === "fighting" || this.rig.state === "retrieving" || this.rig.state === "landing";
+    this.shown += dt;
+    let bobX = this.rig.bobX;
+    let bobY = this.rig.bobY;
+    let bobZ = this.rig.bobZ;
+    if (!castOut) {
+      const rest = sampleCast(view.spot, view.waypoint, 0.35, view.castM);
+      bobX = rest.x;
+      bobY = 0.08 + Math.sin(this.shown * 2.1) * 0.03 - view.dip * 0.08;
+      bobZ = rest.z;
+    }
     this.world.tick(dt, {
       eyeX: view.eyeX,
       eyeY: view.eyeY,
@@ -127,6 +140,10 @@ export class FishingSession extends Component {
       spot: view.spot,
       phase: view.phase,
       fishRgb: rgb ? [rgb[0], rgb[1], rgb[2]] : null,
+      bobX,
+      bobY,
+      bobZ,
+      showLine: view.phase !== "card" && view.phase !== "miss",
     }, this.rig);
   }
 
