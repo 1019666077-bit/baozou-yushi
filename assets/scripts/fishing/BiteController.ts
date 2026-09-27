@@ -3,8 +3,8 @@
  * https://github.com/dgreenheck/tidewater (MIT, Copyright (c) 2026 DRG Software Solutions LLC)
  *
  * 等咬 → 试饵（浮标点头）→ 吞饵窗口。窗口长度 2.4 - fight * 0.5 秒。
- * 窗口结束鱼跑掉。试饵时提竿：源逻辑只提示（hint）；本游戏默认吓跑（spook），
- * 用来满足「太早跑鱼」。等待阶段提竿没有鱼，不惩罚。
+ * 窗口结束鱼跑掉。试饵时提竿只提示（hint），和源码一样，不把鱼吓跑。
+ * 等待阶段提竿没有鱼，不惩罚。
  */
 import { biteDelay, pickSpecies, rollWeight, type HabitatWeights } from "./Bites";
 import { FISH } from "./FishTable";
@@ -34,7 +34,7 @@ export class BiteController {
 
   constructor(
     private readonly rng: () => number = Math.random,
-    private readonly earlyStrike: EarlyStrike = "spook",
+    private readonly earlyStrike: EarlyStrike = "hint",
   ) {}
 
   get phase(): BitePhase | null {

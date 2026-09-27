@@ -42,6 +42,8 @@ export class GameState {
   lastCatch: LastCatch | null = null;
   upgrades: { [key: string]: number } = defaultUpgrades();
   fuel: number | null = null;
+  guideIntro = false;
+  guideTips: string[] = [];
   private nextId = 1;
   private listeners = new Set<(state: GameState) => void>();
 
@@ -166,6 +168,13 @@ export class GameState {
     return litres;
   }
 
+  markTip(id: string): boolean {
+    if (this.guideTips.indexOf(id) >= 0) return false;
+    this.guideTips.push(id);
+    this.emit();
+    return true;
+  }
+
   onChange(fn: (state: GameState) => void): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
@@ -183,6 +192,7 @@ export class GameState {
       upgrades: { ...this.upgrades },
       fuel: this.fuel,
       nextId: this.nextId,
+      guide: { intro: this.guideIntro, tips: this.guideTips.slice() },
     };
   }
 
@@ -221,6 +231,8 @@ export class GameState {
       this.upgrades[key] = Math.max(0, Math.min(max, this.upgrades[key] | 0));
     }
     this.fuel = Number.isFinite(raw.fuel) ? (raw.fuel as number) : null;
+    this.guideIntro = !!raw.guide?.intro;
+    this.guideTips = Array.isArray(raw.guide?.tips) ? raw.guide.tips.filter((id) => typeof id === "string") : [];
     const maxId = this.inventory.reduce((max, fish) => Math.max(max, fish.id + 1), 1);
     this.nextId = Math.max(raw.nextId || 0, maxId, 1);
     return true;
@@ -232,6 +244,8 @@ export class GameState {
     this.log = {};
     this.upgrades = defaultUpgrades();
     this.fuel = null;
+    this.guideIntro = false;
+    this.guideTips = [];
     this.nextId = 1;
     this.lastCatch = null;
     this.emit();

@@ -153,6 +153,7 @@ import { purchaseService } from "./monetization/MonetizationRuntime";
 import { adGrants } from "./monetization/AdGrantService";
 import { HarborStage } from "./world/HarborStage";
 import { FishingSession } from "./fishing/FishingSession";
+import { fishingHarborGate } from "./fishing/HarborGate";
 
 const { ccclass } = _decorator;
 
@@ -487,9 +488,10 @@ export class RuntimeHome extends Component {
       52,
       20,
     );
+    const fishingGate = fishingHarborGate(save);
     makeButton(
       layer,
-      "出海钓鱼",
+      fishingGate.locked ? "教学后钓鱼" : "出海钓鱼",
       500,
       -140,
       () => this.startFishing(),
@@ -1399,6 +1401,11 @@ export class RuntimeHome extends Component {
   }
 
   private startFishing(): void {
+    const gate = fishingHarborGate(playerSave.get());
+    if (gate.locked) {
+      this.setStatus(gate.hint);
+      return;
+    }
     const proto = this.node.getComponent(RuntimePrototype);
     if (proto) proto.destroy();
     HarborStage.drop();

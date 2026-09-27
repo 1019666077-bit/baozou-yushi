@@ -19,6 +19,11 @@ export interface FishLogEntry {
   bestCm?: number;
 }
 
+export interface FishingGuidePersist {
+  intro: boolean;
+  tips: string[];
+}
+
 export interface FishingPersist {
   v: 1;
   inventory: HeldFish[];
@@ -26,4 +31,6 @@ export interface FishingPersist {
   upgrades: Record<string, number>;
   fuel: number | null;
   nextId: number;
+  /** 引导看过没有。旧档没有这个字段时当作没看过。 */
+  guide?: FishingGuidePersist;
 }

@@ -1,0 +1,17 @@
+# 手机上直接玩的钓鱼预览
+
+这是 three.js 打出来的静态页，不是 Cocos Creator 实机。不需要服务器。
+
+## 怎么打开
+
+1. 拿到仓库后，用手机或电脑浏览器打开 `docs/fishing-play/index.html`。
+2. 脚本、样式、音效都是相对路径（`app.js`、`hud.css`、`audio/*.mp3`），用文件管理器打开即可。
+3. 若浏览器拦截 `file://` 下的脚本，把 `docs/fishing-play/` 放到任意静态站点。若仓库开启 GitHub Pages 并指向 `docs/`，地址是 `.../fishing-play/`。本仓库不改 Pages 设置。
+
+触屏：底部按住蓄力、松手抛竿、浮标拉下去再提、按住收线。左上角可以换沙滩 / 码头 / 船、时段、乔的鱼摊和玛塔的渔具店。第一页是引导，点「跳过」或「下一步」。
+
+重新打包（改了 `tools/fishing-preview/play.ts` 之后）：
+
+```bash
+node tools/fishing-preview/build-static.mjs
+```
