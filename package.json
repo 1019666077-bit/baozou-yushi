@@ -29,11 +29,13 @@
     "art:vector": "node tools/generate-vector-art.mjs",
     "try:web-desktop": "node tools/try-web-desktop-build.mjs",
     "shots:list": "node tools/stage3d-shot-checklist.mjs",
-    "validate": "npm run art:vector && npm run typecheck && npm run typecheck:cocos && npm test && npm run preflight && npm run preview:extract && npm run shots:list"
+    "hud:overlap": "node tools/fishing-preview/hud-overlap.mjs",
+    "validate": "npm run art:vector && npm run typecheck && npm run typecheck:cocos && npm test && npm run preflight && npm run preview:extract && npm run shots:list && npm run hud:overlap"
   },
   "devDependencies": {
     "@cocos/creator-types": "^3.8.8",
     "@types/node": "^26.4.0",
+    "puppeteer-core": "^24.15.0",
     "three": "^0.170.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"

@@ -15,8 +15,8 @@ body { overflow: hidden; }
 .bar > i { display: block; height: 100%; width: 0; background: #6fd6c6; }
 .bar.hot > i { background: #ff7a85; }
 .fight {
-  position: absolute; left: 50%; bottom: 118px; transform: translateX(-50%);
-  width: min(360px, calc(100vw - 24px)); padding: 10px 14px; border-radius: 16px;
+  position: absolute; left: 12px; top: 64px;
+  width: min(280px, calc(100vw - 168px)); padding: 10px 14px; border-radius: 16px;
   background: rgba(8, 18, 28, 0.78); border: 1px solid rgba(255,255,255,0.12);
   display: none;
 }
@@ -64,6 +64,14 @@ body.overlay .fight,
 body.overlay .cast,
 body.overlay .bite,
 body.overlay .purse { display: none !important; }
+body.fighting #talks,
+body.fighting #map,
+body.card #talks,
+body.card #map { display: none !important; }
+body.fighting #tip {
+  left: 12px; right: auto; top: 168px; bottom: auto;
+  width: min(280px, calc(100vw - 168px));
+}
 #cross {
   position: absolute; left: 50%; top: 46%; width: 14px; height: 14px;
   transform: translate(-50%, -50%); pointer-events: none;

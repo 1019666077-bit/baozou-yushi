@@ -361,7 +361,7 @@ export class FishingWorld {
       const bobScale = bobberPixelScale(dist, viewW, viewH);
       this.bobber.setScale(bobScale, bobScale, bobScale);
     }
-    const showLine = show || rig.state === "landing";
+    const showLine = show;
     this.camNode.updateWorldTransform();
     this.tmp.set(rig.bobX, rig.bobY, rig.bobZ);
     this.camNode.inverseTransformPoint(this.bobTrue, this.tmp);

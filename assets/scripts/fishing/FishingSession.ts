@@ -365,9 +365,9 @@ export class FishingSession extends Component {
     const node = new Node("Tension");
     node.layer = this.ui.layer;
     node.parent = this.ui;
-    node.setPosition(0, -180);
+    node.setPosition(-420, 80);
     const g = node.addComponent(Graphics);
-    const w = 360;
+    const w = 300;
     const h = 16;
     g.fillColor = new Color(12, 18, 24, 220);
     g.roundRect(-w / 2, -h / 2, w, h, 8);
@@ -381,7 +381,7 @@ export class FishingSession extends Component {
     g.fillColor = new Color(255, 255, 255, 255);
     g.rect(x - 2, -h, 4, h * 2);
     g.fill();
-    makeLabel(node, `${view.fightCall}   ${view.distance.toFixed(1)} m`, 16, 0, 28, 360);
+    makeLabel(node, `${view.fightCall}   ${view.distance.toFixed(1)} m`, 16, 0, 28, 300);
   }
 
   private makeMap(layer: Node): Graphics {
@@ -426,6 +426,10 @@ export class FishingSession extends Component {
   }
 
   private paintMap(): void {
+    const phase = this.trip.view.phase;
+    const hide = phase === "fighting" || phase === "hook" || phase === "card";
+    this.map.node.active = !hide;
+    if (hide) return;
     const g = this.map;
     g.clear();
     g.fillColor = new Color(8, 28, 48, 210);

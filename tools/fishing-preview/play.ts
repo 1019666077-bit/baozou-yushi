@@ -585,6 +585,8 @@ function syncHud(): void {
   dock.style.visibility = debug && browsing && !v.guideOpen ? "visible" : "hidden";
   const overlay = (panelKind !== "" && v.phase !== "card") || v.phase === "card" || v.guideOpen;
   document.body.classList.toggle("overlay", overlay);
+  document.body.classList.toggle("fighting", v.phase === "fighting");
+  document.body.classList.toggle("card", v.phase === "card");
   const near = vendors.filter((vendor) => Math.hypot(vendor.x - v.eyeX, vendor.z - v.eyeZ) < 8);
   const talkKey = near.map((vendor) => vendor.id).join(",");
   if (talkKey !== talkStamp) {
@@ -778,7 +780,7 @@ function syncRig(dt: number): void {
   bail.rotation.x = -rig.bail * 1.4;
 
   const showBobber = rig.state === "flying" || rig.state === "floating" || rig.state === "fighting" || rig.state === "retrieving";
-  const showLine = showBobber || rig.state === "landing";
+  const showLine = showBobber;
   const bobX = rig.bobX;
   const bobY = rig.bobY;
   const bobZ = rig.bobZ;
@@ -959,11 +961,24 @@ const api = {
     const arr = lineGeo.attributes.position.array as Float32Array;
     let lineTop = innerHeight;
     let lineStart = tip;
+    let lineSag = 0;
+    const linePts: { x: number; y: number; behind: boolean }[] = [];
     if (lineMesh.visible) {
       for (let i = 0; i <= LINE_SEGS; i++) {
         const p = project(arr[i * 3], arr[i * 3 + 1], arr[i * 3 + 2], true);
         if (i === 0) lineStart = p;
         if (!p.behind && p.y < lineTop) lineTop = p.y;
+        linePts.push(p);
+      }
+      const a = linePts[0];
+      const b = linePts[linePts.length - 1];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const span = Math.hypot(dx, dy) || 1;
+      for (const p of linePts) {
+        if (p.behind) continue;
+        const sag = Math.abs((p.x - a.x) * dy - (p.y - a.y) * dx) / span;
+        if (sag > lineSag) lineSag = sag;
       }
     }
     return {
@@ -977,6 +992,8 @@ const api = {
       bobWorldY: lastPose.bob[1],
       lineTop,
       lineGap: Math.hypot(lineStart.x - tip.x, lineStart.y - tip.y),
+      lineSag,
+      lineVisible: lineMesh.visible,
       dock: dock ? getComputedStyle(dock).display : "missing",
       w: innerWidth,
       h: innerHeight,

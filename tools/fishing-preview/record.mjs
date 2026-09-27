@@ -11,6 +11,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { fileURLToPath } from "node:url";
+import { LAYOUT_SIZES, assertLayout, fitViewport, layoutTable } from "./hud-overlap.mjs";
 
 const require = createRequire(import.meta.url);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -123,61 +124,6 @@ async function shot(page, name) {
   return file;
 }
 
-async function measureHud(page) {
-  return page.evaluate(() => {
-    const panel = document.getElementById("panel");
-    if (panel) panel.scrollTop = panel.scrollHeight;
-    function shown(el) {
-      const style = getComputedStyle(el);
-      if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) return null;
-      const rect = el.getBoundingClientRect();
-      if (rect.width < 2 || rect.height < 2) return null;
-      const inside = rect.top >= -1 && rect.left >= -1 && rect.bottom <= innerHeight + 1 && rect.right <= innerWidth + 1;
-      let parent = el.parentElement;
-      let clipped = false;
-      while (parent && parent !== document.body) {
-        const parentStyle = getComputedStyle(parent);
-        if (/(auto|scroll)/.test(parentStyle.overflowY) || /(auto|scroll)/.test(parentStyle.overflow)) {
-          const parentRect = parent.getBoundingClientRect();
-          if (rect.top < parentRect.top - 1 || rect.bottom > parentRect.bottom + 1 || rect.left < parentRect.left - 1 || rect.right > parentRect.right + 1) clipped = true;
-        }
-        parent = parent.parentElement;
-      }
-      if (!inside || clipped) return null;
-      return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, text: (el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 24) };
-    }
-    const nodes = [...document.querySelectorAll("#hud button, .shop-copy b, .shop-copy small, .fish-copy b, .fish-copy small, .panel h2, .panel > .sub, #hint")];
-    const boxes = nodes.map(shown).filter(Boolean);
-    const hits = [];
-    for (let i = 0; i < boxes.length; i++) {
-      for (let j = i + 1; j < boxes.length; j++) {
-        const a = boxes[i];
-        const b = boxes[j];
-        const overlap = !(a.right <= b.left + 1 || a.left >= b.right - 1 || a.bottom <= b.top + 1 || a.top >= b.bottom - 1);
-        if (overlap) hits.push(`${a.text} × ${b.text}`);
-      }
-    }
-    const labels = [...document.querySelectorAll(".shop-row b, .fish-row b")];
-    const lastLabel = labels[labels.length - 1];
-    const foot = document.querySelector(".panel .foot button");
-    const lastOk = (!lastLabel || shown(lastLabel) !== null) && (!foot || shown(foot) !== null);
-    const lastName = lastLabel ? (lastLabel.textContent || "").trim().slice(0, 24) : "";
-    const footName = foot ? (foot.textContent || "").trim().slice(0, 24) : "";
-    return { hits, count: boxes.length, lastOk, last: `${lastName} / ${footName}` };
-  });
-}
-
-async function assertShopClear(page, width, height) {
-  await page.setViewport({ width, height, deviceScaleFactor: 1 });
-  await act(page, "marta");
-  await wait(80);
-  const result = await measureHud(page);
-  if (result.hits.length || !result.lastOk) {
-    throw new Error(`${width}x${height} 重叠或最后一行不可见 ${JSON.stringify(result)}`);
-  }
-  return result;
-}
-
 const chrome = chromePath();
 if (!chrome) throw new Error("找不到 Chrome/Chromium");
 const puppeteer = require("puppeteer-core");
@@ -219,18 +165,23 @@ try {
   await act(page, "ready");
   await act(page, "pier");
   await wait(1200);
+  const overlap = [];
+  await page.evaluate(() => window.__fishing.setSpeed(0));
   const idleShot = assertIdle("01-idle", await composition(page));
   console.log("01-idle", JSON.stringify(idleShot));
   await shot(page, "01-idle.png");
-
-  const overlap = {};
-  overlap["375x667"] = await assertShopClear(page, 375, 667);
-  await shot(page, "06-shop-375.png");
-  await act(page, "close");
-  overlap["414x896"] = await assertShopClear(page, 414, 896);
-  await act(page, "close");
-  overlap["896x414"] = await assertShopClear(page, 896, 414);
-  await act(page, "close");
+  for (const [w, h] of LAYOUT_SIZES) {
+    const row = await assertLayout(page, "idle", w, h);
+    overlap.push(row);
+    if (w === 375 && h === 667) {
+      const idlePhone = assertIdle("01-idle-375", await composition(page));
+      if (idlePhone.w !== 375 || idlePhone.h !== 667) throw new Error(`01-idle-375 视口不对 ${idlePhone.w}x${idlePhone.h}`);
+      console.log("01-idle-375", JSON.stringify(idlePhone));
+      await shot(page, "01-idle-375.png");
+    }
+  }
+  await fitViewport(page, 1280, 720);
+  await page.evaluate(() => window.__fishing.setSpeed(1));
   await page.setViewport({ width: 896, height: 414, deviceScaleFactor: 1 });
   await act(page, "pier");
   await wait(250);
@@ -256,23 +207,53 @@ try {
     await page.evaluate((down) => window.__fishing.setHeld(down), reel || state.phase === "hook");
   }
 
+  let gotFly = false;
   async function oneFish() {
     await act(page, "ready");
+    await page.evaluate(() => window.__fishing.setSpeed(3));
+    await until(page, (v) => v.phase === "ready" && (v.rodState === "idle" || v.rodState === "windup"), 4000);
     await page.evaluate(() => window.__fishing.setSpeed(1));
     await page.evaluate(() => window.__fishing.setHeld(true));
     const charging = await until(page, (v) => v.power > 0.45 || v.phase === "waiting");
     if (charging.power < 0.3 && charging.phase !== "waiting") {
       throw new Error(`蓄力没有上去 ${JSON.stringify(charging)}`);
     }
+    if (!gotFly) {
     await shot(page, "02-cast.png");
     capturing = true;
-    await page.evaluate(() => window.__fishing.setHeld(false));
-    const flying = await until(page, (v) => (v.rodState === "flying" && v.bobY < 2.2 && v.bobY > 0.35) || v.rodState === "floating" || v.phase === "waiting", 8000);
-    if (flying.rodState === "flying") {
-      const flyShot = assertBob("02-fly", await composition(page), true);
-      console.log("02-fly", JSON.stringify(flyShot));
-      await shot(page, "02-fly.png");
+    await page.evaluate(() => window.__fishing.setSpeed(0.45));
     }
+    await page.evaluate(() => window.__fishing.setHeld(false));
+    if (gotFly) {
+      await page.evaluate(() => window.__fishing.setSpeed(8));
+      await until(page, (v) => v.rodState === "floating" || v.phase === "waiting", 8000);
+    } else {
+    let flyShot = null;
+    const flyStart = Date.now();
+    while (Date.now() - flyStart < 8000 && !flyShot) {
+      const picked = await page.evaluate(() => {
+        const rod = window.__fishing.rodState();
+        const y = window.__fishing.bobY();
+        const c = window.__fishing.composition();
+        const good = rod === "flying" && c.bobVisible && !c.bob.behind && c.bob.y > 50 && c.bob.y < innerHeight * 0.34 && y > 3.5;
+        if (good) window.__fishing.setSpeed(0);
+        return { good, rod, phase: window.__fishing.view().phase };
+      });
+      if (picked.good) {
+        flyShot = assertBob("02-fly", await composition(page), true);
+        if (!(flyShot.bob.y > 50 && flyShot.bob.y < flyShot.h * 0.34 && flyShot.bobWorldY > 3.5)) {
+          throw new Error(`02-fly 不在空中 ${JSON.stringify({ y: flyShot.bob.y, world: flyShot.bobWorldY })}`);
+        }
+        console.log("02-fly", JSON.stringify(flyShot));
+        await shot(page, "02-fly.png");
+        break;
+      }
+      if (picked.rod === "floating" || picked.phase === "waiting") break;
+      await wait(30);
+    }
+    if (!flyShot) throw new Error(`02-fly 没拍到空中的浮标 ${JSON.stringify(await view(page))}`);
+    gotFly = true;
+    capturing = false;
     await page.evaluate(() => window.__fishing.setSpeed(1));
     await until(page, (v) => v.rodState === "floating" || v.phase === "waiting", 8000);
     await wait(160);
@@ -283,6 +264,7 @@ try {
     const waitShot = assertBob("02-wait", await composition(page), false);
     console.log("02-wait", JSON.stringify(waitShot));
     await shot(page, "02-wait.png");
+    }
     await page.evaluate(() => window.__fishing.setSpeed(10));
     const hooked = await until(page, (v) => v.phase === "hook" || v.phase === "miss" || v.phase === "card" || v.phase === "fighting");
     if (hooked.phase === "miss") {
@@ -290,36 +272,63 @@ try {
       await page.evaluate(() => window.__fishing.setHeld(false));
       return hooked;
     }
-    await page.evaluate(() => window.__fishing.setSpeed(3));
+    await page.evaluate(() => window.__fishing.setSpeed(1));
     await page.evaluate(() => window.__fishing.setHeld(true));
     await until(page, (v) => v.phase === "fighting" || v.phase === "miss" || v.phase === "card");
-    const posed = await until(
-      page,
-      (v) => v.phase !== "fighting" || (v.rodState === "fighting" && v.bobY < 0.45 && Number.isFinite(v.bend) && Math.abs(v.bend) > 0.03 && Math.abs(v.bend) < 1.2 && v.tension > 0.45),
-      8000,
-    ).catch(async () => view(page));
-    const mid = posed.phase ? posed : await view(page);
-    if (mid.phase === "fighting") {
-      await page.evaluate(() => window.__fishing.setSpeed(0.15));
-      const fightShot = assertBob("03-fight", await composition(page), false);
-      console.log("03-fight", JSON.stringify(fightShot));
-      await shot(page, "03-fight.png");
+    let fightShot = null;
+    const fightStart = Date.now();
+    while (Date.now() - fightStart < 10000 && !fightShot) {
+      const state = await view(page);
+      if (state.phase !== "fighting") break;
+      const reel = state.tension < 0.82;
+      await page.evaluate((down) => window.__fishing.setHeld(down), reel);
+      const picked = await page.evaluate(() => {
+        const v = window.__fishing.view();
+        const c = window.__fishing.composition();
+        const bend = window.__fishing.bend();
+        const good = v.phase === "fighting"
+          && window.__fishing.rodState() === "fighting"
+          && window.__fishing.bobY() < 0.45
+          && Number.isFinite(bend) && Math.abs(bend) > 0.03 && Math.abs(bend) < 1.2
+          && v.tension > 0.72
+          && c.lineVisible
+          && c.lineSag < 16;
+        if (good) window.__fishing.setSpeed(0);
+        return { good, tension: v.tension, sag: c.lineSag, bend };
+      });
+      if (picked.good) {
+        fightShot = assertBob("03-fight", await composition(page), false);
+        if (!fightShot.lineVisible || fightShot.lineSag > 16) throw new Error(`03-fight 线不够直 sag=${fightShot.lineSag}`);
+        console.log("03-fight", JSON.stringify({ ...fightShot, tension: picked.tension, sag: picked.sag }));
+        await shot(page, "03-fight.png");
+        break;
+      }
+      await wait(40);
+    }
+    const mid = fightShot ? await view(page) : await view(page);
+    if (fightShot) {
       capturing = false;
       await shotBusy;
-      await page.setViewport({ width: 375, height: 667, deviceScaleFactor: 1 });
-      await page.waitForFunction(() => innerWidth === 375 && innerHeight === 667, { timeout: 3000 });
-      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-      const fightPhone = assertBob("03-fight-375", await composition(page), false);
-      if (fightPhone.w !== 375 || fightPhone.h !== 667) {
-        throw new Error(`03-fight-375 视口不对 ${fightPhone.w}x${fightPhone.h}`);
+      for (const [w, h] of LAYOUT_SIZES) {
+        overlap.push(await assertLayout(page, "fight", w, h));
+        if (w === 375 && h === 667) {
+          const fightPhone = assertBob("03-fight-375", await composition(page), false);
+          if (fightPhone.w !== 375 || fightPhone.h !== 667) throw new Error(`03-fight-375 视口不对 ${fightPhone.w}x${fightPhone.h}`);
+          if (!fightPhone.lineVisible || fightPhone.lineSag > 16) throw new Error(`03-fight-375 线不够直 sag=${fightPhone.lineSag}`);
+          console.log("03-fight-375", JSON.stringify(fightPhone));
+          await shot(page, "03-fight-375.png");
+        }
       }
-      console.log("03-fight-375", JSON.stringify(fightPhone));
-      await shot(page, "03-fight-375.png");
-      await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
-      await page.waitForFunction(() => innerWidth === 1280 && innerHeight === 720, { timeout: 3000 });
-      await wait(160);
+      await fitViewport(page, 1280, 720);
+      await wait(80);
       capturing = true;
       await page.evaluate(() => window.__fishing.setSpeed(3));
+    } else {
+      capturing = false;
+      await page.evaluate(() => window.__fishing.setHeld(false));
+      const now = await view(page);
+      if (now.phase !== "miss" && now.phase !== "ready") await act(page, "ready");
+      return await view(page);
     }
     const start = Date.now();
     let done = mid;
@@ -333,19 +342,25 @@ try {
     if (done.phase === "card") {
       await page.evaluate(() => window.__fishing.setSpeed(1));
       await wait(400);
+      await page.evaluate(() => window.__fishing.setSpeed(0));
       const card = await page.evaluate(() => {
         const bar = document.querySelector("#cardBar");
         const on = document.getElementById("catch")?.classList.contains("on");
-        return { on, width: bar ? bar.style.width : "" };
+        const c = window.__fishing.composition();
+        return { on, width: bar ? bar.style.width : "", line: c.lineVisible, bob: c.bobVisible };
       });
       if (!card.on || !card.width || card.width === "0%") throw new Error(`渔获卡进度条不对 ${JSON.stringify(card)}`);
+      if (card.line || card.bob) throw new Error(`渔获卡还挂着线或浮标 ${JSON.stringify(card)}`);
       await shot(page, "04-card.png");
+      await shotBusy;
+      for (const [w, h] of LAYOUT_SIZES) overlap.push(await assertLayout(page, "card", w, h));
+      await fitViewport(page, 1280, 720);
     }
     return done;
   }
 
   let landed = null;
-  for (let attempt = 0; attempt < 8 && !landed; attempt++) {
+  for (let attempt = 0; attempt < 12 && !landed; attempt++) {
     const result = await oneFish();
     console.log("attempt", attempt, result.phase, result.speciesName, result.notice, "bend", result.bend);
     if (result.phase === "card") landed = result;
@@ -353,6 +368,10 @@ try {
   }
   if (!landed) throw new Error("没有钓上来");
 
+  await page.evaluate(() => window.__fishing.setSpeed(1));
+  await page.evaluate(() => window.__fishing.setHeld(true));
+  await wait(80);
+  await page.evaluate(() => window.__fishing.setHeld(false));
   await act(page, "joe");
   await wait(200);
   await shot(page, "05-stall.png");
@@ -360,6 +379,11 @@ try {
   await act(page, "marta");
   await wait(200);
   await shot(page, "05-shop.png");
+  for (const [w, h] of LAYOUT_SIZES) {
+    overlap.push(await assertLayout(page, "shop", w, h));
+    if (w === 375 && h === 667) await shot(page, "06-shop-375.png");
+  }
+  await fitViewport(page, 1280, 720);
   await act(page, "close");
   await act(page, "ready");
   for (const id of ["dawn", "day", "dusk", "night"]) {
@@ -416,6 +440,16 @@ try {
   await shot(finderPage, "09-finder.png");
   await finderPage.close();
 
+  for (const name of ["01-idle-375.png", "02-fly.png", "03-fight.png", "03-fight-375.png", "04-card.png"]) {
+    if (!fs.existsSync(path.join(outDir, name))) throw new Error(`缺图 ${name}`);
+  }
+  for (const scene of ["idle", "fight", "card", "shop"]) {
+    for (const [w, h] of LAYOUT_SIZES) {
+      if (!overlap.some((row) => row.scene === scene && row.size === `${w}x${h}`)) {
+        throw new Error(`缺重叠 ${scene} ${w}x${h}`);
+      }
+    }
+  }
   console.log(JSON.stringify({
     png: fs.readdirSync(outDir).filter((name) => name.endsWith(".png")),
     gif,
@@ -424,7 +458,9 @@ try {
     seconds,
     landed,
     overlap,
+    table: layoutTable(overlap),
   }, null, 2));
+  console.log(layoutTable(overlap));
 } finally {
   await browser.close();
 }
