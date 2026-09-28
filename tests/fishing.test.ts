@@ -20,7 +20,7 @@ import { gearStats, UPGRADES } from "../assets/scripts/fishing/Gear";
 import { fishingHarborGate } from "../assets/scripts/fishing/HarborGate";
 import { reelDragRate, reelWindRate, strainGain, swishGain, swishRate } from "../assets/scripts/fishing/audio/mix";
 import { applyCornerFit, blankCameraPoints, bendExponent, bobberPixelScale, fitLowerRight, presentLinePoint, presentViewPoint, RodRig, yawLocalPoint } from "../assets/scripts/fishing/RodRig";
-import { depthAt, dominantHabitat, fishingLook, onFooting, pierDistance, reefDistance, sampleCast, SPOT_EYE, vendorAt, VENDORS } from "../assets/scripts/fishing/SpotQuery";
+import { depthAt, dominantHabitat, fishingLook, onDryGround, onFooting, onPierDeck, pierDistance, reefDistance, sampleCast, SPOT_EYE, vendorAt, VENDORS } from "../assets/scripts/fishing/SpotQuery";
 import { PERIODS, shoreLook, sunDirection } from "../assets/scripts/fishing/Waters";
 import { GUIDE_CARDS } from "../assets/scripts/fishing/present";
 
@@ -678,13 +678,33 @@ describe("full-power cast stays in fish water", () => {
     expect(sand.view.notice).toContain("沙滩");
   });
 
-  it("walks the sand from the pier to both stalls and will not step into the channel", () => {
+  it("lands light, medium, and full casts from every spot in fish water", () => {
+    const powers = [0, 0.5, 1];
+    let cases = 0;
+    for (const spot of ["beach", "pier", "boat"] as const) {
+      for (const castM of [22, 32, 45]) {
+        for (const power of powers) {
+          const landed = throwPower(spot, castM, power);
+          const label = `${spot} ${castM}m power ${power} @ ${landed.x.toFixed(1)},${landed.z.toFixed(1)}`;
+          expect(onDryGround(landed.x, landed.z), label).toBe(false);
+          expect(onPierDeck(landed.x, landed.z), label).toBe(false);
+          expect(landed.depth, label).toBeGreaterThanOrEqual(0.25);
+          expect(biteDelay(landed.habitat, 16.2, () => 0.2), label).not.toBe(Infinity);
+          cases += 1;
+        }
+      }
+    }
+    expect(cases).toBe(27);
+  });
+
+  it("walks the pier back from the T-head to both stalls and will not step into the channel", () => {
     const trip = new FishingTrip({ rng: () => 0, money: 0 });
     trip.skipGuide();
     trip.setSpot("pier");
     trip.toReady();
+    expect(trip.view.eyeZ).toBeGreaterThan(12);
     const stepTo = (x: number, z: number) => {
-      for (let i = 0; i < 80; i++) {
+      for (let i = 0; i < 120; i++) {
         const dx = x - trip.view.eyeX;
         const dz = z - trip.view.eyeZ;
         if (Math.hypot(dx, dz) < 0.2) return;
@@ -692,11 +712,13 @@ describe("full-power cast stays in fish water", () => {
         trip.moveFeet((dx / d) * 0.45, (dz / d) * 0.45);
       }
     };
+    stepTo(8.05, -6);
     stepTo(6.1, -6);
     stepTo(VENDORS[0].x, VENDORS[0].z);
     expect(vendorAt(trip.view.eyeX, trip.view.eyeZ)?.id).toBe("joe");
     expect(onFooting(trip.view.eyeX, trip.view.eyeZ)).toBe(true);
     trip.setSpot("pier");
+    stepTo(8.05, -6);
     stepTo(12.2, -6);
     stepTo(VENDORS[1].x, VENDORS[1].z);
     expect(vendorAt(trip.view.eyeX, trip.view.eyeZ)?.id).toBe("marta");
@@ -723,8 +745,8 @@ describe("full-power cast stays in fish water", () => {
   });
 });
 
-function throwFull(spot: "beach" | "pier" | "boat", castM: number): { x: number; z: number; depth: number; habitat: ReturnType<typeof habitatAt>; pastTip: number; line: number } {
-  const sample = sampleCast(spot, "bay", 1, castM, 0);
+function throwPower(spot: "beach" | "pier" | "boat", castM: number, power: number): { x: number; z: number; depth: number; habitat: ReturnType<typeof habitatAt>; pastTip: number; line: number } {
+  const sample = sampleCast(spot, "bay", power, castM, 0);
   const eye = spot === "boat" ? { x: sample.x, y: 2.2, z: sample.z - 6 } : SPOT_EYE[spot];
   const look = fishingLook(spot, eye.x, eye.z);
   const yaw = Math.atan2(-(look.x - eye.x), -(look.z - eye.z));
@@ -734,13 +756,15 @@ function throwFull(spot: "beach" | "pier" | "boat", castM: number): { x: number;
   const frame = { camX: eye.x, camY: eye.y, camZ: eye.z, yaw, waterY: 0, fight: null, dip: 0 };
   rig.update(0.05, frame);
   rig.startWindup();
-  rig.update(1.1, frame);
+  rig.update(power >= 0.99 ? 1.1 : 0.02, frame);
+  rig.power = power;
   rig.release(sample.x, sample.z);
   let n = 0;
-  while (rig.state !== "floating" && n < 500) {
+  while (rig.state !== "floating" && n < 800) {
     rig.update(1 / 60, frame);
     n++;
   }
+  if (rig.state !== "floating") throw new Error(`${spot} ${castM} power ${power} did not land`);
   const depth = depthAt(rig.bobX, rig.bobZ);
   return {
     x: rig.bobX,
@@ -750,6 +774,10 @@ function throwFull(spot: "beach" | "pier" | "boat", castM: number): { x: number;
     pastTip: Math.hypot(rig.bobX - rig.tipX, rig.bobZ - rig.tipZ),
     line: rig.splashLine,
   };
+}
+
+function throwFull(spot: "beach" | "pier" | "boat", castM: number) {
+  return throwPower(spot, castM, 1);
 }
 
 function presentBlank(raw: Float32Array): { tip: [number, number, number]; fit: ReturnType<typeof fitLowerRight> } {

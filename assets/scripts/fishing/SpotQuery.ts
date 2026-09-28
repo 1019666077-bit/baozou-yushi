@@ -12,11 +12,11 @@ export type WaypointId = "bay" | "reef" | "deep";
 
 /**
  * 岛、沙滩、码头、摊位按原版相对位置收到大约 0.28。
- * 钓鱼站在栈桥靠岸的一头，海在前方，乔和玛塔在两侧沙臂上，摇杆走得到。
+ * 码头人站在 T 头上，海在正前方，乔和玛塔在身后两侧，沿栈桥走回岸。
  */
 export const SPOT_EYE: { [id in SpotId]: { x: number; y: number; z: number } } = {
   beach: { x: -1.2, y: 1.65, z: -8.0 },
-  pier: { x: 8.15, y: 3.88, z: -9.5 },
+  pier: { x: 8.05, y: 3.88, z: 14.5 },
   boat: { x: 9.4, y: 2.2, z: 14.6 },
 };
 
@@ -26,7 +26,8 @@ export const VENDORS = [
   { id: "marta" as const, name: "玛塔", x: 12.5, z: 2.6, yaw: -1.05, radius: 3.0 },
 ];
 
-export const BOAT_MOOR = { x: 9.5, z: 14.6 };
+/** 停在 T 头右侧的水里，不挡正前方的抛投。 */
+export const BOAT_MOOR = { x: 12.2, z: 13.4 };
 
 /** 沿沙滩和码头能走到两个摊位，再远就不往海里放。 */
 export const STROLL_M = 42;
@@ -47,9 +48,9 @@ export function vendorAt(x: number, z: number): (typeof VENDORS)[number] | null 
   return best;
 }
 
-/** 顺着栈桥略偏右，落点在码头外侧的水里，不砸在木面上。 */
-const PIER_LOOK_X = 1.7;
-const PIER_LOOK_Z = 14;
+/** T 头朝海的正前方。短杆也落在木头前面的水里。 */
+const PIER_LOOK_X = 0;
+const PIER_LOOK_Z = 16;
 
 export function fishingLook(spot: SpotId, eyeX: number, eyeZ: number): { x: number; y: number; z: number } {
   if (spot === "beach") return { x: eyeX, y: 0.35, z: eyeZ + 12 };

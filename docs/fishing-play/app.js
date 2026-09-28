@@ -22764,18 +22764,18 @@ void main() {
   // assets/scripts/fishing/SpotQuery.ts
   var SPOT_EYE = {
     beach: { x: -1.2, y: 1.65, z: -8 },
-    pier: { x: 8.15, y: 3.88, z: -9.5 },
+    pier: { x: 8.05, y: 3.88, z: 14.5 },
     boat: { x: 9.4, y: 2.2, z: 14.6 }
   };
   var VENDORS = [
     { id: "joe", name: "\u4E54", x: 6, z: 2.6, yaw: 0.7, radius: 3.2 },
     { id: "marta", name: "\u739B\u5854", x: 12.5, z: 2.6, yaw: -1.05, radius: 3 }
   ];
-  var BOAT_MOOR = { x: 9.5, z: 14.6 };
+  var BOAT_MOOR = { x: 12.2, z: 13.4 };
   var STROLL_M = 42;
   var SHORE_Z = -4;
-  var PIER_LOOK_X = 1.7;
-  var PIER_LOOK_Z = 14;
+  var PIER_LOOK_X = 0;
+  var PIER_LOOK_Z = 16;
   function fishingLook(spot, eyeX, eyeZ) {
     if (spot === "beach") return { x: eyeX, y: 0.35, z: eyeZ + 12 };
     if (spot === "boat") return { x: eyeX + 8, y: 0.4, z: eyeZ + 3 };
@@ -23196,9 +23196,9 @@ void main() {
       this.feetZ = z;
       this.publish();
     }
-    /** 左右滑动，大约 ±25°。抛投方向跟着镜头转。 */
+    /** 左右滑动可以转过身。抛投方向跟着镜头转。码头默认仍朝海。 */
     setAimYaw(yaw) {
-      const limit = 25 * Math.PI / 180;
+      const limit = Math.PI;
       this.aimYaw = Math.min(limit, Math.max(-limit, yaw));
     }
     toDock() {
@@ -24728,8 +24728,8 @@ void main() {
   });
   addEventListener("pointermove", (event) => {
     if (!yawDrag) return;
-    const limit = 25 * Math.PI / 180;
-    aimYaw = Math.max(-limit, Math.min(limit, aimYaw + (event.clientX - yawX) / Math.max(1, innerWidth) * 1.2));
+    const limit = Math.PI;
+    aimYaw = Math.max(-limit, Math.min(limit, aimYaw + (event.clientX - yawX) / Math.max(1, innerWidth) * Math.PI));
     yawX = event.clientX;
     trip.setAimYaw(aimYaw);
   });
@@ -25097,17 +25097,20 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
     }
     const fit = fitLowerRight(pts);
     const narrow = innerWidth / innerHeight < 0.8;
-    const tuckOrigin = narrow ? [pts[0], pts[1], pts[2]] : null;
-    if (tuckOrigin) {
-      const [ax, ay, az] = tuckOrigin;
-      const k = 0.55;
-      const bx = 0.16;
-      const by = -0.22;
-      const bz = -0.95;
-      for (let i = 0; i < pts.length; i += 3) {
-        pts[i] = bx + (pts[i] - ax) * k;
-        pts[i + 1] = by + (pts[i + 1] - ay) * k;
-        pts[i + 2] = bz + (pts[i + 2] - az) * k;
+    const rodN = pts.length / 3 - 1;
+    const srcButt = [pts[0], pts[1], pts[2]];
+    const srcTip = [pts[rodN * 3], pts[rodN * 3 + 1], pts[rodN * 3 + 2]];
+    const dstButt = [0.124, -0.212, -0.52];
+    const dstTip = [0.126, -0.175, -1.12];
+    if (narrow) {
+      for (let i = 0; i <= rodN; i++) {
+        const s = i / rodN;
+        const ox = pts[i * 3] - (srcButt[0] + (srcTip[0] - srcButt[0]) * s);
+        const oy = pts[i * 3 + 1] - (srcButt[1] + (srcTip[1] - srcButt[1]) * s);
+        const oz = pts[i * 3 + 2] - (srcButt[2] + (srcTip[2] - srcButt[2]) * s);
+        pts[i * 3] = dstButt[0] + (dstTip[0] - dstButt[0]) * s + ox * 0.7;
+        pts[i * 3 + 1] = dstButt[1] + (dstTip[1] - dstButt[1]) * s + oy * 0.7;
+        pts[i * 3 + 2] = dstButt[2] + (dstTip[2] - dstButt[2]) * s + oz * 0.7;
       }
     }
     const yAxis = new Vector3(0, 1, 0);
@@ -25200,15 +25203,11 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
           z += (bobTrue[2] - end[2]) * t;
         }
         if (z > -0.15) z = -0.15;
-        if (tuckOrigin) {
-          const [ax, ay, az] = tuckOrigin;
+        if (narrow) {
           const amount = (1 - t) * (1 - t);
-          const tx = 0.16 + (x - ax) * 0.55;
-          const ty = -0.22 + (y - ay) * 0.55;
-          const tz = -0.95 + (z - az) * 0.55;
-          x += (tx - x) * amount;
-          y += (ty - y) * amount;
-          z += (tz - z) * amount;
+          x = dstTip[0] * amount + x * (1 - amount);
+          y = dstTip[1] * amount + y * (1 - amount);
+          z = dstTip[2] * amount + z * (1 - amount);
         }
         arr[i * 3] = x;
         arr[i * 3 + 1] = y;

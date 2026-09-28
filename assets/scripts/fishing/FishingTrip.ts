@@ -330,9 +330,9 @@ export class FishingTrip {
     this.publish();
   }
 
-  /** 左右滑动，大约 ±25°。抛投方向跟着镜头转。 */
+  /** 左右滑动可以转过身。抛投方向跟着镜头转。码头默认仍朝海。 */
   setAimYaw(yaw: number): void {
-    const limit = 25 * Math.PI / 180;
+    const limit = Math.PI;
     this.aimYaw = Math.min(limit, Math.max(-limit, yaw));
   }
 

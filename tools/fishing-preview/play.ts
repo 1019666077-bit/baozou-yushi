@@ -556,8 +556,8 @@ viewEl.addEventListener("pointerdown", (event) => {
 });
 addEventListener("pointermove", (event) => {
   if (!yawDrag) return;
-  const limit = 25 * Math.PI / 180;
-  aimYaw = Math.max(-limit, Math.min(limit, aimYaw + (event.clientX - yawX) / Math.max(1, innerWidth) * 1.2));
+  const limit = Math.PI;
+  aimYaw = Math.max(-limit, Math.min(limit, aimYaw + (event.clientX - yawX) / Math.max(1, innerWidth) * Math.PI));
   yawX = event.clientX;
   trip.setAimYaw(aimYaw);
 });
@@ -943,17 +943,21 @@ function syncRig(dt: number): void {
   }
   const fit = fitLowerRight(pts);
   const narrow = innerWidth / innerHeight < 0.8;
-  const tuckOrigin = narrow ? [pts[0], pts[1], pts[2]] as const : null;
-  if (tuckOrigin) {
-    const [ax, ay, az] = tuckOrigin;
-    const k = 0.55;
-    const bx = 0.16;
-    const by = -0.22;
-    const bz = -0.95;
-    for (let i = 0; i < pts.length; i += 3) {
-      pts[i] = bx + (pts[i] - ax) * k;
-      pts[i + 1] = by + (pts[i + 1] - ay) * k;
-      pts[i + 2] = bz + (pts[i + 2] - az) * k;
+  const rodN = pts.length / 3 - 1;
+  const srcButt = [pts[0], pts[1], pts[2]];
+  const srcTip = [pts[rodN * 3], pts[rodN * 3 + 1], pts[rodN * 3 + 2]];
+  // 竖屏竿本来几乎沿着同一条视线，只放大仍是一小截。把握把和竿尖分开放到画面右下。
+  const dstButt = [0.124, -0.212, -0.52];
+  const dstTip = [0.126, -0.175, -1.12];
+  if (narrow) {
+    for (let i = 0; i <= rodN; i++) {
+      const s = i / rodN;
+      const ox = pts[i * 3] - (srcButt[0] + (srcTip[0] - srcButt[0]) * s);
+      const oy = pts[i * 3 + 1] - (srcButt[1] + (srcTip[1] - srcButt[1]) * s);
+      const oz = pts[i * 3 + 2] - (srcButt[2] + (srcTip[2] - srcButt[2]) * s);
+      pts[i * 3] = dstButt[0] + (dstTip[0] - dstButt[0]) * s + ox * 0.7;
+      pts[i * 3 + 1] = dstButt[1] + (dstTip[1] - dstButt[1]) * s + oy * 0.7;
+      pts[i * 3 + 2] = dstButt[2] + (dstTip[2] - dstButt[2]) * s + oz * 0.7;
     }
   }
   const yAxis = new THREE.Vector3(0, 1, 0);
@@ -1047,15 +1051,11 @@ function syncRig(dt: number): void {
         z += (bobTrue[2] - end[2]) * t;
       }
       if (z > -0.15) z = -0.15;
-      if (tuckOrigin) {
-        const [ax, ay, az] = tuckOrigin;
+      if (narrow) {
         const amount = (1 - t) * (1 - t);
-        const tx = 0.16 + (x - ax) * 0.55;
-        const ty = -0.22 + (y - ay) * 0.55;
-        const tz = -0.95 + (z - az) * 0.55;
-        x += (tx - x) * amount;
-        y += (ty - y) * amount;
-        z += (tz - z) * amount;
+        x = dstTip[0] * amount + x * (1 - amount);
+        y = dstTip[1] * amount + y * (1 - amount);
+        z = dstTip[2] * amount + z * (1 - amount);
       }
       arr[i * 3] = x;
       arr[i * 3 + 1] = y;
