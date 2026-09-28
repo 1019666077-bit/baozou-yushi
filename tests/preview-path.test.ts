@@ -79,6 +79,26 @@ describe("Creator preview / shot path", () => {
     expect(read("tools/first-run-preview/shots/README.md")).toMatch(/2D\/辅助 ≠ Creator 3D/);
   });
 
+  it("wires the tide-station graybox into the playable first-run harbor", () => {
+    const html = read("tools/first-run-preview/index.html");
+    expect(html).toContain('id="world3d"');
+    expect(html).toContain("/tide-station/vendor/three.module.min.js");
+    const preview = read("tools/first-run-preview/preview.js");
+    expect(preview).toContain("mountTideStation");
+    expect(preview).toContain("/tide-station/scene.js");
+    expect(preview).toContain("/tide-station/generated/layout.json");
+    const serve = read("tools/first-run-preview/serve.mjs");
+    expect(serve).toContain("dumpLayout");
+    expect(serve).toContain("/tide-station/");
+    expect(serve).toContain("skipExtract");
+    const scene = read("tools/tide-station-preview/scene.js");
+    expect(scene).toContain("export async function mountTideStation");
+    const tideHtml = read("tools/tide-station-preview/index.html");
+    expect(tideHtml).toContain('id="view"');
+    const doc = read("docs/TIDE_STATION_GRAYBOX.md");
+    expect(doc).toMatch(/8766.*3D 灰盒|港口画面挂同一套浏览器 3D 灰盒/);
+  });
+
   it("documents the shortest Creator preview to four shots", () => {
     const local = read("docs/LOCAL_PREVIEW.md");
     const stage = read("docs/STAGE_3D.md");

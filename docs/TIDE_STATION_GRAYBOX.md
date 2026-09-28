@@ -114,9 +114,9 @@ node tools/try-web-desktop-build.mjs --probe-only
 
 包体：主包 **0 贴图文件**；运行时自绘 2 张 ≤64px。一盏光，关阴影后处理。港口 mesh 上限见 `STAGE_BUDGET.maxHarborMeshes`（现 128）。
 
-`tools/first-run-preview`（`:8766`）是 2D 代理，**不算** 3D 实机，也不能拷进 `creator-shots/`。
+`tools/first-run-preview`（`:8766`）港口画面挂同一套浏览器 3D 灰盒（零件同 `TideStation.ts`），猎场仍是 2D。仍**不算** Creator 实机，也不能拷进 `creator-shots/`。
 
-无 Creator 时可以先看浏览器 3D 灰盒（零件同 `TideStation.ts`，仍**不算**实机）：
+无 Creator 时也可以单独看灰盒（可拖、可环视）：
 
 ```bash
 node tools/tide-station-preview/serve.mjs

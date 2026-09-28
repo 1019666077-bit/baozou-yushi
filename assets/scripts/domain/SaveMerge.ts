@@ -21,7 +21,7 @@ export function createDefaultSave(now = Date.now()): PlayerSave {
     tools: [{ toolId: "tool_rod", level: 1 }],
     discoveredFish: [],
     bestStyleScore: 0,
-    tutorialComplete: false,
+    tutorialComplete: true,
     completedRuns: 0,
     recentRuns: [],
     fishMastery: {},

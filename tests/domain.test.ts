@@ -272,6 +272,7 @@ import {
 import { playSynthRecipe } from "../assets/scripts/platform/SfxPlayer";
 import {
   DEFAULT_SAIL_ISLAND_ID,
+  TUTORIAL_GATE,
   TUTORIAL_ISLAND_ID,
   advanceTutorial,
   harborChipSelected,
@@ -531,7 +532,8 @@ describe("StyleGrade and capture chain", () => {
 
 describe("TutorialFlow", () => {
   it("keeps onboarding in the dedicated tutorial island", () => {
-    expect(isTutorialRun("island_tutorial", false)).toBe(true);
+    expect(TUTORIAL_GATE).toBe(false);
+    expect(isTutorialRun("island_tutorial", false)).toBe(false);
     expect(isTutorialRun("island_tutorial", true)).toBe(false);
     expect(isTutorialRun("island_foam_bay", false)).toBe(false);
   });
@@ -1258,7 +1260,7 @@ describe("SettleCopy", () => {
   });
 
   it("marks tutorial complete only after a tutorial island capture", () => {
-    const save = createDefaultSave(1);
+    const save = { ...createDefaultSave(1), tutorialComplete: false };
     const empty = new RunSession(
       "run_t0",
       TUTORIAL_ISLAND_ID,
@@ -1843,19 +1845,20 @@ describe("PrivacyCopy", () => {
 
 describe("TutorialFlow", () => {
   it("sends new players to the tutorial island until the save is marked complete", () => {
-    expect(isTutorialRun(TUTORIAL_ISLAND_ID, false)).toBe(true);
+    expect(TUTORIAL_GATE).toBe(false);
+    expect(isTutorialRun(TUTORIAL_ISLAND_ID, false)).toBe(false);
     expect(isTutorialRun(TUTORIAL_ISLAND_ID, true)).toBe(false);
     expect(isTutorialRun("island_foam_bay", false)).toBe(false);
-    expect(nextSailIsland(false)).toBe(TUTORIAL_ISLAND_ID);
+    expect(nextSailIsland(false)).toBe(DEFAULT_SAIL_ISLAND_ID);
     expect(nextSailIsland(true)).toBe(DEFAULT_SAIL_ISLAND_ID);
   });
 
   it("dials leftover tutorial selection back to foam bay after teaching", () => {
     expect(resolveHarborIsland(false, DEFAULT_SAIL_ISLAND_ID)).toBe(
-      TUTORIAL_ISLAND_ID,
+      DEFAULT_SAIL_ISLAND_ID,
     );
     expect(resolveHarborIsland(false, TUTORIAL_ISLAND_ID)).toBe(
-      TUTORIAL_ISLAND_ID,
+      DEFAULT_SAIL_ISLAND_ID,
     );
     expect(resolveHarborIsland(true, TUTORIAL_ISLAND_ID)).toBe(
       DEFAULT_SAIL_ISLAND_ID,

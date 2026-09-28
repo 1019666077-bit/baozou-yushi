@@ -13,12 +13,15 @@ import {
   paintWaterLife,
 } from "./skin.js";
 import { paintHarborBackdrop, preloadHarborLooks } from "./harborLooks.js";
+import { mountTideStation } from "/tide-station/scene.js";
 
 const grain = makeGrain(320, 180);
 
 const stage = document.getElementById("stage");
 const bg = document.getElementById("bg");
+const worldCanvas = document.getElementById("world3d");
 const juiceCanvas = document.getElementById("juice");
+let world3d = null;
 const hud = document.getElementById("hud");
 const buttons = document.getElementById("buttons");
 const disclaimer = document.getElementById("disclaimer");
@@ -32,10 +35,10 @@ const sy = (y) => 360 - y;
 
 const save = {
   coins: 0,
-  tutorialComplete: false,
+  tutorialComplete: true,
   completedRuns: 0,
   discovered: 0,
-  selectedIslandId: COPY.tutorialIsland.id,
+  selectedIslandId: COPY.islands[0].id,
 };
 
 const station = {
@@ -52,7 +55,7 @@ let tutorialStep = "cast";
 let carrying = false;
 let hooked = false;
 let pickable = false;
-let status = COPY.harborPrompts.newSail;
+let status = COPY.harborPlayPrompt ?? COPY.harborPrompts.freeSail;
 let statusFlash = "";
 let toastLeft = 0;
 let fishName = COPY.waitingCast;
@@ -726,9 +729,21 @@ function carryBob(elapsed) {
   };
 }
 
+function harborWorldSurface() {
+  return surface === "harbor" || surface === "settle" || surface === "orders" || surface === "pontoon";
+}
+
+function syncWorld3d() {
+  world3d?.setVisible(harborWorldSurface());
+}
+
 function paintSea(ctx, _look, harbor = false) {
   const phase = performance.now() / 520;
   if (harbor) {
+    if (world3d) {
+      ctx.clearRect(0, 0, W, H);
+      return;
+    }
     paintHarborBackdrop(ctx);
     return;
   }
@@ -1238,7 +1253,9 @@ function renderHarbor() {
     next !== "sail"
       ? COPY.harborPrompts[next === "upgrade" ? "upgrade" : "sell"]
       : complete
-        ? COPY.harborGoalAfter ?? COPY.harborPrompts.freeSail
+        ? save.completedRuns > 0
+          ? COPY.harborGoalAfter ?? COPY.harborPrompts.freeSail
+          : COPY.harborPlayPrompt ?? COPY.harborPrompts.freeSail
         : COPY.harborPrompts.newSail;
   const discoveryText =
     complete && statusFlash === COPY.firstRun.discovery
@@ -1308,9 +1325,14 @@ function renderHarbor() {
     );
     return;
   }
-  const labels = COPY.featureLabelsAfter;
+  const labels =
+    save.completedRuns >= 1
+      ? COPY.featureLabelsAfter
+      : COPY.featureLabelsPlay ?? COPY.featureLabelsAfter;
   cta(
-    COPY.sailCaptionAfter,
+    save.completedRuns >= 1
+      ? COPY.sailCaptionAfter
+      : COPY.sailCaptionPlay ?? COPY.sailCaptionAfter,
     -80,
     -230,
     230,
@@ -1385,7 +1407,7 @@ function renderSea() {
   hud.innerHTML = "";
   buttons.innerHTML = "";
   plate(0, 268, COPY.plate.size.width, COPY.plate.size.height, true);
-  label(`${COPY.tutorialIsland.name} · ${COPY.huntSuffix}`, 32, 0, 318);
+  label(`${(freeHunt ? COPY.islands[0]?.name : COPY.tutorialIsland.name) ?? "泡沫湾"} · ${COPY.huntSuffix}`, 32, 0, 318);
   label(multiplier, 22, -470, 318, 280);
   label(`本局 ${runCoins}`, 24, 470, 318, 280, rgb(COPY.colors.gold));
   label(status, 22, 0, 268, 760, rgb(COPY.colors.cream));
@@ -1612,6 +1634,7 @@ function paintBackdrop() {
 function render() {
   stage.dataset.surface = surface;
   stage.dataset.step = tutorialStep;
+  syncWorld3d();
   if (surface === "harbor") renderHarbor();
   else if (surface === "settle") renderSettle();
   else if (surface === "orders") renderOrderBoard();
@@ -1664,7 +1687,7 @@ function sail() {
   slamMark = 0;
   freeHunt = save.tutorialComplete === true;
   if (freeHunt) {
-    status = "自由局：点抛竿蓄力，再点「甩出」才松手。早/晚是普通命中。";
+    status = COPY.hazardHunt ?? "今日险货。空中砸才算搏赢。";
     fishName = "泡沫湾 · 湾鳍";
   }
   splashRings = [];
@@ -1732,7 +1755,9 @@ function applyWeak(knockNow = true) {
     playSfx("smash");
   }
   playSfx("weak");
-  status = COPY.tutorialPrompts.reel;
+  status = freeHunt
+    ? COPY.hazardDeck ?? COPY.tutorialPrompts.reel
+    : COPY.tutorialPrompts.reel;
   fishName = `${COPY.firstRun.liveQuoteHooked} · 韧性 0 · 弱点亮`;
 }
 
@@ -1769,7 +1794,7 @@ function onCrate() {
   carrying = false;
   tutorialStep = "settle";
   runCoins = COPY.firstRun.sold.price;
-  showCallout(COPY.firstRun.inbox);
+  showCallout(freeHunt ? COPY.hazardWin ?? COPY.firstRun.inbox : COPY.firstRun.inbox);
   burst("catch", COPY.crate.x, COPY.crate.y);
   cratePunchLeft = 0.16;
   playSfx("catch");
@@ -1956,6 +1981,24 @@ function tick(now) {
 preloadHarborLooks().then(() => {
   render();
 });
+if (worldCanvas) {
+  mountTideStation(worldCanvas, {
+    interactive: false,
+    fillWindow: false,
+    layoutUrl: "/tide-station/generated/layout.json",
+  })
+    .then((api) => {
+      world3d = api;
+      syncWorld3d();
+      world3d.resize();
+      render();
+    })
+    .catch((err) => {
+      console.warn("tide-station 3d failed, fallback morning.jpg", err);
+      world3d = null;
+      render();
+    });
+}
 requestAnimationFrame(tick);
 
 Object.assign(window, {
@@ -1975,7 +2018,8 @@ Object.assign(window, {
     slamMark,
     dust: particles.filter((p) => p.kind === "dust").length,
     tutorialComplete: save.tutorialComplete,
-    harborLookId: "morning",
+    harborLookId: world3d ? "tide-station" : "morning",
+    world3d: Boolean(world3d),
     station: { ...station },
   }),
   proxyHoldCharge: (value) => {

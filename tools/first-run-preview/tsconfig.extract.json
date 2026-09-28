@@ -26,6 +26,7 @@
     "../../assets/scripts/domain/ProcGeom.ts",
     "../../assets/scripts/domain/HitJuice.ts",
     "../../assets/scripts/domain/SfxFeel.ts",
+    "../../assets/scripts/domain/HazardCatch.ts",
     "../../assets/scripts/domain/IslandClock.ts",
     "../../assets/scripts/domain/PriceCalculator.ts",
     "../../assets/scripts/domain/StyleScoreSystem.ts",
