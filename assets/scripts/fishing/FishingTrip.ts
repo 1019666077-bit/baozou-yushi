@@ -25,6 +25,7 @@ import {
   reefDistance,
   sampleCast,
   SPOT_EYE,
+  onFooting,
   STROLL_M,
   type SpotId,
   type WaypointId,
@@ -306,8 +307,8 @@ export class FishingTrip {
   }
 
   /**
-   * 码头或沙滩上挪几步。船不走。走出水面或离开锚点 6.5 米就停。
-   * 乔和玛塔在岸上几十米外，这几步走不到，交谈仍要进他们的半径。
+   * 沙滩和码头上走。船不走。只能踩干沙或木面，离开锚点太远就停。
+   * 缩小后的岛上，从码头可以走到乔和玛塔。
    */
   moveFeet(dx: number, dz: number): void {
     if (this.spot === "boat") return;
@@ -323,10 +324,7 @@ export class FishingTrip {
       x = anchor.x + (ox / dist) * STROLL_M;
       z = anchor.z + (oz / dist) * STROLL_M;
     }
-    const onDeck = pierDistance(x, z) < 0.9;
-    const onSand = z <= -39;
-    const atSpot = Math.hypot(x - anchor.x, z - anchor.z) < 1.6;
-    if (!onDeck && !onSand && !atSpot) return;
+    if (!onFooting(x, z)) return;
     this.feetX = x;
     this.feetZ = z;
     this.publish();

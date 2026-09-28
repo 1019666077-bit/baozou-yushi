@@ -26,7 +26,7 @@ import {
   yawLocalPoint,
   type RodFrame,
 } from "../../assets/scripts/fishing/RodRig";
-import { aimLook, BOAT_MOOR, depthAt, pierDistance, VENDORS, type SpotId } from "../../assets/scripts/fishing/SpotQuery";
+import { aimLook, BOAT_MOOR, depthAt, PIER, pierDistance, SHORE_Z, VENDORS, type SpotId } from "../../assets/scripts/fishing/SpotQuery";
 import { shoreLook } from "../../assets/scripts/fishing/Waters";
 
 function seeded(seed: number): () => number {
@@ -104,48 +104,44 @@ const rockDark = new THREE.MeshLambertMaterial({ color: 0x4e5854 });
 const foamMat = new THREE.MeshBasicMaterial({ color: 0xe8f4f2, transparent: true, opacity: 0.72 });
 
 function buildIsland(): void {
-  box(280, 0.7, 140, sandMat, 20, -0.4, -112);
-  box(240, 0.16, 7, wetMat, 10, -0.02, -42);
-  box(70, 5, 26, sandMat, 28, 2.1, -132);
-  box(48, 7, 22, grassMat, 92, 3.2, -148);
-  box(36, 4.5, 18, grassMat, -20, 2.4, -128);
-  for (const [x, z, h] of [[12, -118, 3.2], [48, -108, 2.6], [78, -122, 3.4], [110, -96, 2.2]] as const) {
-    box(0.35, h, 0.35, woodDark, x, h / 2, z);
-    box(1.6, 0.7, 1.6, grassMat, x, h + 0.2, z);
-  }
-  box(220, 0.08, 1.6, foamMat, 10, 0.06, -40.1);
+  box(36, 0.55, 22, sandMat, 6, -0.28, -15);
+  box(8, 0.5, 12, sandMat, 5.5, -0.2, 0.2);
+  box(14, 0.5, 12, sandMat, 16, -0.2, 0.6);
+  box(18, 3.2, 8, sandMat, 2, 1.3, -22);
+  box(12, 4.4, 7, grassMat, 14, 1.8, -23);
+  box(8, 2.6, 6, grassMat, -6, 1.1, -20);
+  box(0.28, 2.4, 0.28, woodDark, 1, 1.2, -21);
+  box(1.5, 0.7, 1.5, grassMat, 1, 2.6, -21);
+  box(0.28, 3.1, 0.28, woodDark, 12, 1.5, -22);
+  box(1.7, 0.8, 1.7, grassMat, 12, 3.2, -22);
+  box(22, 0.12, 2.2, wetMat, 2, -0.02, SHORE_Z - 0.4);
+  box(20, 0.06, 0.7, foamMat, 1.2, 0.04, SHORE_Z + 0.35);
 }
 
 function buildPier(): void {
-  box(2.6, 0.2, 97, wood, 55, 2.22, -15.5);
-  box(14, 0.22, 7, wood, 55, 2.24, 36.5);
-  for (let z = -60; z <= 32; z += 4) {
+  const midZ = (PIER.zStart + PIER.zEnd) / 2;
+  const length = PIER.zEnd - PIER.zStart;
+  box(PIER.width, 0.18, length, wood, PIER.x, 2.2, midZ);
+  box(PIER.headWidth, 0.2, PIER.headDepth, wood, PIER.x, 2.22, PIER.zEnd - PIER.headDepth / 2);
+  for (let z = PIER.zStart + 2; z <= PIER.zEnd - 2; z += 3.2) {
     for (const side of [-1, 1]) {
-      box(0.28, 4.2, 0.28, woodDark, 55 + side * 1.45, 0.2, z);
-    }
-    if (z % 8 === 0) {
-      box(0.08, 0.08, 4, railMat, 55 - 1.25, 3.55, z);
-      box(0.08, 0.08, 4, railMat, 55 + 1.25, 3.55, z);
+      box(0.22, 3.6, 0.22, woodDark, PIER.x + side * (PIER.width / 2 + 0.05), 0.15, z);
     }
   }
-  for (const side of [-1, 1]) {
-    box(7, 0.1, 0.1, railMat, 55, 3.55, 36.5 + side * 3.3);
-    box(0.28, 4.4, 0.28, woodDark, 55 + side * 6.2, 0.1, 36.5);
-  }
-  box(0.9, 0.08, 8, wood, 52.2, 0.4, -68);
+  box(0.08, 0.08, length - 4, railMat, PIER.x - PIER.width / 2, 3.15, midZ);
+  box(0.08, 0.08, length - 4, railMat, PIER.x + PIER.width / 2, 3.15, midZ);
+  box(PIER.headWidth, 0.08, 0.08, railMat, PIER.x, 3.2, PIER.zEnd - 0.3);
 }
 
 function buildReef(): void {
   const rocks: [number, number, number, number][] = [
-    [-78, 58, 8, 2.4],
-    [-96, 42, 4.5, 1.5],
-    [-62, 74, 3.6, 1.2],
-    [-88, 68, 5, 1.8],
-    [-48, 50, 2.8, 0.9],
-    [96, 78, 3.2, 1.1],
+    [-12, 12, 3.4, 1.3],
+    [-15, 8, 2.2, 0.8],
+    [-9, 16, 2.4, 0.9],
+    [-18, 14, 1.8, 0.6],
   ];
   for (const [x, z, w, h] of rocks) {
-    box(w, h, w * 0.7, h > 1.5 ? rockMat : rockDark, x, h * 0.35, z);
+    box(w, h, w * 0.7, h > 1 ? rockMat : rockDark, x, h * 0.35, z);
   }
 }
 
@@ -282,51 +278,147 @@ scene.add(splashRing);
 const bobCam = new THREE.Vector3();
 
 const fishRoot = new THREE.Group();
-camera.add(fishRoot);
-fishRoot.visible = false;
+const catchStage = new THREE.Group();
+camera.add(catchStage);
+catchStage.visible = false;
+const stageBackdrop = new THREE.Mesh(
+  new THREE.PlaneGeometry(1, 1),
+  new THREE.MeshBasicMaterial({ color: 0x102228 }),
+);
+stageBackdrop.position.z = -0.28;
+catchStage.add(stageBackdrop);
 
+function finShape(height: number, length: number): THREE.Shape {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);
+  shape.lineTo(length, height * 0.15);
+  shape.lineTo(length * 0.25, height);
+  shape.lineTo(0, 0);
+  return shape;
+}
+
+/** 侧面朝镜头的分层鱼：身体、尾鳍、背鳍、腹鳍、眼睛。颜色跟鱼种走。 */
 function makeFish(id: string, kg: number): THREE.Group {
   void kg;
   const look = FISH_LOOK[id] ?? FISH_LOOK.mullet;
-  const length = 1;
-  const fat = Math.max(look.body, 0.22);
+  const ratio = Math.max(0.1, Math.min(0.75, look.body));
+  const fat = 0.48 + ratio * 0.46;
   const g = new THREE.Group();
-  const bodyMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(look.rgb[0] / 255, look.rgb[1] / 255, look.rgb[2] / 255) });
-  const accent = new THREE.MeshLambertMaterial({ color: new THREE.Color(look.accent[0] / 255, look.accent[1] / 255, look.accent[2] / 255) });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8), bodyMat);
-  body.scale.set(length, length * fat * 1.5, length * fat * 0.55);
+  const bodyColor = new THREE.Color(look.rgb[0] / 255, look.rgb[1] / 255, look.rgb[2] / 255);
+  const accentColor = new THREE.Color(look.accent[0] / 255, look.accent[1] / 255, look.accent[2] / 255);
+  const bodyMat = new THREE.MeshBasicMaterial({ color: bodyColor, side: THREE.DoubleSide });
+  const finMat = new THREE.MeshBasicMaterial({ color: accentColor, side: THREE.DoubleSide });
+  const nose = -0.58 - look.snout * 0.42;
+  const tailX = 0.4;
+  const profile = new THREE.Shape();
+  profile.moveTo(nose, 0.02 * fat);
+  profile.bezierCurveTo(nose + 0.3, 0.62 * fat, 0.02, 0.72 * fat, tailX, 0.18 * fat);
+  profile.lineTo(tailX, -0.14 * fat);
+  profile.bezierCurveTo(0, -0.56 * fat, nose + 0.24, -0.48 * fat, nose, 0.02 * fat);
+  const body = new THREE.Mesh(new THREE.ExtrudeGeometry(profile, { depth: 0.11, bevelEnabled: false }), bodyMat);
+  body.position.z = -0.055;
   g.add(body);
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(length * 0.28, length * fat * 1.3, 0.04), accent);
-  tail.position.x = length * 0.55;
-  g.add(tail);
-  const eye = new THREE.Mesh(new THREE.SphereGeometry(length * 0.045, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }));
-  eye.position.set(-length * (0.28 + look.snout * 0.4), length * fat * 0.35, length * fat * 0.4);
-  g.add(eye);
-  g.rotation.y = Math.PI / 2;
+  const fork = 0.2 + look.fork * 0.26;
+  const tail = new THREE.Shape();
+  tail.moveTo(tailX - 0.05, 0.14 * fat);
+  tail.lineTo(tailX + 0.36, fork);
+  tail.lineTo(tailX + 0.08, 0.01 * fat);
+  tail.lineTo(tailX + 0.36, -fork * 0.82);
+  tail.lineTo(tailX - 0.05, -0.1 * fat);
+  const tailMesh = new THREE.Mesh(new THREE.ShapeGeometry(tail), finMat);
+  tailMesh.position.z = 0.02;
+  g.add(tailMesh);
+  const dorsal = new THREE.Mesh(new THREE.ShapeGeometry(finShape(0.36 * fat + 0.05, 0.38)), finMat);
+  dorsal.position.set(-0.02, 0.26 * fat, 0.03);
+  g.add(dorsal);
+  const pelvic = new THREE.Mesh(new THREE.ShapeGeometry(finShape(0.16 * fat + 0.04, 0.22)), finMat);
+  pelvic.position.set(0.06, -0.18 * fat, 0.03);
+  pelvic.rotation.z = Math.PI;
+  g.add(pelvic);
+  const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), new THREE.MeshBasicMaterial({ color: 0xf6f3ea }));
+  eyeWhite.position.set(nose + 0.2, 0.14 * fat, 0.08);
+  g.add(eyeWhite);
+  const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), new THREE.MeshBasicMaterial({ color: 0x14181a }));
+  pupil.position.set(nose + 0.22, 0.15 * fat, 0.11);
+  g.add(pupil);
+  g.userData.belly = -0.56 * fat;
+  g.userData.length = tailX + 0.36 - nose;
   return g;
 }
 
+catchStage.add(fishRoot);
+const plinth = new THREE.Mesh(
+  new THREE.BoxGeometry(1, 0.08, 0.06),
+  new THREE.MeshBasicMaterial({ color: 0x8d6844 }),
+);
+catchStage.add(plinth);
+const felt = new THREE.Mesh(
+  new THREE.BoxGeometry(1, 0.018, 0.04),
+  new THREE.MeshBasicMaterial({ color: 0x1c5854 }),
+);
+catchStage.add(felt);
+const fishShadow = new THREE.Mesh(
+  new THREE.CircleGeometry(0.5, 24),
+  new THREE.MeshBasicMaterial({ color: 0x061018, transparent: true, opacity: 0.62, depthWrite: false }),
+);
+catchStage.add(fishShadow);
+const fishDrops: THREE.Mesh[] = [];
+const dropMat = new THREE.MeshBasicMaterial({ color: 0xd7eef2, transparent: true, opacity: 0.9 });
+for (let i = 0; i < 7; i++) {
+  const drop = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), dropMat);
+  catchStage.add(drop);
+  fishDrops.push(drop);
+}
+
 let shownFish = "";
-let fishDrops: THREE.Mesh[] = [];
 function syncFish(id: string, kg: number): void {
+  void kg;
   if (shownFish === id && fishRoot.children.length > 0) return;
   fishRoot.clear();
-  fishRoot.add(makeFish(id, kg));
-  const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(0.55, 18),
-    new THREE.MeshBasicMaterial({ color: 0x041018, transparent: true, opacity: 0.5 }),
-  );
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = -0.28;
-  fishRoot.add(shadow);
-  fishDrops = [];
-  const dropMat = new THREE.MeshBasicMaterial({ color: 0xd7eef2, transparent: true, opacity: 0.85 });
-  for (let i = 0; i < 6; i++) {
-    const drop = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 5), dropMat);
-    fishRoot.add(drop);
-    fishDrops.push(drop);
-  }
+  const fish = makeFish(id, kg);
+  fishRoot.add(fish);
+  fishRoot.userData.belly = fish.userData.belly;
+  fishRoot.userData.length = fish.userData.length;
   shownFish = id;
+}
+
+/** 展示台贴着渔获卡中间那一块，鱼腹落在台面上。 */
+function layoutCatch(cm: number, ease: number, settle: number, t: number): void {
+  const el = document.querySelector("#catch .stage") as HTMLElement | null;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  if (rect.width < 8 || rect.height < 8) return;
+  const dist = 1.35;
+  const tanV = Math.tan((62 * Math.PI) / 360);
+  const tanH = tanV * (innerWidth / Math.max(1, innerHeight));
+  const ndcX = ((rect.left + rect.width / 2) / innerWidth) * 2 - 1;
+  const ndcY = -(((rect.top + rect.height / 2) / innerHeight) * 2 - 1);
+  catchStage.position.set(ndcX * dist * tanH, ndcY * dist * tanV, -dist);
+  const w = (rect.width / innerWidth) * 2 * dist * tanH;
+  const h = (rect.height / innerHeight) * 2 * dist * tanV;
+  stageBackdrop.scale.set(w * 0.985, h * 0.96, 1);
+  const deckW = w * 0.78;
+  const deckH = Math.min(0.11, h * 0.18);
+  plinth.scale.set(deckW, deckH / 0.08, 1);
+  plinth.position.set(0, -h * 0.24, 0.02);
+  felt.scale.set(deckW * 0.9, 1, 1);
+  felt.position.set(0, plinth.position.y + deckH * 0.5 + 0.008, 0.05);
+  const top = felt.position.y + 0.012;
+  const length = Number(fishRoot.userData.length) || 1.3;
+  const belly = Number(fishRoot.userData.belly) || -0.3;
+  const cmBoost = Math.max(0.88, Math.min(1.12, cm / 48));
+  const scale = Math.min((w * 0.62) / length, (h * 0.62) / (Math.abs(belly) * 2.4)) * cmBoost;
+  const slideX = -(1 - ease) * w * 0.42 + settle * 0.03;
+  fishShadow.position.set(slideX, top + 0.004, 0.07);
+  fishShadow.scale.set(Math.max(0.2, length * scale * 0.42), Math.max(0.04, deckH * 0.7), 1);
+  fishRoot.position.set(slideX, top - belly * scale, 0.12);
+  fishRoot.scale.setScalar(scale);
+  fishDrops.forEach((drop, i) => {
+    const fall = Math.min(1, t / 0.7);
+    const a = (i / fishDrops.length) * Math.PI * 2 + 0.3;
+    drop.position.set(slideX + Math.cos(a) * deckW * 0.22, top + 0.03 + (1 - fall) * 0.16, 0.14);
+    drop.visible = t < 1.35;
+  });
 }
 
 const audio: { [id: string]: HTMLAudioElement } = {};
@@ -850,6 +942,20 @@ function syncRig(dt: number): void {
     pts[i + 2] = p[2];
   }
   const fit = fitLowerRight(pts);
+  const narrow = innerWidth / innerHeight < 0.8;
+  const tuckOrigin = narrow ? [pts[0], pts[1], pts[2]] as const : null;
+  if (tuckOrigin) {
+    const [ax, ay, az] = tuckOrigin;
+    const k = 0.55;
+    const bx = 0.16;
+    const by = -0.22;
+    const bz = -0.95;
+    for (let i = 0; i < pts.length; i += 3) {
+      pts[i] = bx + (pts[i] - ax) * k;
+      pts[i + 1] = by + (pts[i + 1] - ay) * k;
+      pts[i + 2] = bz + (pts[i + 2] - az) * k;
+    }
+  }
   const yAxis = new THREE.Vector3(0, 1, 0);
   const dir = new THREE.Vector3();
   let buttRadius = 0.0068;
@@ -941,6 +1047,16 @@ function syncRig(dt: number): void {
         z += (bobTrue[2] - end[2]) * t;
       }
       if (z > -0.15) z = -0.15;
+      if (tuckOrigin) {
+        const [ax, ay, az] = tuckOrigin;
+        const amount = (1 - t) * (1 - t);
+        const tx = 0.16 + (x - ax) * 0.55;
+        const ty = -0.22 + (y - ay) * 0.55;
+        const tz = -0.95 + (z - az) * 0.55;
+        x += (tx - x) * amount;
+        y += (ty - y) * amount;
+        z += (tz - z) * amount;
+      }
       arr[i * 3] = x;
       arr[i * 3 + 1] = y;
       arr[i * 3 + 2] = z;
@@ -985,23 +1101,22 @@ function syncRig(dt: number): void {
     bobVisible: showBobber,
   };
   const shown = trip.view;
-  fishRoot.visible = shown.phase === "card";
-  if (shown.phase === "card") {
+  const onCard = shown.phase === "card";
+  rodRoot.visible = !onCard;
+  if (onCard) {
+    lineMesh.visible = false;
+    bobber.visible = false;
+  }
+  catchStage.visible = onCard;
+  fishRoot.visible = onCard;
+  if (onCard) {
     const t = Math.max(0, 9 - shown.cardLeft);
     const slide = Math.min(1, t / 0.7);
     const ease = 1 - Math.pow(1 - slide, 3);
     const settle = Math.exp(-Math.max(0, t - 0.55) * 4) * Math.sin(Math.max(0, t - 0.55) * 9);
-    const scale = Math.max(0.12, shown.cm / 100);
-    fishRoot.position.set(-(1 - ease) * 1.6 + settle * 0.05, (1 - ease) * 0.25 - 0.02, -1.6);
-    fishRoot.scale.setScalar(scale);
-    fishRoot.rotation.z = Math.sin(t * 13) * 0.9 * Math.exp(-t * 1.6);
-    fishRoot.rotation.y = Math.sin(t * 0.55) * 0.2;
-    fishDrops.forEach((drop, i) => {
-      const fall = Math.min(1, t / 0.7);
-      const a = (i / fishDrops.length) * Math.PI * 2;
-      drop.position.set(Math.cos(a) * 0.45, 0.45 - fall * 0.85, Math.sin(a) * 0.15);
-      drop.visible = t < 1.3;
-    });
+    fishRoot.rotation.z = Math.sin(t * 13) * 0.16 * Math.exp(-t * 1.6);
+    fishRoot.rotation.y = 0.12;
+    layoutCatch(shown.cm, ease, settle, t);
   }
   tickSlices();
   const strain = shown.phase === "fighting" ? strainGain(shown.tension) : 0;
@@ -1057,6 +1172,19 @@ const api = {
   setSpeed: (n: number) => { speed = n; },
   setHeld: (down: boolean) => setHold(down),
   act: (name: string) => onAct(name),
+  nudge: (dx: number, dz: number) => trip.moveFeet(dx, dz),
+  marks: () => {
+    camera.updateMatrixWorld(true);
+    return VENDORS.map((vendor) => {
+      const point = new THREE.Vector3(vendor.x, 1.7, vendor.z).project(camera);
+      return {
+        id: vendor.id,
+        x: (point.x * 0.5 + 0.5) * innerWidth,
+        y: (-point.y * 0.5 + 0.5) * innerHeight,
+        behind: point.z < -1 || point.z > 1,
+      };
+    });
+  },
   openShop: () => { panelKind = "marta"; paintPanel(); },
   bend: () => rig.bend,
   splash: () => rig.splash,

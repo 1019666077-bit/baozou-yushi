@@ -10,22 +10,29 @@ import { habitatAt, type HabitatWeights } from "./Bites";
 export type SpotId = "beach" | "pier" | "boat";
 export type WaypointId = "bay" | "reef" | "deep";
 
+/**
+ * 岛、沙滩、码头、摊位按原版相对位置收到大约 0.28。
+ * 钓鱼站在栈桥靠岸的一头，海在前方，乔和玛塔在两侧沙臂上，摇杆走得到。
+ */
 export const SPOT_EYE: { [id in SpotId]: { x: number; y: number; z: number } } = {
-  beach: { x: 20, y: 1.65, z: -40 },
-  pier: { x: 56.45, y: 3.95, z: 20 },
-  boat: { x: 64.5, y: 2.2, z: 36.5 },
+  beach: { x: -1.2, y: 1.65, z: -8.0 },
+  pier: { x: 8.15, y: 3.88, z: -9.5 },
+  boat: { x: 9.4, y: 2.2, z: 14.6 },
 };
 
-/** 乔的鱼摊、玛塔的渔具店。坐标和半径来自 tidewater FishStand / Chandlery。 */
+/** 半径仍是原版 3.2 / 3.0。朝向按缩小后的摊位对着路。 */
 export const VENDORS = [
-  { id: "joe" as const, name: "乔", x: 49.9, z: -74.6, yaw: 1.45, radius: 3.2 },
-  { id: "marta" as const, name: "玛塔", x: 85.5, z: -60.5, yaw: -1.9, radius: 3.0 },
+  { id: "joe" as const, name: "乔", x: 6.0, z: 2.6, yaw: 0.7, radius: 3.2 },
+  { id: "marta" as const, name: "玛塔", x: 12.5, z: 2.6, yaw: -1.05, radius: 3.0 },
 ];
 
-export const BOAT_MOOR = { x: 64.5, z: 36.5 };
+export const BOAT_MOOR = { x: 9.5, z: 14.6 };
 
-/** 码头和沙滩上能挪的最远距离。再远就是整座岛，这一批不走。 */
-export const STROLL_M = 6.5;
+/** 沿沙滩和码头能走到两个摊位，再远就不往海里放。 */
+export const STROLL_M = 42;
+
+/** 湾心的岸线。两侧沙臂伸进海里，摊位站在沙臂上。 */
+export const SHORE_Z = -4;
 
 export function vendorAt(x: number, z: number): (typeof VENDORS)[number] | null {
   let best: (typeof VENDORS)[number] | null = null;
@@ -40,9 +47,9 @@ export function vendorAt(x: number, z: number): (typeof VENDORS)[number] | null 
   return best;
 }
 
-/** 码头镜头朝侧面的水，不顺着栈桥中线。落点和这个水平方向一致。 */
-const PIER_LOOK_X = 8.84;
-const PIER_LOOK_Z = 7.41;
+/** 顺着栈桥略偏右，落点在码头外侧的水里，不砸在木面上。 */
+const PIER_LOOK_X = 1.7;
+const PIER_LOOK_Z = 14;
 
 export function fishingLook(spot: SpotId, eyeX: number, eyeZ: number): { x: number; y: number; z: number } {
   if (spot === "beach") return { x: eyeX, y: 0.35, z: eyeZ + 12 };
@@ -68,14 +75,14 @@ export const WAYPOINTS: {
   deep: { x: 0, z: 220, depth: 26, reefDist: 90, pierDist: 90 },
 };
 
-const REEF = { x: -78, z: 58, radius: 58 };
-const PIER = {
-  x: 55,
-  zStart: -64,
-  zEnd: 40,
-  width: 2.6,
-  headWidth: 14,
-  headDepth: 7,
+const REEF = { x: -12, z: 12, radius: 8 };
+export const PIER = {
+  x: 8.05,
+  zStart: -14,
+  zEnd: 16,
+  width: 1.8,
+  headWidth: 4.4,
+  headDepth: 3.2,
 };
 
 export interface CastSample {
@@ -110,31 +117,43 @@ export function pierDistance(x: number, z: number): number {
   return Math.min(walk, head);
 }
 
-/** 码头木面和岸线以北的干沙滩没有水。浮标落在这里要收回。 */
+/** 码头木面、后滩，以及两侧伸进海里的沙臂。浮标落在这里要收回。 */
 export function onPierDeck(x: number, z: number): boolean {
   return pierDistance(x, z) <= 0.02;
 }
 
 export function onDryGround(x: number, z: number): boolean {
   if (onPierDeck(x, z)) return true;
-  return z < -42.4;
+  if (z < SHORE_Z) return true;
+  if (x > 4.25 && x < 6.9 && z < 5.2) return true;
+  if (x > 11.15 && z < 6.6) return true;
+  return false;
 }
 
-/** 岸线 z≈-42 约 0.4 m。贴着码头桩的水约 2.4 m，再往外加深。干沙滩是 0。 */
+/** 人可以站的地方：木面稍宽一点的边，加上干沙滩。不能踩进湾心的水。 */
+export function onFooting(x: number, z: number): boolean {
+  if (pierDistance(x, z) < 1.05) return true;
+  if (z < SHORE_Z + 0.15) return true;
+  if (x > 4.1 && x < 7.05 && z < 5.4) return true;
+  if (x > 11.0 && z < 6.8) return true;
+  return false;
+}
+
+/** 湾心岸线出去变深。沙臂旁边的水仍按离岸距离算，不把沙臂当成深海。 */
 export function depthAt(x: number, z: number): number {
   if (onDryGround(x, z)) return 0;
-  const offshore = 0.4 + Math.max(0, z + 42) * (3.6 / 82);
+  const offshore = 0.42 + Math.max(0, z - SHORE_Z) * 0.125;
   const nearPier = pierDistance(x, z);
-  if (nearPier < 8 && z > 0) {
-    const t = smooth(8, 1.5, nearPier);
-    return 2.4 * t + offshore * (1 - t);
+  if (nearPier < 6 && z > SHORE_Z) {
+    const t = smooth(6, 1.2, nearPier);
+    return Math.max(offshore, 1.7 * t + offshore * (1 - t));
   }
   const reef = reefDistance(x, z);
-  if (reef < 12) {
-    const t = smooth(12, -6, reef);
-    return Math.max(offshore, 7 * t + offshore * (1 - t));
+  if (reef < 8) {
+    const t = smooth(8, -4, reef);
+    return Math.max(offshore, 5.5 * t + offshore * (1 - t));
   }
-  if (z > 80) return offshore + (z - 80) * 0.12;
+  if (z > 28) return offshore + (z - 28) * 0.18;
   return offshore;
 }
 

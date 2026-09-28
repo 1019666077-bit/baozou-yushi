@@ -7,7 +7,7 @@ import { waterAmp } from "../domain/ProcGeom";
 import type { StagePart } from "../domain/ProcGeom";
 import { rippleWater, spawnPart, spawnParts } from "../world/StageBuild";
 import { applyCornerFit, blankCameraPoints, bobberPixelScale, fitLowerRight, LINE_SEGS, presentLinePoint, presentViewPoint, yawLocalPoint, type RodRig } from "./RodRig";
-import { aimLook, BOAT_MOOR, VENDORS, type SpotId } from "./SpotQuery";
+import { aimLook, BOAT_MOOR, PIER, SHORE_Z, VENDORS, type SpotId } from "./SpotQuery";
 import { PERIOD_LOOK, PERIODS, shoreLook, WATER_RGB, type PeriodId } from "./Waters";
 
 export interface FishingPose {
@@ -145,22 +145,23 @@ export class FishingWorld {
   private buildDiorama(): void {
     const layer = Layers.Enum.DEFAULT;
     const parts: StagePart[] = [
-      { name: "Island", kind: "box", x: 20, y: -0.35, z: -110, sx: 280, sy: 0.7, sz: 130, color: SAND, finish: "land" },
-      { name: "Dune", kind: "box", x: 30, y: 2.2, z: -130, sx: 70, sy: 4, sz: 28, color: [214, 196, 150], finish: "land" },
-      { name: "Hill", kind: "box", x: 90, y: 3.4, z: -145, sx: 46, sy: 6, sz: 24, color: [120, 140, 96], finish: "land" },
-      { name: "WetSand", kind: "box", x: 10, y: -0.04, z: -42, sx: 240, sy: 0.12, sz: 6, color: WET, finish: "land" },
-      { name: "Foam", kind: "box", x: 10, y: 0.05, z: -40.2, sx: 220, sy: 0.06, sz: 1.4, color: [236, 244, 242], finish: "water" },
-      { name: "PierWalk", kind: "box", x: 55, y: 2.22, z: -15.5, sx: 2.6, sy: 0.18, sz: 97, color: WOOD, finish: "wood" },
-      { name: "PierHead", kind: "box", x: 55, y: 2.24, z: 36.5, sx: 14, sy: 0.2, sz: 7, color: WOOD, finish: "wood" },
-      { name: "Water", kind: "plane", x: 20, y: 0, z: 70, sx: 380, sy: 1, sz: 280, color: [...WATER_RGB.dusk], finish: "water", wave: true },
-      { name: "ReefA", kind: "box", x: -78, y: 0.8, z: 58, sx: 7, sy: 2.2, sz: 5, color: [90, 96, 92], finish: "land" },
-      { name: "ReefB", kind: "box", x: -96, y: 0.4, z: 40, sx: 4, sy: 1.4, sz: 3, color: [70, 86, 82], finish: "land" },
-      { name: "ReefC", kind: "box", x: -60, y: 0.3, z: 72, sx: 3.2, sy: 1.1, sz: 2.4, color: [110, 104, 90], finish: "land" },
+      { name: "Island", kind: "box", x: 6, y: -0.28, z: -15, sx: 36, sy: 0.55, sz: 22, color: SAND, finish: "land" },
+      { name: "Spit", kind: "box", x: 5.5, y: -0.2, z: 0.2, sx: 8, sy: 0.5, sz: 12, color: SAND, finish: "land" },
+      { name: "Arm", kind: "box", x: 16, y: -0.2, z: 0.6, sx: 14, sy: 0.5, sz: 12, color: SAND, finish: "land" },
+      { name: "Dune", kind: "box", x: 2, y: 1.3, z: -22, sx: 18, sy: 3.2, sz: 8, color: [214, 196, 150], finish: "land" },
+      { name: "Hill", kind: "box", x: 14, y: 1.8, z: -23, sx: 12, sy: 4.4, sz: 7, color: [120, 140, 96], finish: "land" },
+      { name: "WetSand", kind: "box", x: 2, y: -0.02, z: SHORE_Z - 0.4, sx: 22, sy: 0.12, sz: 2.2, color: WET, finish: "land" },
+      { name: "Foam", kind: "box", x: 1.2, y: 0.04, z: SHORE_Z + 0.35, sx: 20, sy: 0.06, sz: 0.7, color: [236, 244, 242], finish: "water" },
+      { name: "PierWalk", kind: "box", x: PIER.x, y: 2.2, z: (PIER.zStart + PIER.zEnd) / 2, sx: PIER.width, sy: 0.18, sz: PIER.zEnd - PIER.zStart, color: WOOD, finish: "wood" },
+      { name: "PierHead", kind: "box", x: PIER.x, y: 2.22, z: PIER.zEnd - PIER.headDepth / 2, sx: PIER.headWidth, sy: 0.2, sz: PIER.headDepth, color: WOOD, finish: "wood" },
+      { name: "Water", kind: "plane", x: 8, y: 0, z: 24, sx: 80, sy: 1, sz: 70, color: [...WATER_RGB.dusk], finish: "water", wave: true },
+      { name: "ReefA", kind: "box", x: -12, y: 0.5, z: 12, sx: 3.4, sy: 1.3, sz: 2.4, color: [90, 96, 92], finish: "land" },
+      { name: "ReefB", kind: "box", x: -15, y: 0.3, z: 8, sx: 2.2, sy: 0.8, sz: 1.6, color: [70, 86, 82], finish: "land" },
     ];
-    for (let z = -60; z <= 32; z += 8) {
+    for (let z = PIER.zStart + 2; z <= PIER.zEnd - 2; z += 4) {
       parts.push(
-        { name: "PileL", kind: "box", x: 53.55, y: 0.4, z, sx: 0.28, sy: 3.6, sz: 0.28, color: WOOD_DARK, finish: "wood" },
-        { name: "PileR", kind: "box", x: 56.45, y: 0.4, z, sx: 0.28, sy: 3.6, sz: 0.28, color: WOOD_DARK, finish: "wood" },
+        { name: "PileL", kind: "box", x: PIER.x - PIER.width / 2, y: 0.4, z, sx: 0.22, sy: 3.2, sz: 0.22, color: WOOD_DARK, finish: "wood" },
+        { name: "PileR", kind: "box", x: PIER.x + PIER.width / 2, y: 0.4, z, sx: 0.22, sy: 3.2, sz: 0.22, color: WOOD_DARK, finish: "wood" },
       );
     }
     const spawned = spawnParts(this.root, layer, parts);

@@ -20,7 +20,7 @@ import { gearStats, UPGRADES } from "../assets/scripts/fishing/Gear";
 import { fishingHarborGate } from "../assets/scripts/fishing/HarborGate";
 import { reelDragRate, reelWindRate, strainGain, swishGain, swishRate } from "../assets/scripts/fishing/audio/mix";
 import { applyCornerFit, blankCameraPoints, bendExponent, bobberPixelScale, fitLowerRight, presentLinePoint, presentViewPoint, RodRig, yawLocalPoint } from "../assets/scripts/fishing/RodRig";
-import { depthAt, dominantHabitat, fishingLook, pierDistance, reefDistance, sampleCast, SPOT_EYE, vendorAt, VENDORS } from "../assets/scripts/fishing/SpotQuery";
+import { depthAt, dominantHabitat, fishingLook, onFooting, pierDistance, reefDistance, sampleCast, SPOT_EYE, vendorAt, VENDORS } from "../assets/scripts/fishing/SpotQuery";
 import { PERIODS, shoreLook, sunDirection } from "../assets/scripts/fishing/Waters";
 import { GUIDE_CARDS } from "../assets/scripts/fishing/present";
 
@@ -411,7 +411,8 @@ describe("fishing trip", () => {
     const near = sampleCast("pier", "bay", 1, 22);
     const far = sampleCast("pier", "bay", 1, 45);
     expect(far.reach).toBe(45);
-    expect(Math.hypot(far.x - 56.45, far.z - 20)).toBeGreaterThan(Math.hypot(near.x - 56.45, near.z - 20) + 10);
+    const eye = SPOT_EYE.pier;
+    expect(Math.hypot(far.x - eye.x, far.z - eye.z)).toBeGreaterThan(Math.hypot(near.x - eye.x, near.z - eye.z) + 10);
   });
 
   it("sells the catch and refuses an upgrade the wallet cannot afford", () => {
@@ -625,10 +626,10 @@ describe("rod rig feel", () => {
 
 describe("full-power cast stays in fish water", () => {
   it("caps every spot and rod so a full cast still has fish, and dry sand comes home", () => {
-    expect(depthAt(20, -80)).toBe(0);
-    expect(VENDORS[0]).toMatchObject({ x: 49.9, z: -74.6, radius: 3.2 });
-    expect(VENDORS[1]).toMatchObject({ x: 85.5, z: -60.5, radius: 3.0 });
-    expect(vendorAt(49.9, -74.6)?.id).toBe("joe");
+    expect(depthAt(0, -20)).toBe(0);
+    expect(VENDORS[0]).toMatchObject({ x: 6.0, z: 2.6, radius: 3.2 });
+    expect(VENDORS[1]).toMatchObject({ x: 12.5, z: 2.6, radius: 3.0 });
+    expect(vendorAt(6.0, 2.6)?.id).toBe("joe");
     expect(vendorAt(SPOT_EYE.pier.x, SPOT_EYE.pier.z)).toBeNull();
     expect(GUIDE_CARDS[1].rows?.length).toBe(6);
 
@@ -675,6 +676,35 @@ describe("full-power cast stays in fish water", () => {
     sand.bobberLanded(8, 1, 20, -80);
     expect(sand.view.phase).toBe("miss");
     expect(sand.view.notice).toContain("沙滩");
+  });
+
+  it("walks the sand from the pier to both stalls and will not step into the channel", () => {
+    const trip = new FishingTrip({ rng: () => 0, money: 0 });
+    trip.skipGuide();
+    trip.setSpot("pier");
+    trip.toReady();
+    const stepTo = (x: number, z: number) => {
+      for (let i = 0; i < 80; i++) {
+        const dx = x - trip.view.eyeX;
+        const dz = z - trip.view.eyeZ;
+        if (Math.hypot(dx, dz) < 0.2) return;
+        const d = Math.hypot(dx, dz) || 1;
+        trip.moveFeet((dx / d) * 0.45, (dz / d) * 0.45);
+      }
+    };
+    stepTo(6.1, -6);
+    stepTo(VENDORS[0].x, VENDORS[0].z);
+    expect(vendorAt(trip.view.eyeX, trip.view.eyeZ)?.id).toBe("joe");
+    expect(onFooting(trip.view.eyeX, trip.view.eyeZ)).toBe(true);
+    trip.setSpot("pier");
+    stepTo(12.2, -6);
+    stepTo(VENDORS[1].x, VENDORS[1].z);
+    expect(vendorAt(trip.view.eyeX, trip.view.eyeZ)?.id).toBe("marta");
+    const parked = { x: trip.view.eyeX, z: trip.view.eyeZ };
+    trip.moveFeet(-2.2, 0.4);
+    expect(trip.view.eyeX).toBeCloseTo(parked.x, 5);
+    expect(trip.view.eyeZ).toBeCloseTo(parked.z, 5);
+    expect(depthAt(-1.2, 2.4)).toBeGreaterThan(0.25);
   });
 
   it("breathes while idle and flicks the tip with the crank", () => {

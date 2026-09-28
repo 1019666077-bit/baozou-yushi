@@ -166,7 +166,27 @@ body.debug .dock { display: flex; }
 .badge { letter-spacing: 0.18em; font-weight: 800; font-size: 13px; }
 .badge.record { background: #e2b65a; color: #2a1604; padding: 4px 10px; border-radius: 4px; }
 .badge.new { background: #6fd6c6; color: #062420; padding: 4px 10px; border-radius: 4px; }
-.stage { width: min(92vw, 720px); height: min(28vh, 180px); }
+.stage {
+  width: min(92vw, 720px);
+  height: min(34vh, 260px);
+  border-radius: 18px;
+  background: transparent;
+  border: 1px solid rgba(214, 180, 110, 0.72);
+  box-shadow: 0 0 0 1px rgba(6, 12, 16, 0.45);
+}
+@media (max-aspect-ratio: 4/5) {
+  .map { width: 72px; height: 72px; right: 8px; top: 104px; bottom: auto; }
+  .stick { width: 64px; height: 64px; left: 8px; bottom: 132px; }
+  .stick i { left: 20px; top: 20px; }
+  .stage { height: min(30vh, 210px); }
+  body:not(.fighting) .tip {
+    left: 8px;
+    right: auto;
+    top: 56px;
+    bottom: auto;
+    width: min(210px, calc(100vw - 100px));
+  }
+}
 .stats { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .stat { min-width: 88px; padding: 8px 12px; border-radius: 8px; background: rgba(232,220,192,0.1); border: 1px solid rgba(214,180,110,0.35); }
 .stat span { display: block; font-size: 11px; letter-spacing: 0.14em; color: #debd7d; }
