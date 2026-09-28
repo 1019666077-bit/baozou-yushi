@@ -18,9 +18,15 @@ import {
   SHOP_KEYS,
   type ShopKey,
 } from "./present";
+import { habitatAt, type HabitatWeights } from "./Bites";
 import {
+  depthAt,
+  pierDistance,
+  reefDistance,
   sampleCast,
   SPOT_EYE,
+  onFooting,
+  STROLL_M,
   type SpotId,
   type WaypointId,
 } from "./SpotQuery";
@@ -233,6 +239,8 @@ export class FishingTrip {
   private guideStep = 0;
   private tip = "";
   private tipLeft = 0;
+  private feetX = SPOT_EYE.pier.x;
+  private feetZ = SPOT_EYE.pier.z;
 
   constructor(opts: { state?: GameState; rng?: () => number; money?: number } = {}) {
     this.rng = opts.rng ?? Math.random;
@@ -271,6 +279,8 @@ export class FishingTrip {
   setSpot(id: SpotId): void {
     if (this.phase !== "dock" && this.phase !== "ready" && this.phase !== "miss") return;
     this.spot = id;
+    this.feetX = SPOT_EYE[id].x;
+    this.feetZ = SPOT_EYE[id].z;
     if (this.phase === "miss") this.phase = "ready";
     if (id === "boat" && this.state.markTip("boat")) this.showTip("boat");
     this.publish();
@@ -296,9 +306,33 @@ export class FishingTrip {
     this.publish();
   }
 
-  /** 左右滑动，大约 ±25°。抛投方向跟着镜头转。 */
+  /**
+   * 沙滩和码头上走。船不走。只能踩干沙或木面，离开锚点太远就停。
+   * 缩小后的岛上，从码头可以走到乔和玛塔。
+   */
+  moveFeet(dx: number, dz: number): void {
+    if (this.spot === "boat") return;
+    if (this.phase !== "dock" && this.phase !== "ready" && this.phase !== "miss") return;
+    if (!Number.isFinite(dx) || !Number.isFinite(dz)) return;
+    const anchor = SPOT_EYE[this.spot];
+    let x = this.feetX + dx;
+    let z = this.feetZ + dz;
+    const ox = x - anchor.x;
+    const oz = z - anchor.z;
+    const dist = Math.hypot(ox, oz);
+    if (dist > STROLL_M) {
+      x = anchor.x + (ox / dist) * STROLL_M;
+      z = anchor.z + (oz / dist) * STROLL_M;
+    }
+    if (!onFooting(x, z)) return;
+    this.feetX = x;
+    this.feetZ = z;
+    this.publish();
+  }
+
+  /** 左右滑动可以转过身。抛投方向跟着镜头转。码头默认仍朝海。 */
   setAimYaw(yaw: number): void {
-    const limit = 25 * Math.PI / 180;
+    const limit = Math.PI;
     this.aimYaw = Math.min(limit, Math.max(-limit, yaw));
   }
 
@@ -499,7 +533,8 @@ export class FishingTrip {
 
   private cast(): void {
     const stats = this.state.stats;
-    const sample = sampleCast(this.spot, this.waypoint, this.power, stats.castM, this.aimYaw);
+    const eye = this.eye();
+    const sample = sampleCast(this.spot, this.waypoint, this.power, stats.castM, this.aimYaw, { x: eye.x, z: eye.z });
     this.reach = sample.reach;
     this.depth = sample.depth;
     this.bobX = sample.x;
@@ -508,17 +543,24 @@ export class FishingTrip {
     this.phase = "flying";
   }
 
-  /** 浮标落水后才开始计咬钩。落在干沙滩上就收回。 */
-  bobberLanded(lineOut: number, depth: number): void {
+  /** 浮标落水后才开始计咬钩。落在干沙滩、码头木面或水深不到 0.25 米就收回。 */
+  bobberLanded(lineOut: number, depth: number, x?: number, z?: number): void {
     if (this.phase !== "flying") return;
     this.splashLine = Math.max(0, lineOut);
-    this.depth = depth;
-    if (depth < 0.25) {
+    const placed = x !== undefined && z !== undefined;
+    const landDepth = placed ? depthAt(x, z) : depth;
+    if (placed) {
+      this.bobX = x;
+      this.bobZ = z;
+    }
+    this.depth = landDepth;
+    if (landDepth < 0.25) {
       this.fail("落到沙滩上了");
       this.publish();
       return;
     }
-    const delay = this.bites.start(this.castHabitat(), this.hour);
+    const habitat = placed ? this.habitatAtSplash(x, z, landDepth) : this.castHabitat();
+    const delay = this.bites.start(habitat, this.hour);
     if (!Number.isFinite(delay)) {
       this.fail("这片水里没有鱼");
       this.publish();
@@ -529,7 +571,13 @@ export class FishingTrip {
   }
 
   private castHabitat() {
-    return sampleCast(this.spot, this.waypoint, this.power, this.state.stats.castM, this.aimYaw).habitat;
+    const eye = this.eye();
+    return sampleCast(this.spot, this.waypoint, this.power, this.state.stats.castM, this.aimYaw, { x: eye.x, z: eye.z }).habitat;
+  }
+
+  private habitatAtSplash(x: number, z: number, depth: number): HabitatWeights {
+    if (this.spot === "boat") return this.castHabitat();
+    return habitatAt({ depth, reefDist: reefDistance(x, z), pierDist: pierDistance(x, z) });
   }
 
   private hookSet(): void {
@@ -627,7 +675,8 @@ export class FishingTrip {
       const sample = sampleCast("boat", this.waypoint, 0, 22);
       return { x: sample.x, y: 2.2, z: sample.z - 6 };
     }
-    return SPOT_EYE[this.spot];
+    const stand = SPOT_EYE[this.spot];
+    return { x: this.feetX, y: stand.y, z: this.feetZ };
   }
 
   private publish(): void {

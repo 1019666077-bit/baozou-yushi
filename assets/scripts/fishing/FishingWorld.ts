@@ -7,8 +7,8 @@ import { waterAmp } from "../domain/ProcGeom";
 import type { StagePart } from "../domain/ProcGeom";
 import { rippleWater, spawnPart, spawnParts } from "../world/StageBuild";
 import { applyCornerFit, blankCameraPoints, bobberPixelScale, fitLowerRight, LINE_SEGS, presentLinePoint, presentViewPoint, yawLocalPoint, type RodRig } from "./RodRig";
-import { aimLook, type SpotId } from "./SpotQuery";
-import { PERIOD_LOOK, WATER_RGB, type PeriodId } from "./Waters";
+import { aimLook, BOAT_MOOR, PIER, SHORE_Z, VENDORS, type SpotId } from "./SpotQuery";
+import { PERIOD_LOOK, PERIODS, shoreLook, WATER_RGB, type PeriodId } from "./Waters";
 
 export interface FishingPose {
   eyeX: number;
@@ -21,6 +21,7 @@ export interface FishingPose {
   cardAge: number;
   aimYaw: number;
   periodId: string;
+  hour: number;
   deckLights: boolean;
   showBobber: boolean;
 }
@@ -96,14 +97,14 @@ export class FishingWorld {
   tick(dt: number, pose: FishingPose, rig: RodRig): void {
     if (!this.root?.isValid) return;
     this.elapsed += dt;
-    this.applyLook(pose.periodId, pose.deckLights);
+    this.applyLook(pose.periodId, pose.deckLights, pose.hour);
     if (this.water?.isValid) rippleWater(this.water, this.elapsed, waterAmp(false));
     this.camNode.setPosition(pose.eyeX, pose.eyeY, pose.eyeZ);
     const look = aimLook(pose.spot as SpotId, pose.eyeX, pose.eyeZ, pose.aimYaw);
     this.look.set(look.x, look.y, look.z);
     this.camNode.lookAt(this.look, this.up);
     if (pose.spot === "boat") this.boat.setPosition(pose.eyeX, 0.15, pose.eyeZ + 1.2);
-    else this.boat.setPosition(64.5, 0.15, 36.5);
+    else this.boat.setPosition(BOAT_MOOR.x, 0.15, BOAT_MOOR.z);
     this.placeRod(rig);
     this.placeLine(rig, pose);
     const showFish = pose.phase === "card" && pose.fishRgb !== null;
@@ -144,18 +145,23 @@ export class FishingWorld {
   private buildDiorama(): void {
     const layer = Layers.Enum.DEFAULT;
     const parts: StagePart[] = [
-      { name: "PierDeck", kind: "box", x: 55, y: 2.22, z: 27, sx: 2.6, sy: 0.16, sz: 28, color: WOOD, finish: "wood" },
-      { name: "PierHead", kind: "box", x: 55, y: 2.24, z: 36.5, sx: 14, sy: 0.18, sz: 7, color: WOOD, finish: "wood" },
-      { name: "Beach", kind: "box", x: 20, y: -0.15, z: -58, sx: 90, sy: 0.4, sz: 36, color: SAND, finish: "land" },
-      { name: "WetSand", kind: "box", x: 20, y: -0.05, z: -42, sx: 90, sy: 0.2, sz: 8, color: WET, finish: "land" },
-      { name: "Water", kind: "plane", x: 40, y: 0, z: 30, sx: 220, sy: 1, sz: 180, color: [...WATER_RGB.dusk], finish: "water", wave: true },
+      { name: "Island", kind: "box", x: 6, y: -0.28, z: -15, sx: 36, sy: 0.55, sz: 22, color: SAND, finish: "land" },
+      { name: "Spit", kind: "box", x: 5.5, y: -0.2, z: 0.2, sx: 8, sy: 0.5, sz: 12, color: SAND, finish: "land" },
+      { name: "Arm", kind: "box", x: 16, y: -0.2, z: 0.6, sx: 14, sy: 0.5, sz: 12, color: SAND, finish: "land" },
+      { name: "Dune", kind: "box", x: 2, y: 1.3, z: -22, sx: 18, sy: 3.2, sz: 8, color: [214, 196, 150], finish: "land" },
+      { name: "Hill", kind: "box", x: 14, y: 1.8, z: -23, sx: 12, sy: 4.4, sz: 7, color: [120, 140, 96], finish: "land" },
+      { name: "WetSand", kind: "box", x: 2, y: -0.02, z: SHORE_Z - 0.4, sx: 22, sy: 0.12, sz: 2.2, color: WET, finish: "land" },
+      { name: "Foam", kind: "box", x: 1.2, y: 0.04, z: SHORE_Z + 0.35, sx: 20, sy: 0.06, sz: 0.7, color: [236, 244, 242], finish: "water" },
+      { name: "PierWalk", kind: "box", x: PIER.x, y: 2.2, z: (PIER.zStart + PIER.zEnd) / 2, sx: PIER.width, sy: 0.18, sz: PIER.zEnd - PIER.zStart, color: WOOD, finish: "wood" },
+      { name: "PierHead", kind: "box", x: PIER.x, y: 2.22, z: PIER.zEnd - PIER.headDepth / 2, sx: PIER.headWidth, sy: 0.2, sz: PIER.headDepth, color: WOOD, finish: "wood" },
+      { name: "Water", kind: "plane", x: 8, y: 0, z: 24, sx: 80, sy: 1, sz: 70, color: [...WATER_RGB.dusk], finish: "water", wave: true },
+      { name: "ReefA", kind: "box", x: -12, y: 0.5, z: 12, sx: 3.4, sy: 1.3, sz: 2.4, color: [90, 96, 92], finish: "land" },
+      { name: "ReefB", kind: "box", x: -15, y: 0.3, z: 8, sx: 2.2, sy: 0.8, sz: 1.6, color: [70, 86, 82], finish: "land" },
     ];
-    for (let z = 14; z <= 40; z += 3.2) {
+    for (let z = PIER.zStart + 2; z <= PIER.zEnd - 2; z += 4) {
       parts.push(
-        { name: "PostL", kind: "box", x: 53.8, y: 2.7, z, sx: 0.08, sy: 0.9, sz: 0.08, color: WOOD_DARK, finish: "wood" },
-        { name: "PostR", kind: "box", x: 56.2, y: 2.7, z, sx: 0.08, sy: 0.9, sz: 0.08, color: WOOD_DARK, finish: "wood" },
-        { name: "RailL", kind: "box", x: 53.8, y: 3.12, z, sx: 0.06, sy: 0.06, sz: 3.2, color: RAIL, finish: "wood" },
-        { name: "RailR", kind: "box", x: 56.2, y: 3.12, z, sx: 0.06, sy: 0.06, sz: 3.2, color: RAIL, finish: "wood" },
+        { name: "PileL", kind: "box", x: PIER.x - PIER.width / 2, y: 0.4, z, sx: 0.22, sy: 3.2, sz: 0.22, color: WOOD_DARK, finish: "wood" },
+        { name: "PileR", kind: "box", x: PIER.x + PIER.width / 2, y: 0.4, z, sx: 0.22, sy: 3.2, sz: 0.22, color: WOOD_DARK, finish: "wood" },
       );
     }
     const spawned = spawnParts(this.root, layer, parts);
@@ -168,15 +174,18 @@ export class FishingWorld {
       { name: "Hull", kind: "box", x: 0, y: 0.2, z: 0, sx: 2.4, sy: 0.7, sz: 6.2, color: HULL, finish: "prop" },
       { name: "Deck", kind: "box", x: 0, y: 0.62, z: -0.2, sx: 2.1, sy: 0.12, sz: 4.2, color: DECK, finish: "wood" },
     ]);
-    this.stall(49.2, 14, [93, 122, 140], [216, 178, 74]);
-    this.stall(62, 18, [138, 59, 50], [61, 90, 74]);
+    const joe = VENDORS[0];
+    const marta = VENDORS[1];
+    this.stall(joe.x, joe.z, joe.yaw, [93, 122, 140], [216, 178, 74]);
+    this.stall(marta.x, marta.z, marta.yaw, [138, 59, 50], [61, 90, 74]);
   }
 
-  private stall(x: number, z: number, shirt: [number, number, number], apron: [number, number, number]): void {
+  private stall(x: number, z: number, yaw: number, shirt: [number, number, number], apron: [number, number, number]): void {
     const node = new Node("Stall");
     node.layer = Layers.Enum.DEFAULT;
     node.parent = this.root;
     node.setPosition(x, 0, z);
+    node.setRotationFromEuler(0, yaw * 57.2958, 0);
     spawnParts(node, Layers.Enum.DEFAULT, [
       { name: "Counter", kind: "box", x: 0, y: 1.05, z: 0.4, sx: 2.4, sy: 0.12, sz: 1.4, color: WOOD, finish: "wood" },
       { name: "Awning", kind: "box", x: 0, y: 2.05, z: 0.2, sx: 2.6, sy: 0.08, sz: 1.6, color: [141, 74, 58], finish: "prop" },
@@ -462,7 +471,7 @@ export class FishingWorld {
     cam.clearFlags = Camera.ClearFlag.SOLID_COLOR;
     cam.clearColor = hexColor(PERIOD_LOOK.dusk.clear);
     this.viewCam = cam;
-    this.applyLook("dusk", false);
+    this.applyLook("dusk", false, 16.2);
     cam.visibility = Layers.Enum.DEFAULT;
   }
 
@@ -476,16 +485,17 @@ export class FishingWorld {
     this.sun = light;
   }
 
-  /** 四个时段改天空和光色。夜里开甲板灯，方向光抬到黄昏那一档，颜色偏暖。 */
-  private applyLook(periodId: string, deckLights: boolean): void {
+  /** 四个时段按钟点改天空、太阳方向和水色。夜里开甲板灯，光照提亮一档。高光带只在预览页。 */
+  private applyLook(periodId: string, deckLights: boolean, hour: number): void {
     const id = (periodId in PERIOD_LOOK ? periodId : "dusk") as PeriodId;
-    const look = PERIOD_LOOK[id];
-    const nightLift = id === "night" && deckLights;
-    const lit = nightLift ? PERIOD_LOOK.dusk : look;
-    this.viewCam.clearColor = hexColor(look.clear);
-    this.sun.color = hexColor(lit.sun);
-    this.sun.illuminance = 76000 * lit.sunInt;
-    const rgb = WATER_RGB[id];
+    const look = shoreLook(Number.isFinite(hour) ? hour : PERIODS[id].hour, deckLights);
+    this.viewCam.clearColor = hexColor(look.horizon);
+    this.sun.color = hexColor(look.sun);
+    this.sun.illuminance = 76000 * look.sunInt;
+    const node = this.sun.node;
+    node.setPosition(look.sunDir.x * 12, Math.max(0.4, look.sunDir.y) * 12, look.sunDir.z * 12);
+    node.lookAt(this.tmp.set(0, 0, 0));
+    const rgb = look.waterNear;
     this.waterRenderer?.material?.setProperty("mainColor", new Color(rgb[0], rgb[1], rgb[2], 255));
   }
 }

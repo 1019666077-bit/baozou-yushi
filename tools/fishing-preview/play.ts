@@ -26,8 +26,8 @@ import {
   yawLocalPoint,
   type RodFrame,
 } from "../../assets/scripts/fishing/RodRig";
-import { aimLook, depthAt, pierDistance, type SpotId } from "../../assets/scripts/fishing/SpotQuery";
-import { PERIOD_LOOK, type PeriodId } from "../../assets/scripts/fishing/Waters";
+import { aimLook, BOAT_MOOR, depthAt, PIER, pierDistance, SHORE_Z, VENDORS, type SpotId } from "../../assets/scripts/fishing/SpotQuery";
+import { shoreLook } from "../../assets/scripts/fishing/Waters";
 
 function seeded(seed: number): () => number {
   let x = seed || 1;
@@ -55,20 +55,27 @@ let aimYaw = 0;
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
 renderer.setSize(innerWidth, innerHeight);
-renderer.setClearColor(PERIOD_LOOK.dusk.clear, 1);
+const bootLook = shoreLook(16.2);
+renderer.setClearColor(bootLook.horizon, 1);
 document.getElementById("view")!.append(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(PERIOD_LOOK.dusk.fog, 72, 165);
-const ambient = new THREE.AmbientLight(PERIOD_LOOK.dusk.ambient, 0.5);
+scene.fog = new THREE.Fog(bootLook.fog, bootLook.fogNear, bootLook.fogFar);
+const ambient = new THREE.AmbientLight(bootLook.ambient, bootLook.ambientInt);
 scene.add(ambient);
-const sun = new THREE.DirectionalLight(PERIOD_LOOK.dusk.sun, PERIOD_LOOK.dusk.sunInt);
-sun.position.set(-12, 18, 8);
+const sun = new THREE.DirectionalLight(bootLook.sun, bootLook.sunInt);
+sun.position.set(bootLook.sunDir.x * 40, Math.max(4, bootLook.sunDir.y * 40), bootLook.sunDir.z * 40);
 scene.add(sun);
+
+const skyGeo = new THREE.SphereGeometry(480, 28, 16);
+const skyColors = new Float32Array(skyGeo.attributes.position.count * 3);
+skyGeo.setAttribute("color", new THREE.BufferAttribute(skyColors, 3));
+const sky = new THREE.Mesh(skyGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, depthWrite: false, fog: false }));
+scene.add(sky);
 const deckLamp = new THREE.PointLight(0xffb07a, 0, 18);
 scene.add(deckLamp);
 
-const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 180);
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 640);
 scene.add(camera);
 const rodRoot = new THREE.Group();
 camera.add(rodRoot);
@@ -91,25 +98,51 @@ function box(w: number, h: number, d: number, mat: THREE.Material, x: number, y:
   return mesh;
 }
 
-function buildPier(): void {
-  box(2.8, 0.18, 36, wood, 55, 2.22, 26);
-  for (let z = 16; z <= 42; z += 2.2) {
-    for (const side of [-1, 1]) {
-      box(0.14, 1.45, 0.14, woodDark, 55 + side * 1.25, 2.95, z);
-    }
-    box(0.1, 0.1, 2.2, railMat, 55 - 1.25, 3.62, z);
-    box(0.1, 0.1, 2.2, railMat, 55 + 1.25, 3.62, z);
-  }
-  box(14, 0.2, 7, wood, 55, 2.24, 36.5);
-  for (const side of [-1, 1]) {
-    box(7, 0.12, 0.12, railMat, 55, 3.62, 36.5 + side * 3.3);
-  }
-  box(8, 0.2, 6, sandMat, 52, 1.2, 8);
+const grassMat = new THREE.MeshLambertMaterial({ color: 0x6d8a58 });
+const rockMat = new THREE.MeshLambertMaterial({ color: 0x6e726c });
+const rockDark = new THREE.MeshLambertMaterial({ color: 0x4e5854 });
+const foamMat = new THREE.MeshBasicMaterial({ color: 0xe8f4f2, transparent: true, opacity: 0.72 });
+
+function buildIsland(): void {
+  box(36, 0.55, 22, sandMat, 6, -0.28, -15);
+  box(8, 0.5, 12, sandMat, 5.5, -0.2, 0.2);
+  box(14, 0.5, 12, sandMat, 16, -0.2, 0.6);
+  box(18, 3.2, 8, sandMat, 2, 1.3, -22);
+  box(12, 4.4, 7, grassMat, 14, 1.8, -23);
+  box(8, 2.6, 6, grassMat, -6, 1.1, -20);
+  box(0.28, 2.4, 0.28, woodDark, 1, 1.2, -21);
+  box(1.5, 0.7, 1.5, grassMat, 1, 2.6, -21);
+  box(0.28, 3.1, 0.28, woodDark, 12, 1.5, -22);
+  box(1.7, 0.8, 1.7, grassMat, 12, 3.2, -22);
+  box(22, 0.12, 2.2, wetMat, 2, -0.02, SHORE_Z - 0.4);
+  box(20, 0.06, 0.7, foamMat, 1.2, 0.04, SHORE_Z + 0.35);
 }
 
-function buildBeach(): void {
-  box(90, 0.4, 36, sandMat, 20, -0.15, -58);
-  box(90, 0.2, 8, wetMat, 20, -0.05, -42);
+function buildPier(): void {
+  const midZ = (PIER.zStart + PIER.zEnd) / 2;
+  const length = PIER.zEnd - PIER.zStart;
+  box(PIER.width, 0.18, length, wood, PIER.x, 2.2, midZ);
+  box(PIER.headWidth, 0.2, PIER.headDepth, wood, PIER.x, 2.22, PIER.zEnd - PIER.headDepth / 2);
+  for (let z = PIER.zStart + 2; z <= PIER.zEnd - 2; z += 3.2) {
+    for (const side of [-1, 1]) {
+      box(0.22, 3.6, 0.22, woodDark, PIER.x + side * (PIER.width / 2 + 0.05), 0.15, z);
+    }
+  }
+  box(0.08, 0.08, length - 4, railMat, PIER.x - PIER.width / 2, 3.15, midZ);
+  box(0.08, 0.08, length - 4, railMat, PIER.x + PIER.width / 2, 3.15, midZ);
+  box(PIER.headWidth, 0.08, 0.08, railMat, PIER.x, 3.2, PIER.zEnd - 0.3);
+}
+
+function buildReef(): void {
+  const rocks: [number, number, number, number][] = [
+    [-12, 12, 3.4, 1.3],
+    [-15, 8, 2.2, 0.8],
+    [-9, 16, 2.4, 0.9],
+    [-18, 14, 1.8, 0.6],
+  ];
+  for (const [x, z, w, h] of rocks) {
+    box(w, h, w * 0.7, h > 1 ? rockMat : rockDark, x, h * 0.35, z);
+  }
 }
 
 function buildBoat(): THREE.Group {
@@ -150,17 +183,17 @@ function buildStall(x: number, z: number, shirt: THREE.Material, apron: THREE.Ma
   return g;
 }
 
+buildIsland();
 buildPier();
-buildBeach();
+buildReef();
 const boat = buildBoat();
-const joe = buildStall(50.6, 16.6, shirtMat, apronMat, "乔");
-const marta = buildStall(50.4, 24.4, martaMat, new THREE.MeshLambertMaterial({ color: 0x3d5a4a }), "玛塔");
-const vendors = [
-  { id: "joe", name: "乔", x: 50.6, z: 16.6 },
-  { id: "marta", name: "玛塔", x: 50.4, z: 24.4 },
-];
+const joe = buildStall(VENDORS[0].x, VENDORS[0].z, shirtMat, apronMat, "乔");
+joe.rotation.y = VENDORS[0].yaw;
+const marta = buildStall(VENDORS[1].x, VENDORS[1].z, martaMat, new THREE.MeshLambertMaterial({ color: 0x3d5a4a }), "玛塔");
+marta.rotation.y = VENDORS[1].yaw;
+const vendors = VENDORS.map((vendor) => ({ id: vendor.id, name: vendor.name, x: vendor.x, z: vendor.z, radius: vendor.radius }));
 
-const waterGeo = new THREE.PlaneGeometry(220, 180, 48, 24);
+const waterGeo = new THREE.PlaneGeometry(420, 320, 70, 48);
 waterGeo.rotateX(-Math.PI / 2);
 const baseY = waterGeo.attributes.position.array.slice();
 const colors = new Float32Array(waterGeo.attributes.position.count * 3);
@@ -169,7 +202,7 @@ const water = new THREE.Mesh(
   waterGeo,
   new THREE.MeshBasicMaterial({ vertexColors: true }),
 );
-water.position.set(40, 0, 30);
+water.position.set(10, 0, 80);
 scene.add(water);
 
 const blankMat = new THREE.MeshLambertMaterial({ color: 0x2a2e32 });
@@ -245,51 +278,147 @@ scene.add(splashRing);
 const bobCam = new THREE.Vector3();
 
 const fishRoot = new THREE.Group();
-camera.add(fishRoot);
-fishRoot.visible = false;
+const catchStage = new THREE.Group();
+camera.add(catchStage);
+catchStage.visible = false;
+const stageBackdrop = new THREE.Mesh(
+  new THREE.PlaneGeometry(1, 1),
+  new THREE.MeshBasicMaterial({ color: 0x102228 }),
+);
+stageBackdrop.position.z = -0.28;
+catchStage.add(stageBackdrop);
 
+function finShape(height: number, length: number): THREE.Shape {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);
+  shape.lineTo(length, height * 0.15);
+  shape.lineTo(length * 0.25, height);
+  shape.lineTo(0, 0);
+  return shape;
+}
+
+/** 侧面朝镜头的分层鱼：身体、尾鳍、背鳍、腹鳍、眼睛。颜色跟鱼种走。 */
 function makeFish(id: string, kg: number): THREE.Group {
   void kg;
   const look = FISH_LOOK[id] ?? FISH_LOOK.mullet;
-  const length = 1;
-  const fat = Math.max(look.body, 0.22);
+  const ratio = Math.max(0.1, Math.min(0.75, look.body));
+  const fat = 0.48 + ratio * 0.46;
   const g = new THREE.Group();
-  const bodyMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(look.rgb[0] / 255, look.rgb[1] / 255, look.rgb[2] / 255) });
-  const accent = new THREE.MeshLambertMaterial({ color: new THREE.Color(look.accent[0] / 255, look.accent[1] / 255, look.accent[2] / 255) });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8), bodyMat);
-  body.scale.set(length, length * fat * 1.5, length * fat * 0.55);
+  const bodyColor = new THREE.Color(look.rgb[0] / 255, look.rgb[1] / 255, look.rgb[2] / 255);
+  const accentColor = new THREE.Color(look.accent[0] / 255, look.accent[1] / 255, look.accent[2] / 255);
+  const bodyMat = new THREE.MeshBasicMaterial({ color: bodyColor, side: THREE.DoubleSide });
+  const finMat = new THREE.MeshBasicMaterial({ color: accentColor, side: THREE.DoubleSide });
+  const nose = -0.58 - look.snout * 0.42;
+  const tailX = 0.4;
+  const profile = new THREE.Shape();
+  profile.moveTo(nose, 0.02 * fat);
+  profile.bezierCurveTo(nose + 0.3, 0.62 * fat, 0.02, 0.72 * fat, tailX, 0.18 * fat);
+  profile.lineTo(tailX, -0.14 * fat);
+  profile.bezierCurveTo(0, -0.56 * fat, nose + 0.24, -0.48 * fat, nose, 0.02 * fat);
+  const body = new THREE.Mesh(new THREE.ExtrudeGeometry(profile, { depth: 0.11, bevelEnabled: false }), bodyMat);
+  body.position.z = -0.055;
   g.add(body);
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(length * 0.28, length * fat * 1.3, 0.04), accent);
-  tail.position.x = length * 0.55;
-  g.add(tail);
-  const eye = new THREE.Mesh(new THREE.SphereGeometry(length * 0.045, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }));
-  eye.position.set(-length * (0.28 + look.snout * 0.4), length * fat * 0.35, length * fat * 0.4);
-  g.add(eye);
-  g.rotation.y = Math.PI / 2;
+  const fork = 0.2 + look.fork * 0.26;
+  const tail = new THREE.Shape();
+  tail.moveTo(tailX - 0.05, 0.14 * fat);
+  tail.lineTo(tailX + 0.36, fork);
+  tail.lineTo(tailX + 0.08, 0.01 * fat);
+  tail.lineTo(tailX + 0.36, -fork * 0.82);
+  tail.lineTo(tailX - 0.05, -0.1 * fat);
+  const tailMesh = new THREE.Mesh(new THREE.ShapeGeometry(tail), finMat);
+  tailMesh.position.z = 0.02;
+  g.add(tailMesh);
+  const dorsal = new THREE.Mesh(new THREE.ShapeGeometry(finShape(0.36 * fat + 0.05, 0.38)), finMat);
+  dorsal.position.set(-0.02, 0.26 * fat, 0.03);
+  g.add(dorsal);
+  const pelvic = new THREE.Mesh(new THREE.ShapeGeometry(finShape(0.16 * fat + 0.04, 0.22)), finMat);
+  pelvic.position.set(0.06, -0.18 * fat, 0.03);
+  pelvic.rotation.z = Math.PI;
+  g.add(pelvic);
+  const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), new THREE.MeshBasicMaterial({ color: 0xf6f3ea }));
+  eyeWhite.position.set(nose + 0.2, 0.14 * fat, 0.08);
+  g.add(eyeWhite);
+  const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), new THREE.MeshBasicMaterial({ color: 0x14181a }));
+  pupil.position.set(nose + 0.22, 0.15 * fat, 0.11);
+  g.add(pupil);
+  g.userData.belly = -0.56 * fat;
+  g.userData.length = tailX + 0.36 - nose;
   return g;
 }
 
+catchStage.add(fishRoot);
+const plinth = new THREE.Mesh(
+  new THREE.BoxGeometry(1, 0.08, 0.06),
+  new THREE.MeshBasicMaterial({ color: 0x8d6844 }),
+);
+catchStage.add(plinth);
+const felt = new THREE.Mesh(
+  new THREE.BoxGeometry(1, 0.018, 0.04),
+  new THREE.MeshBasicMaterial({ color: 0x1c5854 }),
+);
+catchStage.add(felt);
+const fishShadow = new THREE.Mesh(
+  new THREE.CircleGeometry(0.5, 24),
+  new THREE.MeshBasicMaterial({ color: 0x061018, transparent: true, opacity: 0.62, depthWrite: false }),
+);
+catchStage.add(fishShadow);
+const fishDrops: THREE.Mesh[] = [];
+const dropMat = new THREE.MeshBasicMaterial({ color: 0xd7eef2, transparent: true, opacity: 0.9 });
+for (let i = 0; i < 7; i++) {
+  const drop = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), dropMat);
+  catchStage.add(drop);
+  fishDrops.push(drop);
+}
+
 let shownFish = "";
-let fishDrops: THREE.Mesh[] = [];
 function syncFish(id: string, kg: number): void {
+  void kg;
   if (shownFish === id && fishRoot.children.length > 0) return;
   fishRoot.clear();
-  fishRoot.add(makeFish(id, kg));
-  const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(0.55, 18),
-    new THREE.MeshBasicMaterial({ color: 0x041018, transparent: true, opacity: 0.5 }),
-  );
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = -0.28;
-  fishRoot.add(shadow);
-  fishDrops = [];
-  const dropMat = new THREE.MeshBasicMaterial({ color: 0xd7eef2, transparent: true, opacity: 0.85 });
-  for (let i = 0; i < 6; i++) {
-    const drop = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 5), dropMat);
-    fishRoot.add(drop);
-    fishDrops.push(drop);
-  }
+  const fish = makeFish(id, kg);
+  fishRoot.add(fish);
+  fishRoot.userData.belly = fish.userData.belly;
+  fishRoot.userData.length = fish.userData.length;
   shownFish = id;
+}
+
+/** 展示台贴着渔获卡中间那一块，鱼腹落在台面上。 */
+function layoutCatch(cm: number, ease: number, settle: number, t: number): void {
+  const el = document.querySelector("#catch .stage") as HTMLElement | null;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  if (rect.width < 8 || rect.height < 8) return;
+  const dist = 1.35;
+  const tanV = Math.tan((62 * Math.PI) / 360);
+  const tanH = tanV * (innerWidth / Math.max(1, innerHeight));
+  const ndcX = ((rect.left + rect.width / 2) / innerWidth) * 2 - 1;
+  const ndcY = -(((rect.top + rect.height / 2) / innerHeight) * 2 - 1);
+  catchStage.position.set(ndcX * dist * tanH, ndcY * dist * tanV, -dist);
+  const w = (rect.width / innerWidth) * 2 * dist * tanH;
+  const h = (rect.height / innerHeight) * 2 * dist * tanV;
+  stageBackdrop.scale.set(w * 0.985, h * 0.96, 1);
+  const deckW = w * 0.78;
+  const deckH = Math.min(0.11, h * 0.18);
+  plinth.scale.set(deckW, deckH / 0.08, 1);
+  plinth.position.set(0, -h * 0.24, 0.02);
+  felt.scale.set(deckW * 0.9, 1, 1);
+  felt.position.set(0, plinth.position.y + deckH * 0.5 + 0.008, 0.05);
+  const top = felt.position.y + 0.012;
+  const length = Number(fishRoot.userData.length) || 1.3;
+  const belly = Number(fishRoot.userData.belly) || -0.3;
+  const cmBoost = Math.max(0.88, Math.min(1.12, cm / 48));
+  const scale = Math.min((w * 0.62) / length, (h * 0.62) / (Math.abs(belly) * 2.4)) * cmBoost;
+  const slideX = -(1 - ease) * w * 0.42 + settle * 0.03;
+  fishShadow.position.set(slideX, top + 0.004, 0.07);
+  fishShadow.scale.set(Math.max(0.2, length * scale * 0.42), Math.max(0.04, deckH * 0.7), 1);
+  fishRoot.position.set(slideX, top - belly * scale, 0.12);
+  fishRoot.scale.setScalar(scale);
+  fishDrops.forEach((drop, i) => {
+    const fall = Math.min(1, t / 0.7);
+    const a = (i / fishDrops.length) * Math.PI * 2 + 0.3;
+    drop.position.set(slideX + Math.cos(a) * deckW * 0.22, top + 0.03 + (1 - fall) * 0.16, 0.14);
+    drop.visible = t < 1.35;
+  });
 }
 
 const audio: { [id: string]: HTMLAudioElement } = {};
@@ -356,6 +485,7 @@ hud.innerHTML = `
   <div id="cross" aria-hidden="true"></div>
   <div id="finder"></div>
   <button id="replay" class="chrome icon" type="button">再看引导</button>
+  <div id="stick" class="stick" aria-hidden="true"><i></i></div>
   <button id="hold" type="button">按住蓄力 / 提竿 / 收线</button>
   <div class="map" id="map" aria-hidden="true"></div>
   <div class="tip" id="tip"></div>
@@ -426,13 +556,59 @@ viewEl.addEventListener("pointerdown", (event) => {
 });
 addEventListener("pointermove", (event) => {
   if (!yawDrag) return;
-  const limit = 25 * Math.PI / 180;
-  aimYaw = Math.max(-limit, Math.min(limit, aimYaw + (event.clientX - yawX) / Math.max(1, innerWidth) * 1.2));
+  const limit = Math.PI;
+  aimYaw = Math.max(-limit, Math.min(limit, aimYaw + (event.clientX - yawX) / Math.max(1, innerWidth) * Math.PI));
   yawX = event.clientX;
   trip.setAimYaw(aimYaw);
 });
 addEventListener("pointerup", () => { yawDrag = false; });
 addEventListener("pointercancel", () => { yawDrag = false; });
+
+const joy = document.getElementById("stick")!;
+const stickKnob = joy.firstElementChild as HTMLElement;
+let stickId = -1;
+let stickX = 0;
+let stickY = 0;
+function setStick(x: number, y: number): void {
+  const len = Math.hypot(x, y) || 1;
+  const k = Math.min(1, len);
+  stickX = (x / len) * k;
+  stickY = (y / len) * k;
+  stickKnob.style.transform = `translate(${stickX * 26}px, ${stickY * 26}px)`;
+}
+joy.addEventListener("pointerdown", (event) => {
+  stickId = event.pointerId;
+  joy.setPointerCapture(event.pointerId);
+  const rect = joy.getBoundingClientRect();
+  setStick((event.clientX - rect.left - rect.width / 2) / 36, (event.clientY - rect.top - rect.height / 2) / 36);
+});
+joy.addEventListener("pointermove", (event) => {
+  if (event.pointerId !== stickId) return;
+  const rect = joy.getBoundingClientRect();
+  setStick((event.clientX - rect.left - rect.width / 2) / 36, (event.clientY - rect.top - rect.height / 2) / 36);
+});
+function endStick(event: PointerEvent): void {
+  if (event.pointerId !== stickId) return;
+  stickId = -1;
+  setStick(0, 0);
+}
+joy.addEventListener("pointerup", endStick);
+joy.addEventListener("pointercancel", endStick);
+
+function stroll(dt: number): void {
+  if (stickId < 0) return;
+  const v = trip.view;
+  if (v.spot !== "beach" && v.spot !== "pier") return;
+  if (v.phase !== "dock" && v.phase !== "ready" && v.phase !== "miss") return;
+  const look = aimLook(v.spot, v.eyeX, v.eyeZ, aimYaw);
+  const fx = look.x - v.eyeX;
+  const fz = look.z - v.eyeZ;
+  const fl = Math.hypot(fx, fz) || 1;
+  const speed = 3.4 * dt;
+  const forward = -stickY;
+  const right = stickX;
+  trip.moveFeet(((fx / fl) * forward + (fz / fl) * right) * speed, ((fz / fl) * forward - (fx / fl) * right) * speed);
+}
 const talks = document.getElementById("talks")!;
 
 let panelKind = "";
@@ -482,7 +658,10 @@ function paintGuide(): void {
   root.classList.toggle("on", open);
   if (!open) return;
   const card = GUIDE_CARDS[trip.view.guideStep] ?? GUIDE_CARDS[0];
-  root.innerHTML = `<div class="card"><div class="badge">${card.eyebrow}</div><h2>${card.title}</h2><p>${card.body}</p><div class="foot"><button type="button" id="skip">跳过</button><button type="button" id="next">${trip.view.guideStep === 2 ? "开始钓鱼" : "下一步"}</button></div></div>`;
+  const rows = card.rows
+    ? `<div class="guide-list">${card.rows.map((row) => `<div class="guide-row"><span>${row.key}</span><span>${row.text}</span></div>`).join("")}</div>`
+    : `<p>${card.body}</p>`;
+  root.innerHTML = `<div class="card"><div class="badge">${card.eyebrow}</div><h2>${card.title}</h2>${rows}<div class="foot"><button type="button" id="skip">跳过</button><button type="button" id="next">${trip.view.guideStep === 2 ? "开始钓鱼" : "下一步"}</button></div></div>`;
   root.querySelector("#skip")!.addEventListener("click", () => onAct("skip"));
   root.querySelector("#next")!.addEventListener("click", () => onAct("next"));
 }
@@ -587,7 +766,9 @@ function syncHud(): void {
   document.body.classList.toggle("overlay", overlay);
   document.body.classList.toggle("fighting", v.phase === "fighting");
   document.body.classList.toggle("card", v.phase === "card");
-  const near = vendors.filter((vendor) => Math.hypot(vendor.x - v.eyeX, vendor.z - v.eyeZ) < 8);
+  const strolling = (v.spot === "beach" || v.spot === "pier") && (v.phase === "dock" || v.phase === "ready" || v.phase === "miss") && !overlay;
+  document.body.classList.toggle("walk", strolling);
+  const near = vendors.filter((vendor) => Math.hypot(vendor.x - v.eyeX, vendor.z - v.eyeZ) < vendor.radius);
   const talkKey = near.map((vendor) => vendor.id).join(",");
   if (talkKey !== talkStamp) {
     talkStamp = talkKey;
@@ -606,68 +787,96 @@ function syncHud(): void {
   if (cardBar && v.phase === "card") cardBar.style.width = `${Math.max(0, v.cardLeft / 9) * 100}%`;
 }
 
-const WATER_TINT: {
-  [id in PeriodId]: { near: [number, number, number]; far: [number, number, number]; glint: [number, number, number]; pow: number };
-} = {
-  dawn: { near: [0.04, 0.16, 0.48], far: [0.05, 0.12, 0.32], glint: [1, 0.48, 0.18], pow: 1.35 },
-  day: { near: [0.015, 0.2, 0.62], far: [0.01, 0.12, 0.4], glint: [0.9, 0.96, 0.92], pow: 2.4 },
-  dusk: { near: [0.02, 0.14, 0.5], far: [0.035, 0.1, 0.3], glint: [1, 0.42, 0.1], pow: 1.25 },
-  night: { near: [0.008, 0.03, 0.1], far: [0.004, 0.012, 0.04], glint: [0.06, 0.12, 0.22], pow: 2.6 },
-};
-const FOG_RANGE: { [id in PeriodId]: [number, number] } = {
-  dawn: [58, 150],
-  day: [90, 190],
-  dusk: [72, 165],
-  night: [36, 110],
-};
-const AMBIENT_INT: { [id in PeriodId]: number } = { dawn: 0.55, day: 0.68, dusk: 0.5, night: 0.32 };
-let paintedPeriod: PeriodId | "" = "";
+let paintedHour = -1;
 
-function paintWaterVertex(i: number, x: number, z: number, period: PeriodId, out: Float32Array): void {
-  const tint = WATER_TINT[period] ?? WATER_TINT.dusk;
-  const wx = x + 40;
-  const wz = z + 30;
-  const dx = wx - 56.45;
-  const dz = wz - 20;
-  const span = Math.hypot(8.84, 7.41) || 1;
-  const fx = 8.84 / span;
-  const fz = 7.41 / span;
-  const alongM = dx * fx + dz * fz;
-  const sideM = Math.abs(-dx * fz + dz * fx);
-  const t = Math.min(1, Math.max(0, alongM / 70));
-  const streak = Math.exp(-Math.pow((alongM - 22) / 16, 2)) * Math.exp(-Math.pow(sideM / 3.2, 2));
-  const band = Math.min(0.62, Math.pow(streak, tint.pow));
-  const r = tint.near[0] + (tint.far[0] - tint.near[0]) * t;
-  const g = tint.near[1] + (tint.far[1] - tint.near[1]) * t;
-  const b = tint.near[2] + (tint.far[2] - tint.near[2]) * t;
-  out[i * 3] = r + (tint.glint[0] - r) * band;
-  out[i * 3 + 1] = g + (tint.glint[1] - g) * band;
-  out[i * 3 + 2] = b + (tint.glint[2] - b) * band;
+/** 顶点色按线性写入。three 输出时会再转回 sRGB，直接写 0–1 会把夜晚水面洗亮。 */
+function srgbToLinear(c: number): number {
+  const x = Math.min(1, Math.max(0, c));
+  return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
 }
 
-function paintWater(period: PeriodId): void {
-  if (paintedPeriod === period) return;
-  paintedPeriod = period;
+function paintSky(zenith: number, horizon: number): void {
+  const pos = skyGeo.attributes.position;
+  const zr = ((zenith >> 16) & 255) / 255;
+  const zg = ((zenith >> 8) & 255) / 255;
+  const zb = (zenith & 255) / 255;
+  const hr = ((horizon >> 16) & 255) / 255;
+  const hg = ((horizon >> 8) & 255) / 255;
+  const hb = (horizon & 255) / 255;
+  for (let i = 0; i < pos.count; i++) {
+    // 钓鱼镜头只抬到地平线上大约 15°，渐变压在这一段里，否则整屏都是地平色。
+    const elev = Math.asin(Math.min(1, Math.max(-1, pos.getY(i) / 480)));
+    const t = Math.min(1, Math.max(0, elev / 0.28));
+    const s = t * t * (3 - 2 * t);
+    skyColors[i * 3] = srgbToLinear(hr + (zr - hr) * s);
+    skyColors[i * 3 + 1] = srgbToLinear(hg + (zg - hg) * s);
+    skyColors[i * 3 + 2] = srgbToLinear(hb + (zb - hb) * s);
+  }
+  (skyGeo.attributes.color as THREE.BufferAttribute).needsUpdate = true;
+}
+
+function paintWaterVertex(i: number, x: number, z: number, look: ReturnType<typeof shoreLook>, out: Float32Array): void {
+  const wx = x + water.position.x;
+  const wz = z + water.position.z;
+  const depth = depthAt(wx, wz);
+  const shore = Math.min(1, Math.max(0, depth / 1.6));
+  const farT = Math.min(1, Math.max(0, (depth - 1.2) / 18));
+  const shallow = look.waterShallow;
+  const near = look.waterNear;
+  const far = look.waterFar;
+  let r = (shallow[0] + (near[0] - shallow[0]) * shore) / 255;
+  let g = (shallow[1] + (near[1] - shallow[1]) * shore) / 255;
+  let b = (shallow[2] + (near[2] - shallow[2]) * shore) / 255;
+  r += (far[0] / 255 - r) * farT;
+  g += (far[1] / 255 - g) * farT;
+  b += (far[2] / 255 - b) * farT;
+  const sx = look.sunDir.x;
+  const sz = look.sunDir.z;
+  const sl = Math.hypot(sx, sz) || 1;
+  const along = wx * (sx / sl) + wz * (sz / sl);
+  const side = Math.abs(-wx * (sz / sl) + wz * (sx / sl));
+  const sunUp = Math.max(0, look.sunDir.y);
+  const elev = Math.max(0.05, sunUp);
+  const bandAt = 18 / elev;
+  const streak = Math.exp(-Math.pow((along - bandAt) / (22 + elev * 30), 2)) * Math.exp(-Math.pow(side / (8 + elev * 16), 2));
+  const glint = Math.min(0.72, Math.pow(streak, 1.15) * (0.35 + elev)) * Math.min(1, sunUp * 2.2);
+  const foam = depth > 0 && depth < 0.85 ? (0.85 - depth) / 0.85 : 0;
+  const foamK = Math.min(0.8, foam * (0.45 + 0.55 * Math.abs(Math.sin(wx * 0.35 + wz * 0.22))));
+  r = r + (look.glint[0] / 255 - r) * glint;
+  g = g + (look.glint[1] / 255 - g) * glint;
+  b = b + (look.glint[2] / 255 - b) * glint;
+  r = r + (look.foam[0] / 255 - r) * foamK;
+  g = g + (look.foam[1] / 255 - g) * foamK;
+  b = b + (look.foam[2] / 255 - b) * foamK;
+  out[i * 3] = srgbToLinear(r);
+  out[i * 3 + 1] = srgbToLinear(g);
+  out[i * 3 + 2] = srgbToLinear(b);
+}
+
+function paintWater(look: ReturnType<typeof shoreLook>): void {
   const pos = waterGeo.attributes.position;
-  for (let i = 0; i < pos.count; i++) paintWaterVertex(i, pos.getX(i), pos.getZ(i), period, colors);
+  for (let i = 0; i < pos.count; i++) paintWaterVertex(i, pos.getX(i), pos.getZ(i), look, colors);
   (waterGeo.attributes.color as THREE.BufferAttribute).needsUpdate = true;
 }
 
 function applySky(): void {
-  const id = (trip.view.periodId in PERIOD_LOOK ? trip.view.periodId : "dusk") as PeriodId;
-  const look = PERIOD_LOOK[id];
-  const nightLift = id === "night" && trip.view.deckLights;
-  const lit = nightLift ? PERIOD_LOOK.dusk : look;
-  const fog = FOG_RANGE[id];
-  renderer.setClearColor(look.clear, 1);
-  scene.fog = new THREE.Fog(look.fog, fog[0], fog[1]);
+  const look = shoreLook(trip.view.hour, trip.view.deckLights);
+  renderer.setClearColor(look.horizon, 1);
+  scene.fog = new THREE.Fog(look.fog, look.fogNear, look.fogFar);
   ambient.color.set(look.ambient);
-  ambient.intensity = AMBIENT_INT[id];
-  sun.color.set(lit.sun);
-  sun.intensity = lit.sunInt;
-  deckLamp.intensity = nightLift ? 2.4 : 0;
+  ambient.intensity = look.ambientInt;
+  sun.color.set(look.sun);
+  sun.intensity = look.sunInt;
+  const up = Math.max(0.15, look.sunDir.y);
+  sun.position.set(look.sunDir.x * 48, up * 48, look.sunDir.z * 48);
+  deckLamp.intensity = trip.view.deckLights && look.sunDir.y < 0.05 ? 2.4 : 0;
   deckLamp.position.set(trip.view.eyeX, trip.view.eyeY + 1.2, trip.view.eyeZ);
-  paintWater(id);
+  const key = Math.round(trip.view.hour * 10) + (trip.view.deckLights ? 1000 : 0);
+  if (key !== paintedHour) {
+    paintedHour = key;
+    paintSky(look.zenith, look.horizon);
+    paintWater(look);
+  }
 }
 
 function syncRig(dt: number): void {
@@ -710,7 +919,7 @@ function syncRig(dt: number): void {
   rig.update(dt, frame);
   if (prevRig !== "floating" && rig.state === "floating") {
     playClip("plop");
-    trip.bobberLanded(rig.splashLine, depthAt(rig.bobX, rig.bobZ));
+    trip.bobberLanded(rig.splashLine, depthAt(rig.bobX, rig.bobZ), rig.bobX, rig.bobZ);
     if (trip.view.phase === "miss") rig.retrieve();
   }
   lastPhase = trip.view.phase;
@@ -722,7 +931,7 @@ function syncRig(dt: number): void {
     boat.visible = true;
     boat.position.set(v.eyeX, 0.15, v.eyeZ + 1.2);
   } else boat.visible = v.spot === "pier";
-  if (v.spot === "pier") boat.position.set(64.5, 0.15, 36.5);
+  if (v.spot === "pier") boat.position.set(BOAT_MOOR.x, 0.15, BOAT_MOOR.z);
 
   const rawBlank = blankCameraPoints(rig, ROD_N + 1);
   const pts = new Float32Array(rawBlank.length);
@@ -733,6 +942,24 @@ function syncRig(dt: number): void {
     pts[i + 2] = p[2];
   }
   const fit = fitLowerRight(pts);
+  const narrow = innerWidth / innerHeight < 0.8;
+  const rodN = pts.length / 3 - 1;
+  const srcButt = [pts[0], pts[1], pts[2]];
+  const srcTip = [pts[rodN * 3], pts[rodN * 3 + 1], pts[rodN * 3 + 2]];
+  // 竖屏竿本来几乎沿着同一条视线，只放大仍是一小截。把握把和竿尖分开放到画面右下。
+  const dstButt = [0.124, -0.212, -0.52];
+  const dstTip = [0.126, -0.175, -1.12];
+  if (narrow) {
+    for (let i = 0; i <= rodN; i++) {
+      const s = i / rodN;
+      const ox = pts[i * 3] - (srcButt[0] + (srcTip[0] - srcButt[0]) * s);
+      const oy = pts[i * 3 + 1] - (srcButt[1] + (srcTip[1] - srcButt[1]) * s);
+      const oz = pts[i * 3 + 2] - (srcButt[2] + (srcTip[2] - srcButt[2]) * s);
+      pts[i * 3] = dstButt[0] + (dstTip[0] - dstButt[0]) * s + ox * 0.7;
+      pts[i * 3 + 1] = dstButt[1] + (dstTip[1] - dstButt[1]) * s + oy * 0.7;
+      pts[i * 3 + 2] = dstButt[2] + (dstTip[2] - dstButt[2]) * s + oz * 0.7;
+    }
+  }
   const yAxis = new THREE.Vector3(0, 1, 0);
   const dir = new THREE.Vector3();
   let buttRadius = 0.0068;
@@ -824,6 +1051,12 @@ function syncRig(dt: number): void {
         z += (bobTrue[2] - end[2]) * t;
       }
       if (z > -0.15) z = -0.15;
+      if (narrow) {
+        const amount = (1 - t) * (1 - t);
+        x = dstTip[0] * amount + x * (1 - amount);
+        y = dstTip[1] * amount + y * (1 - amount);
+        z = dstTip[2] * amount + z * (1 - amount);
+      }
       arr[i * 3] = x;
       arr[i * 3 + 1] = y;
       arr[i * 3 + 2] = z;
@@ -868,22 +1101,22 @@ function syncRig(dt: number): void {
     bobVisible: showBobber,
   };
   const shown = trip.view;
-  fishRoot.visible = shown.phase === "card";
-  if (shown.phase === "card") {
+  const onCard = shown.phase === "card";
+  rodRoot.visible = !onCard;
+  if (onCard) {
+    lineMesh.visible = false;
+    bobber.visible = false;
+  }
+  catchStage.visible = onCard;
+  fishRoot.visible = onCard;
+  if (onCard) {
     const t = Math.max(0, 9 - shown.cardLeft);
     const slide = Math.min(1, t / 0.7);
-    const ease = slide * slide * (3 - 2 * slide);
-    const scale = Math.max(0.12, shown.cm / 100);
-    fishRoot.position.set(-0.95 * (1 - ease), -0.02, -1.6);
-    fishRoot.scale.setScalar(scale);
-    fishRoot.rotation.z = Math.sin(t * 13) * 0.9 * Math.exp(-t * 1.6);
-    fishRoot.rotation.y = Math.sin(t * 0.55) * 0.2;
-    fishDrops.forEach((drop, i) => {
-      const fall = Math.min(1, t / 0.7);
-      const a = (i / fishDrops.length) * Math.PI * 2;
-      drop.position.set(Math.cos(a) * 0.45, 0.45 - fall * 0.85, Math.sin(a) * 0.15);
-      drop.visible = t < 1.3;
-    });
+    const ease = 1 - Math.pow(1 - slide, 3);
+    const settle = Math.exp(-Math.max(0, t - 0.55) * 4) * Math.sin(Math.max(0, t - 0.55) * 9);
+    fishRoot.rotation.z = Math.sin(t * 13) * 0.16 * Math.exp(-t * 1.6);
+    fishRoot.rotation.y = 0.12;
+    layoutCatch(shown.cm, ease, settle, t);
   }
   tickSlices();
   const strain = shown.phase === "fighting" ? strainGain(shown.tension) : 0;
@@ -920,7 +1153,10 @@ function frame(now: number): void {
   const wall = Math.min(0.05, (now - last) / 1000);
   const dt = wall * speed;
   last = now;
-  if (!trip.view.guideOpen) trip.tick(dt);
+  if (!trip.view.guideOpen) {
+    stroll(dt);
+    trip.tick(dt);
+  }
   applySky();
   syncRig(dt);
   wave(dt);
@@ -936,6 +1172,19 @@ const api = {
   setSpeed: (n: number) => { speed = n; },
   setHeld: (down: boolean) => setHold(down),
   act: (name: string) => onAct(name),
+  nudge: (dx: number, dz: number) => trip.moveFeet(dx, dz),
+  marks: () => {
+    camera.updateMatrixWorld(true);
+    return VENDORS.map((vendor) => {
+      const point = new THREE.Vector3(vendor.x, 1.7, vendor.z).project(camera);
+      return {
+        id: vendor.id,
+        x: (point.x * 0.5 + 0.5) * innerWidth,
+        y: (-point.y * 0.5 + 0.5) * innerHeight,
+        behind: point.z < -1 || point.z > 1,
+      };
+    });
+  },
   openShop: () => { panelKind = "marta"; paintPanel(); },
   bend: () => rig.bend,
   splash: () => rig.splash,
