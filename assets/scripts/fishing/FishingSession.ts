@@ -144,7 +144,7 @@ export class FishingSession extends Component {
     this.rig.update(dt, frame);
     if (prevRig !== "floating" && this.rig.state === "floating") {
       this.audio.play("plop");
-      this.trip.bobberLanded(this.rig.splashLine, depthAt(this.rig.bobX, this.rig.bobZ));
+      this.trip.bobberLanded(this.rig.splashLine, depthAt(this.rig.bobX, this.rig.bobZ), this.rig.bobX, this.rig.bobZ);
       if (this.trip.view.phase === "miss") this.rig.retrieve();
     }
     this.lastPhase = this.trip.view.phase;
@@ -169,6 +169,7 @@ export class FishingSession extends Component {
       cardAge: shown.phase === "card" ? 9 - shown.cardLeft : 0,
       aimYaw: this.aimYaw,
       periodId: shown.periodId,
+      hour: shown.hour,
       deckLights: shown.deckLights,
       showBobber,
     }, this.rig);

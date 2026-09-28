@@ -20744,7 +20744,15 @@ void main() {
     {
       eyebrow: "\u9493\u9C7C",
       title: "\u629B\u3001\u63D0\u3001\u6536",
-      body: "\u6309\u4F4F\u84C4\u529B\uFF0C\u677E\u624B\u629B\uFF0C\u8D8A\u4E45\u8D8A\u8FDC\u3002\u6D6E\u6807\u88AB\u62C9\u4E0B\u53BB\u518D\u63D0\u7AFF\uFF0C\u70B9\u5934\u53EA\u662F\u8BD5\u9975\u3002\u6309\u4F4F\u6536\u7EBF\uFF0C\u53D8\u7EA2\u5C31\u677E\u624B\uFF0C\u4E0D\u7136\u65AD\u7EBF\u3002\u300C\u6536\u56DE\u300D\u6536\u7A7A\u7EBF\u3002"
+      body: "\u70B9\u300C\u6362\u9493\u70B9\u300D\u5230\u6C34\u8FB9\u3002\u6309\u4F4F\u4E0B\u65B9\u6309\u94AE\u84C4\u529B\uFF0C\u677E\u624B\u629B\uFF0C\u6309\u8D8A\u4E45\u8D8A\u8FDC\u3002\u6D6E\u6807\u88AB\u62C9\u4E0B\u53BB\u518D\u70B9\u63D0\u7AFF\uFF0C\u70B9\u5934\u53EA\u662F\u8BD5\u9975\u3002\u6309\u4F4F\u6536\u7EBF\uFF0C\u53D8\u7EA2\u5C31\u677E\u624B\u3002\u70B9\u300C\u6536\u56DE\u300D\u6536\u7A7A\u7EBF\u3002\u70B9\u300C\u9C7C\u8231\u300D\u770B\u51B7\u85CF\u7BB1\u3002",
+      rows: [
+        { key: "\u6362\u9493\u70B9", text: "\u5230\u6C99\u6EE9\u3001\u7801\u5934\u6216\u8239\u4E0A" },
+        { key: "\u6309\u4F4F", text: "\u84C4\u529B\uFF0C\u677E\u624B\u629B\u3002\u6309\u8D8A\u4E45\u8D8A\u8FDC" },
+        { key: "\u70B9\u4E00\u4E0B", text: "\u6D6E\u6807\u88AB\u62C9\u4E0B\u53BB\u518D\u63D0\u7AFF\u3002\u70B9\u5934\u53EA\u662F\u8BD5\u9975" },
+        { key: "\u6309\u4F4F", text: "\u6536\u7EBF\u3002\u53D8\u7EA2\u5C31\u677E\u624B\uFF0C\u4E0D\u7136\u65AD\u7EBF" },
+        { key: "\u6536\u56DE", text: "\u628A\u7A7A\u7EBF\u6536\u56DE\u6765" },
+        { key: "\u9C7C\u8231", text: "\u770B\u51B7\u85CF\u7BB1\uFF0C\u4E5F\u53EF\u4EE5\u653E\u751F" }
+      ]
     },
     {
       eyebrow: "\u9644\u8FD1\u7684\u4EBA",
@@ -20772,6 +20780,12 @@ void main() {
     pier: { x: 56.45, y: 3.95, z: 20 },
     boat: { x: 64.5, y: 2.2, z: 36.5 }
   };
+  var VENDORS = [
+    { id: "joe", name: "\u4E54", x: 49.9, z: -74.6, yaw: 1.45, radius: 3.2 },
+    { id: "marta", name: "\u739B\u5854", x: 85.5, z: -60.5, yaw: -1.9, radius: 3 }
+  ];
+  var BOAT_MOOR = { x: 64.5, z: 36.5 };
+  var STROLL_M = 6.5;
   var PIER_LOOK_X = 8.84;
   var PIER_LOOK_Z = 7.41;
   function fishingLook(spot, eyeX, eyeZ) {
@@ -20826,7 +20840,15 @@ void main() {
     );
     return Math.min(walk, head);
   }
+  function onPierDeck(x, z) {
+    return pierDistance(x, z) <= 0.02;
+  }
+  function onDryGround(x, z) {
+    if (onPierDeck(x, z)) return true;
+    return z < -42.4;
+  }
   function depthAt(x, z) {
+    if (onDryGround(x, z)) return 0;
     const offshore = 0.4 + Math.max(0, z + 42) * (3.6 / 82);
     const nearPier = pierDistance(x, z);
     if (nearPier < 8 && z > 0) {
@@ -20841,7 +20863,7 @@ void main() {
     if (z > 80) return offshore + (z - 80) * 0.12;
     return offshore;
   }
-  function sampleCast(spot, waypoint, power, castM, yaw = 0) {
+  function sampleCast(spot, waypoint, power, castM, yaw = 0, origin) {
     const clamped = Math.min(1, Math.max(0, power));
     const reach = castM * (0.35 + 0.65 * clamped);
     if (spot === "boat") {
@@ -20856,7 +20878,7 @@ void main() {
         habitat: habitatAt({ depth: mark.depth, reefDist: mark.reefDist, pierDist: mark.pierDist })
       };
     }
-    const eye = SPOT_EYE[spot];
+    const eye = origin ?? SPOT_EYE[spot];
     const span = Math.hypot(PIER_LOOK_X, PIER_LOOK_Z) || 1;
     const fx = spot === "pier" ? PIER_LOOK_X / span : 0;
     const fz = spot === "pier" ? PIER_LOOK_Z / span : 1;
@@ -20898,12 +20920,100 @@ void main() {
     night: { id: "night", name: "\u591C\u665A", hour: 22 }
   };
   var PERIOD_IDS = Object.keys(PERIODS);
-  var PERIOD_LOOK = {
-    dawn: { clear: 15774858, fog: 15247496, sun: 16761504, ambient: 10401492, sunInt: 1.05 },
-    day: { clear: 8304352, fog: 9357546, sun: 16774368, ambient: 9353436, sunInt: 1.2 },
-    dusk: { clear: 14715490, fog: 13668456, sun: 16756848, ambient: 8301519, sunInt: 1.12 },
-    night: { clear: 924208, fog: 1054760, sun: 6981808, ambient: 1716304, sunInt: 0.28 }
-  };
+  var SKY_KEYS = [
+    { hour: 0, zenith: 264469, horizon: 726832 },
+    { hour: 4.4, zenith: 396578, horizon: 1582154 },
+    { hour: 5.3, zenith: 1582671, horizon: 11559274 },
+    { hour: 6.1, zenith: 3498142, horizon: 15902830 },
+    { hour: 7.6, zenith: 4029634, horizon: 11064044 },
+    { hour: 12, zenith: 2913478, horizon: 12772598 },
+    { hour: 16.3, zenith: 3635390, horizon: 11983598 },
+    { hour: 17.4, zenith: 3825052, horizon: 15835743 },
+    { hour: 18.1, zenith: 2502493, horizon: 14445134 },
+    { hour: 18.9, zenith: 1055292, horizon: 4666200 },
+    { hour: 19.8, zenith: 330522, horizon: 990006 },
+    { hour: 24, zenith: 264469, horizon: 726832 }
+  ];
+  function sunDirection(hour) {
+    const phi = 24 * Math.PI / 180;
+    const dec = 6 * Math.PI / 180;
+    const wrapped = (hour % 24 + 24) % 24;
+    const H = (wrapped - 12) * 15 * Math.PI / 180;
+    const east = -Math.cos(dec) * Math.sin(H);
+    const north = Math.cos(phi) * Math.sin(dec) - Math.sin(phi) * Math.cos(dec) * Math.cos(H);
+    const up = Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H);
+    const len = Math.hypot(east, up, north) || 1;
+    return { x: east / len, y: up / len, z: -north / len };
+  }
+  function mixHex(a, b, t) {
+    const ar = a >> 16 & 255;
+    const ag = a >> 8 & 255;
+    const ab = a & 255;
+    const br = b >> 16 & 255;
+    const bg = b >> 8 & 255;
+    const bb = b & 255;
+    const r = Math.round(ar + (br - ar) * t);
+    const g = Math.round(ag + (bg - ag) * t);
+    const bl = Math.round(ab + (bb - ab) * t);
+    return r << 16 | g << 8 | bl;
+  }
+  function skyAt(hour) {
+    const hh = (hour % 24 + 24) % 24;
+    for (let i = 0; i < SKY_KEYS.length - 1; i++) {
+      const a = SKY_KEYS[i];
+      const b = SKY_KEYS[i + 1];
+      if (hh >= a.hour && hh <= b.hour) {
+        const u = (hh - a.hour) / (b.hour - a.hour || 1);
+        const s = u * u * (3 - 2 * u);
+        return { zenith: mixHex(a.zenith, b.zenith, s), horizon: mixHex(a.horizon, b.horizon, s) };
+      }
+    }
+    return { zenith: SKY_KEYS[0].zenith, horizon: SKY_KEYS[0].horizon };
+  }
+  function rgbOf(hex) {
+    return [hex >> 16 & 255, hex >> 8 & 255, hex & 255];
+  }
+  function mixRgb(a, b, t) {
+    return [
+      a[0] + (b[0] - a[0]) * t,
+      a[1] + (b[1] - a[1]) * t,
+      a[2] + (b[2] - a[2]) * t
+    ];
+  }
+  function shoreLook(hour, deckLights = false) {
+    const sky2 = skyAt(hour);
+    const sunDir = sunDirection(hour);
+    const day = Math.min(1, Math.max(0, sunDir.y * 1.8));
+    const low = Math.min(1, Math.max(0, 0.35 - sunDir.y) / 0.35);
+    const night = 1 - day;
+    const sun2 = mixHex(16773842, 16751178, low * 0.85);
+    const ambient2 = mixHex(sky2.zenith, 10401492, day * 0.55);
+    const waterDay = [18, 118, 186];
+    const waterNight = [6, 22, 48];
+    const waterWarm = [28, 78, 128];
+    const near = mixRgb(mixRgb(waterNight, waterDay, day), waterWarm, low * 0.45);
+    const far = mixRgb(near, rgbOf(sky2.horizon), 0.28 + night * 0.35);
+    const shallow = mixRgb([168, 176, 132], near, 0.35);
+    const glint = rgbOf(sun2);
+    const lifted = night > 0.65 && deckLights;
+    return {
+      zenith: sky2.zenith,
+      horizon: sky2.horizon,
+      fog: sky2.horizon,
+      sun: lifted ? 16756848 : sun2,
+      ambient: lifted ? 8301519 : ambient2,
+      sunInt: lifted ? 0.85 : 0.22 + day * 1.05 + low * 0.25,
+      ambientInt: lifted ? 0.62 : 0.28 + day * 0.4,
+      sunDir,
+      waterNear: near,
+      waterFar: far,
+      waterShallow: shallow,
+      glint,
+      foam: [236, 244, 242],
+      fogNear: 28 + day * 70,
+      fogFar: 90 + day * 120
+    };
+  }
 
   // assets/scripts/fishing/FishingTrip.ts
   var SPOT_NAME = {
@@ -21006,6 +21116,8 @@ void main() {
       this.guideStep = 0;
       this.tip = "";
       this.tipLeft = 0;
+      this.feetX = SPOT_EYE.pier.x;
+      this.feetZ = SPOT_EYE.pier.z;
       this.rng = opts.rng ?? Math.random;
       this.state = opts.state ?? new GameState();
       if (opts.money !== void 0) this.state.money = Math.max(0, opts.money);
@@ -21039,6 +21151,8 @@ void main() {
     setSpot(id) {
       if (this.phase !== "dock" && this.phase !== "ready" && this.phase !== "miss") return;
       this.spot = id;
+      this.feetX = SPOT_EYE[id].x;
+      this.feetZ = SPOT_EYE[id].z;
       if (this.phase === "miss") this.phase = "ready";
       if (id === "boat" && this.state.markTip("boat")) this.showTip("boat");
       this.publish();
@@ -21059,6 +21173,32 @@ void main() {
       this.period = id;
       this.hour = PERIODS[id].hour;
       if (this.phase === "miss") this.phase = "ready";
+      this.publish();
+    }
+    /**
+     * 码头或沙滩上挪几步。船不走。走出水面或离开锚点 6.5 米就停。
+     * 乔和玛塔在岸上几十米外，这几步走不到，交谈仍要进他们的半径。
+     */
+    moveFeet(dx, dz) {
+      if (this.spot === "boat") return;
+      if (this.phase !== "dock" && this.phase !== "ready" && this.phase !== "miss") return;
+      if (!Number.isFinite(dx) || !Number.isFinite(dz)) return;
+      const anchor = SPOT_EYE[this.spot];
+      let x = this.feetX + dx;
+      let z = this.feetZ + dz;
+      const ox = x - anchor.x;
+      const oz = z - anchor.z;
+      const dist = Math.hypot(ox, oz);
+      if (dist > STROLL_M) {
+        x = anchor.x + ox / dist * STROLL_M;
+        z = anchor.z + oz / dist * STROLL_M;
+      }
+      const onDeck = pierDistance(x, z) < 0.9;
+      const onSand = z <= -39;
+      const atSpot = Math.hypot(x - anchor.x, z - anchor.z) < 1.6;
+      if (!onDeck && !onSand && !atSpot) return;
+      this.feetX = x;
+      this.feetZ = z;
       this.publish();
     }
     /** 左右滑动，大约 ±25°。抛投方向跟着镜头转。 */
@@ -21243,7 +21383,8 @@ void main() {
     }
     cast() {
       const stats = this.state.stats;
-      const sample = sampleCast(this.spot, this.waypoint, this.power, stats.castM, this.aimYaw);
+      const eye = this.eye();
+      const sample = sampleCast(this.spot, this.waypoint, this.power, stats.castM, this.aimYaw, { x: eye.x, z: eye.z });
       this.reach = sample.reach;
       this.depth = sample.depth;
       this.bobX = sample.x;
@@ -21251,17 +21392,24 @@ void main() {
       this.splashLine = 0;
       this.phase = "flying";
     }
-    /** 浮标落水后才开始计咬钩。落在干沙滩上就收回。 */
-    bobberLanded(lineOut, depth) {
+    /** 浮标落水后才开始计咬钩。落在干沙滩、码头木面或水深不到 0.25 米就收回。 */
+    bobberLanded(lineOut, depth, x, z) {
       if (this.phase !== "flying") return;
       this.splashLine = Math.max(0, lineOut);
-      this.depth = depth;
-      if (depth < 0.25) {
+      const placed = x !== void 0 && z !== void 0;
+      const landDepth = placed ? depthAt(x, z) : depth;
+      if (placed) {
+        this.bobX = x;
+        this.bobZ = z;
+      }
+      this.depth = landDepth;
+      if (landDepth < 0.25) {
         this.fail("\u843D\u5230\u6C99\u6EE9\u4E0A\u4E86");
         this.publish();
         return;
       }
-      const delay = this.bites.start(this.castHabitat(), this.hour);
+      const habitat = placed ? this.habitatAtSplash(x, z, landDepth) : this.castHabitat();
+      const delay = this.bites.start(habitat, this.hour);
       if (!Number.isFinite(delay)) {
         this.fail("\u8FD9\u7247\u6C34\u91CC\u6CA1\u6709\u9C7C");
         this.publish();
@@ -21271,7 +21419,12 @@ void main() {
       this.publish();
     }
     castHabitat() {
-      return sampleCast(this.spot, this.waypoint, this.power, this.state.stats.castM, this.aimYaw).habitat;
+      const eye = this.eye();
+      return sampleCast(this.spot, this.waypoint, this.power, this.state.stats.castM, this.aimYaw, { x: eye.x, z: eye.z }).habitat;
+    }
+    habitatAtSplash(x, z, depth) {
+      if (this.spot === "boat") return this.castHabitat();
+      return habitatAt({ depth, reefDist: reefDistance(x, z), pierDist: pierDistance(x, z) });
     }
     hookSet() {
       const hooked = this.bites.consumeHook();
@@ -21363,7 +21516,8 @@ void main() {
         const sample = sampleCast("boat", this.waypoint, 0, 22);
         return { x: sample.x, y: 2.2, z: sample.z - 6 };
       }
-      return SPOT_EYE[this.spot];
+      const stand = SPOT_EYE[this.spot];
+      return { x: this.feetX, y: stand.y, z: this.feetZ };
     }
     publish() {
       const stats = this.state.stats;
@@ -21696,18 +21850,22 @@ void main() {
     stepBobber(dt, frame2) {
       if (this.state === "flick" && this.t > 0.09) {
         const v0 = 7 + 13 * this.power * Math.sqrt(this.castM / 22);
-        const dx = this.aimX - this.tipX;
-        const dy = frame2.waterY - this.tipY;
-        const dz = this.aimZ - this.tipZ;
-        const len = Math.max(Math.hypot(dx, dy, dz), 1e-3);
-        const horiz = Math.hypot(dx, dz);
-        const cap = horiz > this.castM ? 0.5 : 1;
+        const tx = this.aimX - this.tipX;
+        const tz = this.aimZ - this.tipZ;
+        const tl = Math.max(Math.hypot(tx, tz), 1e-3);
+        const aimH = Math.hypot(this.aimX - frame2.camX, this.aimZ - frame2.camZ) || 1;
+        const camDrop = frame2.waterY - frame2.camY;
+        const camY = camDrop / Math.hypot(aimH, camDrop);
+        const dirY = Math.max(camY, -0.2) + 0.35;
+        const dirX = tx / tl;
+        const dirZ = tz / tl;
+        const len = Math.hypot(dirX, dirY, dirZ) || 1;
         this.bobX = this.tipX;
         this.bobY = this.tipY;
         this.bobZ = this.tipZ;
-        this.bobVX = dx / len * v0 * cap;
-        this.bobVY = dy / len * v0;
-        this.bobVZ = dz / len * v0 * cap;
+        this.bobVX = dirX / len * v0;
+        this.bobVY = dirY / len * v0;
+        this.bobVZ = dirZ / len * v0;
         this.splashMarked = false;
         this.setState("flying");
       }
@@ -21720,6 +21878,11 @@ void main() {
         this.bobX += this.bobVX * dt;
         this.bobY += this.bobVY * dt;
         this.bobZ += this.bobVZ * dt;
+        const range = Math.hypot(this.bobX - this.tipX, this.bobZ - this.tipZ);
+        if (range > this.castM) {
+          this.bobVX *= 0.5;
+          this.bobVZ *= 0.5;
+        }
         if (this.bobY <= frame2.waterY) {
           this.bobY = frame2.waterY;
           this.bobVX = 0;
@@ -22097,18 +22260,24 @@ void main() {
   var renderer = new WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
   renderer.setSize(innerWidth, innerHeight);
-  renderer.setClearColor(PERIOD_LOOK.dusk.clear, 1);
+  var bootLook = shoreLook(16.2);
+  renderer.setClearColor(bootLook.horizon, 1);
   document.getElementById("view").append(renderer.domElement);
   var scene = new Scene();
-  scene.fog = new Fog(PERIOD_LOOK.dusk.fog, 72, 165);
-  var ambient = new AmbientLight(PERIOD_LOOK.dusk.ambient, 0.5);
+  scene.fog = new Fog(bootLook.fog, bootLook.fogNear, bootLook.fogFar);
+  var ambient = new AmbientLight(bootLook.ambient, bootLook.ambientInt);
   scene.add(ambient);
-  var sun = new DirectionalLight(PERIOD_LOOK.dusk.sun, PERIOD_LOOK.dusk.sunInt);
-  sun.position.set(-12, 18, 8);
+  var sun = new DirectionalLight(bootLook.sun, bootLook.sunInt);
+  sun.position.set(bootLook.sunDir.x * 40, Math.max(4, bootLook.sunDir.y * 40), bootLook.sunDir.z * 40);
   scene.add(sun);
+  var skyGeo = new SphereGeometry(480, 28, 16);
+  var skyColors = new Float32Array(skyGeo.attributes.position.count * 3);
+  skyGeo.setAttribute("color", new BufferAttribute(skyColors, 3));
+  var sky = new Mesh(skyGeo, new MeshBasicMaterial({ vertexColors: true, side: BackSide, depthWrite: false, fog: false }));
+  scene.add(sky);
   var deckLamp = new PointLight(16756858, 0, 18);
   scene.add(deckLamp);
-  var camera = new PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 180);
+  var camera = new PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 640);
   scene.add(camera);
   var rodRoot = new Group();
   camera.add(rodRoot);
@@ -22128,24 +22297,52 @@ void main() {
     parent.add(mesh);
     return mesh;
   }
-  function buildPier() {
-    box(2.8, 0.18, 36, wood, 55, 2.22, 26);
-    for (let z = 16; z <= 42; z += 2.2) {
-      for (const side of [-1, 1]) {
-        box(0.14, 1.45, 0.14, woodDark, 55 + side * 1.25, 2.95, z);
-      }
-      box(0.1, 0.1, 2.2, railMat, 55 - 1.25, 3.62, z);
-      box(0.1, 0.1, 2.2, railMat, 55 + 1.25, 3.62, z);
+  var grassMat = new MeshLambertMaterial({ color: 7178840 });
+  var rockMat = new MeshLambertMaterial({ color: 7238252 });
+  var rockDark = new MeshLambertMaterial({ color: 5134420 });
+  var foamMat = new MeshBasicMaterial({ color: 15267058, transparent: true, opacity: 0.72 });
+  function buildIsland() {
+    box(280, 0.7, 140, sandMat, 20, -0.4, -112);
+    box(240, 0.16, 7, wetMat, 10, -0.02, -42);
+    box(70, 5, 26, sandMat, 28, 2.1, -132);
+    box(48, 7, 22, grassMat, 92, 3.2, -148);
+    box(36, 4.5, 18, grassMat, -20, 2.4, -128);
+    for (const [x, z, h] of [[12, -118, 3.2], [48, -108, 2.6], [78, -122, 3.4], [110, -96, 2.2]]) {
+      box(0.35, h, 0.35, woodDark, x, h / 2, z);
+      box(1.6, 0.7, 1.6, grassMat, x, h + 0.2, z);
     }
-    box(14, 0.2, 7, wood, 55, 2.24, 36.5);
-    for (const side of [-1, 1]) {
-      box(7, 0.12, 0.12, railMat, 55, 3.62, 36.5 + side * 3.3);
-    }
-    box(8, 0.2, 6, sandMat, 52, 1.2, 8);
+    box(220, 0.08, 1.6, foamMat, 10, 0.06, -40.1);
   }
-  function buildBeach() {
-    box(90, 0.4, 36, sandMat, 20, -0.15, -58);
-    box(90, 0.2, 8, wetMat, 20, -0.05, -42);
+  function buildPier() {
+    box(2.6, 0.2, 97, wood, 55, 2.22, -15.5);
+    box(14, 0.22, 7, wood, 55, 2.24, 36.5);
+    for (let z = -60; z <= 32; z += 4) {
+      for (const side of [-1, 1]) {
+        box(0.28, 4.2, 0.28, woodDark, 55 + side * 1.45, 0.2, z);
+      }
+      if (z % 8 === 0) {
+        box(0.08, 0.08, 4, railMat, 55 - 1.25, 3.55, z);
+        box(0.08, 0.08, 4, railMat, 55 + 1.25, 3.55, z);
+      }
+    }
+    for (const side of [-1, 1]) {
+      box(7, 0.1, 0.1, railMat, 55, 3.55, 36.5 + side * 3.3);
+      box(0.28, 4.4, 0.28, woodDark, 55 + side * 6.2, 0.1, 36.5);
+    }
+    box(0.9, 0.08, 8, wood, 52.2, 0.4, -68);
+  }
+  function buildReef() {
+    const rocks = [
+      [-78, 58, 8, 2.4],
+      [-96, 42, 4.5, 1.5],
+      [-62, 74, 3.6, 1.2],
+      [-88, 68, 5, 1.8],
+      [-48, 50, 2.8, 0.9],
+      [96, 78, 3.2, 1.1]
+    ];
+    for (const [x, z, w, h] of rocks) {
+      box(w, h, w * 0.7, h > 1.5 ? rockMat : rockDark, x, h * 0.35, z);
+    }
   }
   function buildBoat() {
     const g = new Group();
@@ -22182,16 +22379,16 @@ void main() {
     g.userData.sign = sign;
     return g;
   }
+  buildIsland();
   buildPier();
-  buildBeach();
+  buildReef();
   var boat = buildBoat();
-  var joe = buildStall(50.6, 16.6, shirtMat, apronMat, "\u4E54");
-  var marta = buildStall(50.4, 24.4, martaMat, new MeshLambertMaterial({ color: 4020810 }), "\u739B\u5854");
-  var vendors = [
-    { id: "joe", name: "\u4E54", x: 50.6, z: 16.6 },
-    { id: "marta", name: "\u739B\u5854", x: 50.4, z: 24.4 }
-  ];
-  var waterGeo = new PlaneGeometry(220, 180, 48, 24);
+  var joe = buildStall(VENDORS[0].x, VENDORS[0].z, shirtMat, apronMat, "\u4E54");
+  joe.rotation.y = VENDORS[0].yaw;
+  var marta = buildStall(VENDORS[1].x, VENDORS[1].z, martaMat, new MeshLambertMaterial({ color: 4020810 }), "\u739B\u5854");
+  marta.rotation.y = VENDORS[1].yaw;
+  var vendors = VENDORS.map((vendor) => ({ id: vendor.id, name: vendor.name, x: vendor.x, z: vendor.z, radius: vendor.radius }));
+  var waterGeo = new PlaneGeometry(420, 320, 70, 48);
   waterGeo.rotateX(-Math.PI / 2);
   var baseY = waterGeo.attributes.position.array.slice();
   var colors = new Float32Array(waterGeo.attributes.position.count * 3);
@@ -22200,7 +22397,7 @@ void main() {
     waterGeo,
     new MeshBasicMaterial({ vertexColors: true })
   );
-  water.position.set(40, 0, 30);
+  water.position.set(10, 0, 80);
   scene.add(water);
   var blankMat = new MeshLambertMaterial({ color: 2764338 });
   var highlightMat = new MeshLambertMaterial({ color: 12963542 });
@@ -22380,6 +22577,7 @@ void main() {
   <div id="cross" aria-hidden="true"></div>
   <div id="finder"></div>
   <button id="replay" class="chrome icon" type="button">\u518D\u770B\u5F15\u5BFC</button>
+  <div id="stick" class="stick" aria-hidden="true"><i></i></div>
   <button id="hold" type="button">\u6309\u4F4F\u84C4\u529B / \u63D0\u7AFF / \u6536\u7EBF</button>
   <div class="map" id="map" aria-hidden="true"></div>
   <div class="tip" id="tip"></div>
@@ -22459,6 +22657,50 @@ void main() {
   addEventListener("pointercancel", () => {
     yawDrag = false;
   });
+  var joy = document.getElementById("stick");
+  var stickKnob = joy.firstElementChild;
+  var stickId = -1;
+  var stickX = 0;
+  var stickY = 0;
+  function setStick(x, y) {
+    const len = Math.hypot(x, y) || 1;
+    const k = Math.min(1, len);
+    stickX = x / len * k;
+    stickY = y / len * k;
+    stickKnob.style.transform = `translate(${stickX * 26}px, ${stickY * 26}px)`;
+  }
+  joy.addEventListener("pointerdown", (event) => {
+    stickId = event.pointerId;
+    joy.setPointerCapture(event.pointerId);
+    const rect = joy.getBoundingClientRect();
+    setStick((event.clientX - rect.left - rect.width / 2) / 36, (event.clientY - rect.top - rect.height / 2) / 36);
+  });
+  joy.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== stickId) return;
+    const rect = joy.getBoundingClientRect();
+    setStick((event.clientX - rect.left - rect.width / 2) / 36, (event.clientY - rect.top - rect.height / 2) / 36);
+  });
+  function endStick(event) {
+    if (event.pointerId !== stickId) return;
+    stickId = -1;
+    setStick(0, 0);
+  }
+  joy.addEventListener("pointerup", endStick);
+  joy.addEventListener("pointercancel", endStick);
+  function stroll(dt) {
+    if (stickId < 0) return;
+    const v = trip.view;
+    if (v.spot !== "beach" && v.spot !== "pier") return;
+    if (v.phase !== "dock" && v.phase !== "ready" && v.phase !== "miss") return;
+    const look = aimLook(v.spot, v.eyeX, v.eyeZ, aimYaw);
+    const fx = look.x - v.eyeX;
+    const fz = look.z - v.eyeZ;
+    const fl = Math.hypot(fx, fz) || 1;
+    const speed2 = 3.4 * dt;
+    const forward = -stickY;
+    const right = stickX;
+    trip.moveFeet((fx / fl * forward + fz / fl * right) * speed2, (fz / fl * forward - fx / fl * right) * speed2);
+  }
   var talks = document.getElementById("talks");
   var panelKind = "";
   function onAct(act) {
@@ -22511,7 +22753,8 @@ void main() {
     root.classList.toggle("on", open);
     if (!open) return;
     const card = GUIDE_CARDS[trip.view.guideStep] ?? GUIDE_CARDS[0];
-    root.innerHTML = `<div class="card"><div class="badge">${card.eyebrow}</div><h2>${card.title}</h2><p>${card.body}</p><div class="foot"><button type="button" id="skip">\u8DF3\u8FC7</button><button type="button" id="next">${trip.view.guideStep === 2 ? "\u5F00\u59CB\u9493\u9C7C" : "\u4E0B\u4E00\u6B65"}</button></div></div>`;
+    const rows = card.rows ? `<div class="guide-list">${card.rows.map((row) => `<div class="guide-row"><span>${row.key}</span><span>${row.text}</span></div>`).join("")}</div>` : `<p>${card.body}</p>`;
+    root.innerHTML = `<div class="card"><div class="badge">${card.eyebrow}</div><h2>${card.title}</h2>${rows}<div class="foot"><button type="button" id="skip">\u8DF3\u8FC7</button><button type="button" id="next">${trip.view.guideStep === 2 ? "\u5F00\u59CB\u9493\u9C7C" : "\u4E0B\u4E00\u6B65"}</button></div></div>`;
     root.querySelector("#skip").addEventListener("click", () => onAct("skip"));
     root.querySelector("#next").addEventListener("click", () => onAct("next"));
   }
@@ -22605,7 +22848,9 @@ void main() {
     document.body.classList.toggle("overlay", overlay);
     document.body.classList.toggle("fighting", v.phase === "fighting");
     document.body.classList.toggle("card", v.phase === "card");
-    const near = vendors.filter((vendor) => Math.hypot(vendor.x - v.eyeX, vendor.z - v.eyeZ) < 8);
+    const strolling = (v.spot === "beach" || v.spot === "pier") && (v.phase === "dock" || v.phase === "ready" || v.phase === "miss") && !overlay;
+    document.body.classList.toggle("walk", strolling);
+    const near = vendors.filter((vendor) => Math.hypot(vendor.x - v.eyeX, vendor.z - v.eyeZ) < vendor.radius);
     const talkKey = near.map((vendor) => vendor.id).join(",");
     if (talkKey !== talkStamp) {
       talkStamp = talkKey;
@@ -22624,63 +22869,89 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
     const cardBar = document.getElementById("cardBar");
     if (cardBar && v.phase === "card") cardBar.style.width = `${Math.max(0, v.cardLeft / 9) * 100}%`;
   }
-  var WATER_TINT = {
-    dawn: { near: [0.04, 0.16, 0.48], far: [0.05, 0.12, 0.32], glint: [1, 0.48, 0.18], pow: 1.35 },
-    day: { near: [0.015, 0.2, 0.62], far: [0.01, 0.12, 0.4], glint: [0.9, 0.96, 0.92], pow: 2.4 },
-    dusk: { near: [0.02, 0.14, 0.5], far: [0.035, 0.1, 0.3], glint: [1, 0.42, 0.1], pow: 1.25 },
-    night: { near: [8e-3, 0.03, 0.1], far: [4e-3, 0.012, 0.04], glint: [0.06, 0.12, 0.22], pow: 2.6 }
-  };
-  var FOG_RANGE = {
-    dawn: [58, 150],
-    day: [90, 190],
-    dusk: [72, 165],
-    night: [36, 110]
-  };
-  var AMBIENT_INT = { dawn: 0.55, day: 0.68, dusk: 0.5, night: 0.32 };
-  var paintedPeriod = "";
-  function paintWaterVertex(i, x, z, period, out) {
-    const tint = WATER_TINT[period] ?? WATER_TINT.dusk;
-    const wx = x + 40;
-    const wz = z + 30;
-    const dx = wx - 56.45;
-    const dz = wz - 20;
-    const span = Math.hypot(8.84, 7.41) || 1;
-    const fx = 8.84 / span;
-    const fz = 7.41 / span;
-    const alongM = dx * fx + dz * fz;
-    const sideM = Math.abs(-dx * fz + dz * fx);
-    const t = Math.min(1, Math.max(0, alongM / 70));
-    const streak = Math.exp(-Math.pow((alongM - 22) / 16, 2)) * Math.exp(-Math.pow(sideM / 3.2, 2));
-    const band = Math.min(0.62, Math.pow(streak, tint.pow));
-    const r = tint.near[0] + (tint.far[0] - tint.near[0]) * t;
-    const g = tint.near[1] + (tint.far[1] - tint.near[1]) * t;
-    const b = tint.near[2] + (tint.far[2] - tint.near[2]) * t;
-    out[i * 3] = r + (tint.glint[0] - r) * band;
-    out[i * 3 + 1] = g + (tint.glint[1] - g) * band;
-    out[i * 3 + 2] = b + (tint.glint[2] - b) * band;
+  var paintedHour = -1;
+  function srgbToLinear(c) {
+    const x = Math.min(1, Math.max(0, c));
+    return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
   }
-  function paintWater(period) {
-    if (paintedPeriod === period) return;
-    paintedPeriod = period;
+  function paintSky(zenith, horizon) {
+    const pos = skyGeo.attributes.position;
+    const zr = (zenith >> 16 & 255) / 255;
+    const zg = (zenith >> 8 & 255) / 255;
+    const zb = (zenith & 255) / 255;
+    const hr = (horizon >> 16 & 255) / 255;
+    const hg = (horizon >> 8 & 255) / 255;
+    const hb = (horizon & 255) / 255;
+    for (let i = 0; i < pos.count; i++) {
+      const elev = Math.asin(Math.min(1, Math.max(-1, pos.getY(i) / 480)));
+      const t = Math.min(1, Math.max(0, elev / 0.28));
+      const s = t * t * (3 - 2 * t);
+      skyColors[i * 3] = srgbToLinear(hr + (zr - hr) * s);
+      skyColors[i * 3 + 1] = srgbToLinear(hg + (zg - hg) * s);
+      skyColors[i * 3 + 2] = srgbToLinear(hb + (zb - hb) * s);
+    }
+    skyGeo.attributes.color.needsUpdate = true;
+  }
+  function paintWaterVertex(i, x, z, look, out) {
+    const wx = x + water.position.x;
+    const wz = z + water.position.z;
+    const depth = depthAt(wx, wz);
+    const shore = Math.min(1, Math.max(0, depth / 1.6));
+    const farT = Math.min(1, Math.max(0, (depth - 1.2) / 18));
+    const shallow = look.waterShallow;
+    const near = look.waterNear;
+    const far = look.waterFar;
+    let r = (shallow[0] + (near[0] - shallow[0]) * shore) / 255;
+    let g = (shallow[1] + (near[1] - shallow[1]) * shore) / 255;
+    let b = (shallow[2] + (near[2] - shallow[2]) * shore) / 255;
+    r += (far[0] / 255 - r) * farT;
+    g += (far[1] / 255 - g) * farT;
+    b += (far[2] / 255 - b) * farT;
+    const sx = look.sunDir.x;
+    const sz = look.sunDir.z;
+    const sl = Math.hypot(sx, sz) || 1;
+    const along = wx * (sx / sl) + wz * (sz / sl);
+    const side = Math.abs(-wx * (sz / sl) + wz * (sx / sl));
+    const sunUp = Math.max(0, look.sunDir.y);
+    const elev = Math.max(0.05, sunUp);
+    const bandAt = 18 / elev;
+    const streak = Math.exp(-Math.pow((along - bandAt) / (22 + elev * 30), 2)) * Math.exp(-Math.pow(side / (8 + elev * 16), 2));
+    const glint = Math.min(0.72, Math.pow(streak, 1.15) * (0.35 + elev)) * Math.min(1, sunUp * 2.2);
+    const foam = depth > 0 && depth < 0.85 ? (0.85 - depth) / 0.85 : 0;
+    const foamK = Math.min(0.8, foam * (0.45 + 0.55 * Math.abs(Math.sin(wx * 0.35 + wz * 0.22))));
+    r = r + (look.glint[0] / 255 - r) * glint;
+    g = g + (look.glint[1] / 255 - g) * glint;
+    b = b + (look.glint[2] / 255 - b) * glint;
+    r = r + (look.foam[0] / 255 - r) * foamK;
+    g = g + (look.foam[1] / 255 - g) * foamK;
+    b = b + (look.foam[2] / 255 - b) * foamK;
+    out[i * 3] = srgbToLinear(r);
+    out[i * 3 + 1] = srgbToLinear(g);
+    out[i * 3 + 2] = srgbToLinear(b);
+  }
+  function paintWater(look) {
     const pos = waterGeo.attributes.position;
-    for (let i = 0; i < pos.count; i++) paintWaterVertex(i, pos.getX(i), pos.getZ(i), period, colors);
+    for (let i = 0; i < pos.count; i++) paintWaterVertex(i, pos.getX(i), pos.getZ(i), look, colors);
     waterGeo.attributes.color.needsUpdate = true;
   }
   function applySky() {
-    const id = trip.view.periodId in PERIOD_LOOK ? trip.view.periodId : "dusk";
-    const look = PERIOD_LOOK[id];
-    const nightLift = id === "night" && trip.view.deckLights;
-    const lit = nightLift ? PERIOD_LOOK.dusk : look;
-    const fog = FOG_RANGE[id];
-    renderer.setClearColor(look.clear, 1);
-    scene.fog = new Fog(look.fog, fog[0], fog[1]);
+    const look = shoreLook(trip.view.hour, trip.view.deckLights);
+    renderer.setClearColor(look.horizon, 1);
+    scene.fog = new Fog(look.fog, look.fogNear, look.fogFar);
     ambient.color.set(look.ambient);
-    ambient.intensity = AMBIENT_INT[id];
-    sun.color.set(lit.sun);
-    sun.intensity = lit.sunInt;
-    deckLamp.intensity = nightLift ? 2.4 : 0;
+    ambient.intensity = look.ambientInt;
+    sun.color.set(look.sun);
+    sun.intensity = look.sunInt;
+    const up = Math.max(0.15, look.sunDir.y);
+    sun.position.set(look.sunDir.x * 48, up * 48, look.sunDir.z * 48);
+    deckLamp.intensity = trip.view.deckLights && look.sunDir.y < 0.05 ? 2.4 : 0;
     deckLamp.position.set(trip.view.eyeX, trip.view.eyeY + 1.2, trip.view.eyeZ);
-    paintWater(id);
+    const key = Math.round(trip.view.hour * 10) + (trip.view.deckLights ? 1e3 : 0);
+    if (key !== paintedHour) {
+      paintedHour = key;
+      paintSky(look.zenith, look.horizon);
+      paintWater(look);
+    }
   }
   function syncRig(dt) {
     const v = trip.view;
@@ -22722,7 +22993,7 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
     rig.update(dt, frame2);
     if (prevRig !== "floating" && rig.state === "floating") {
       playClip("plop");
-      trip.bobberLanded(rig.splashLine, depthAt(rig.bobX, rig.bobZ));
+      trip.bobberLanded(rig.splashLine, depthAt(rig.bobX, rig.bobZ), rig.bobX, rig.bobZ);
       if (trip.view.phase === "miss") rig.retrieve();
     }
     lastPhase = trip.view.phase;
@@ -22733,7 +23004,7 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
       boat.visible = true;
       boat.position.set(v.eyeX, 0.15, v.eyeZ + 1.2);
     } else boat.visible = v.spot === "pier";
-    if (v.spot === "pier") boat.position.set(64.5, 0.15, 36.5);
+    if (v.spot === "pier") boat.position.set(BOAT_MOOR.x, 0.15, BOAT_MOOR.z);
     const rawBlank = blankCameraPoints(rig, ROD_N + 1);
     const pts = new Float32Array(rawBlank.length);
     for (let i = 0; i < rawBlank.length; i += 3) {
@@ -22881,9 +23152,10 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
     if (shown.phase === "card") {
       const t = Math.max(0, 9 - shown.cardLeft);
       const slide = Math.min(1, t / 0.7);
-      const ease = slide * slide * (3 - 2 * slide);
+      const ease = 1 - Math.pow(1 - slide, 3);
+      const settle = Math.exp(-Math.max(0, t - 0.55) * 4) * Math.sin(Math.max(0, t - 0.55) * 9);
       const scale = Math.max(0.12, shown.cm / 100);
-      fishRoot.position.set(-0.95 * (1 - ease), -0.02, -1.6);
+      fishRoot.position.set(-(1 - ease) * 1.6 + settle * 0.05, (1 - ease) * 0.25 - 0.02, -1.6);
       fishRoot.scale.setScalar(scale);
       fishRoot.rotation.z = Math.sin(t * 13) * 0.9 * Math.exp(-t * 1.6);
       fishRoot.rotation.y = Math.sin(t * 0.55) * 0.2;
@@ -22926,7 +23198,10 @@ ${v.waypointName}` : "\u6362\u9493\u70B9";
     const wall = Math.min(0.05, (now - last) / 1e3);
     const dt = wall * speed;
     last = now;
-    if (!trip.view.guideOpen) trip.tick(dt);
+    if (!trip.view.guideOpen) {
+      stroll(dt);
+      trip.tick(dt);
+    }
     applySky();
     syncRig(dt);
     wave(dt);

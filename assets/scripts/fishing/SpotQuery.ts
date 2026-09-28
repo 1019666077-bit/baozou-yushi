@@ -16,6 +16,30 @@ export const SPOT_EYE: { [id in SpotId]: { x: number; y: number; z: number } } =
   boat: { x: 64.5, y: 2.2, z: 36.5 },
 };
 
+/** 乔的鱼摊、玛塔的渔具店。坐标和半径来自 tidewater FishStand / Chandlery。 */
+export const VENDORS = [
+  { id: "joe" as const, name: "乔", x: 49.9, z: -74.6, yaw: 1.45, radius: 3.2 },
+  { id: "marta" as const, name: "玛塔", x: 85.5, z: -60.5, yaw: -1.9, radius: 3.0 },
+];
+
+export const BOAT_MOOR = { x: 64.5, z: 36.5 };
+
+/** 码头和沙滩上能挪的最远距离。再远就是整座岛，这一批不走。 */
+export const STROLL_M = 6.5;
+
+export function vendorAt(x: number, z: number): (typeof VENDORS)[number] | null {
+  let best: (typeof VENDORS)[number] | null = null;
+  let score = Infinity;
+  for (const vendor of VENDORS) {
+    const d = Math.hypot(vendor.x - x, vendor.z - z);
+    if (d < vendor.radius && d < score) {
+      best = vendor;
+      score = d;
+    }
+  }
+  return best;
+}
+
 /** 码头镜头朝侧面的水，不顺着栈桥中线。落点和这个水平方向一致。 */
 const PIER_LOOK_X = 8.84;
 const PIER_LOOK_Z = 7.41;
@@ -86,8 +110,19 @@ export function pierDistance(x: number, z: number): number {
   return Math.min(walk, head);
 }
 
-/** 岸线 z≈-42 约 0.4 m。贴着码头桩的水约 2.4 m，再往外加深。 */
+/** 码头木面和岸线以北的干沙滩没有水。浮标落在这里要收回。 */
+export function onPierDeck(x: number, z: number): boolean {
+  return pierDistance(x, z) <= 0.02;
+}
+
+export function onDryGround(x: number, z: number): boolean {
+  if (onPierDeck(x, z)) return true;
+  return z < -42.4;
+}
+
+/** 岸线 z≈-42 约 0.4 m。贴着码头桩的水约 2.4 m，再往外加深。干沙滩是 0。 */
 export function depthAt(x: number, z: number): number {
+  if (onDryGround(x, z)) return 0;
   const offshore = 0.4 + Math.max(0, z + 42) * (3.6 / 82);
   const nearPier = pierDistance(x, z);
   if (nearPier < 8 && z > 0) {
@@ -109,6 +144,7 @@ export function sampleCast(
   power: number,
   castM: number,
   yaw = 0,
+  origin?: { x: number; z: number },
 ): CastSample {
   const clamped = Math.min(1, Math.max(0, power));
   const reach = castM * (0.35 + 0.65 * clamped);
@@ -124,7 +160,7 @@ export function sampleCast(
       habitat: habitatAt({ depth: mark.depth, reefDist: mark.reefDist, pierDist: mark.pierDist }),
     };
   }
-  const eye = SPOT_EYE[spot];
+  const eye = origin ?? SPOT_EYE[spot];
   const span = Math.hypot(PIER_LOOK_X, PIER_LOOK_Z) || 1;
   const fx = spot === "pier" ? PIER_LOOK_X / span : 0;
   const fz = spot === "pier" ? PIER_LOOK_Z / span : 1;

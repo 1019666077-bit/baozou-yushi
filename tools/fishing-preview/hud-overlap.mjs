@@ -162,11 +162,11 @@ export async function assertLayout(page, scene, width, height) {
   if ((scene === "fight" || scene === "card") && (result.talks !== "none" || result.map !== "none")) {
     problems.push(`交谈或小地图还在 talks=${result.talks} map=${result.map}`);
   }
-  if (scene === "idle" && (result.talks === "none" || result.map === "none")) {
-    problems.push(`待机把交谈或小地图藏了 talks=${result.talks} map=${result.map}`);
+  if (scene === "idle" && result.map === "none") {
+    problems.push(`待机把小地图藏了 map=${result.map}`);
   }
-  if (scene === "idle" && !result.boxes.some((box) => box.text.includes("和乔交谈"))) {
-    problems.push("待机没有「和乔交谈」");
+  if (scene === "idle" && result.talks === "none") {
+    problems.push(`待机把交谈容器藏了 talks=${result.talks}`);
   }
   if (scene === "shop" && !result.lastOk) problems.push(`最后一行不可见 ${result.last}`);
   if (scene === "fight" && !result.boxes.some((box) => box.text.includes("m"))) problems.push("拉力条没显示");

@@ -288,18 +288,23 @@ export class RodRig {
   private stepBobber(dt: number, frame: RodFrame): void {
     if (this.state === "flick" && this.t > 0.09) {
       const v0 = 7 + 13 * this.power * Math.sqrt(this.castM / 22);
-      const dx = this.aimX - this.tipX;
-      const dy = frame.waterY - this.tipY;
-      const dz = this.aimZ - this.tipZ;
-      const len = Math.max(Math.hypot(dx, dy, dz), 1e-3);
-      const horiz = Math.hypot(dx, dz);
-      const cap = horiz > this.castM ? 0.5 : 1;
+      // 水平指向准星前方的落点，垂直用镜头俯仰再抬一截，整段速度都是 v0。
+      const tx = this.aimX - this.tipX;
+      const tz = this.aimZ - this.tipZ;
+      const tl = Math.max(Math.hypot(tx, tz), 1e-3);
+      const aimH = Math.hypot(this.aimX - frame.camX, this.aimZ - frame.camZ) || 1;
+      const camDrop = frame.waterY - frame.camY;
+      const camY = camDrop / Math.hypot(aimH, camDrop);
+      const dirY = Math.max(camY, -0.2) + 0.35;
+      const dirX = tx / tl;
+      const dirZ = tz / tl;
+      const len = Math.hypot(dirX, dirY, dirZ) || 1;
       this.bobX = this.tipX;
       this.bobY = this.tipY;
       this.bobZ = this.tipZ;
-      this.bobVX = (dx / len) * v0 * cap;
-      this.bobVY = (dy / len) * v0;
-      this.bobVZ = (dz / len) * v0 * cap;
+      this.bobVX = (dirX / len) * v0;
+      this.bobVY = (dirY / len) * v0;
+      this.bobVZ = (dirZ / len) * v0;
       this.splashMarked = false;
       this.setState("flying");
     }
@@ -312,6 +317,12 @@ export class RodRig {
       this.bobX += this.bobVX * dt;
       this.bobY += this.bobVY * dt;
       this.bobZ += this.bobVZ * dt;
+      // 水平距离超过这支竿的 castM 时，水平速度减半。每帧都查，所以落点停在射程附近。
+      const range = Math.hypot(this.bobX - this.tipX, this.bobZ - this.tipZ);
+      if (range > this.castM) {
+        this.bobVX *= 0.5;
+        this.bobVZ *= 0.5;
+      }
       if (this.bobY <= frame.waterY) {
         this.bobY = frame.waterY;
         this.bobVX = 0;

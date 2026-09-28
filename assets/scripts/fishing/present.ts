@@ -118,7 +118,7 @@ export const FISH_RGB: { [id: string]: [number, number, number] } = {
   tarpon: [159, 215, 200],
 };
 
-export const GUIDE_CARDS: { eyebrow: string; title: string; body: string }[] = [
+export const GUIDE_CARDS: { eyebrow: string; title: string; body: string; rows?: { key: string; text: string }[] }[] = [
   {
     eyebrow: "潮间带",
     title: "在岛边钓鱼，再把渔获卖掉",
@@ -127,7 +127,15 @@ export const GUIDE_CARDS: { eyebrow: string; title: string; body: string }[] = [
   {
     eyebrow: "钓鱼",
     title: "抛、提、收",
-    body: "按住蓄力，松手抛，越久越远。浮标被拉下去再提竿，点头只是试饵。按住收线，变红就松手，不然断线。「收回」收空线。",
+    body: "点「换钓点」到水边。按住下方按钮蓄力，松手抛，按越久越远。浮标被拉下去再点提竿，点头只是试饵。按住收线，变红就松手。点「收回」收空线。点「鱼舱」看冷藏箱。",
+    rows: [
+      { key: "换钓点", text: "到沙滩、码头或船上" },
+      { key: "按住", text: "蓄力，松手抛。按越久越远" },
+      { key: "点一下", text: "浮标被拉下去再提竿。点头只是试饵" },
+      { key: "按住", text: "收线。变红就松手，不然断线" },
+      { key: "收回", text: "把空线收回来" },
+      { key: "鱼舱", text: "看冷藏箱，也可以放生" },
+    ],
   },
   {
     eyebrow: "附近的人",

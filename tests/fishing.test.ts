@@ -20,8 +20,9 @@ import { gearStats, UPGRADES } from "../assets/scripts/fishing/Gear";
 import { fishingHarborGate } from "../assets/scripts/fishing/HarborGate";
 import { reelDragRate, reelWindRate, strainGain, swishGain, swishRate } from "../assets/scripts/fishing/audio/mix";
 import { applyCornerFit, blankCameraPoints, bendExponent, bobberPixelScale, fitLowerRight, presentLinePoint, presentViewPoint, RodRig, yawLocalPoint } from "../assets/scripts/fishing/RodRig";
-import { dominantHabitat, sampleCast } from "../assets/scripts/fishing/SpotQuery";
-import { PERIODS } from "../assets/scripts/fishing/Waters";
+import { depthAt, dominantHabitat, fishingLook, pierDistance, reefDistance, sampleCast, SPOT_EYE, vendorAt, VENDORS } from "../assets/scripts/fishing/SpotQuery";
+import { PERIODS, shoreLook, sunDirection } from "../assets/scripts/fishing/Waters";
+import { GUIDE_CARDS } from "../assets/scripts/fishing/present";
 
 function rngOf(seed: number): () => number {
   const random = new SeededRandom(seed);
@@ -621,6 +622,105 @@ describe("rod rig feel", () => {
     expect(bobberPixelScale(1.5, 375, 667)).toBeCloseTo(1, 5);
   });
 });
+
+describe("full-power cast stays in fish water", () => {
+  it("caps every spot and rod so a full cast still has fish, and dry sand comes home", () => {
+    expect(depthAt(20, -80)).toBe(0);
+    expect(VENDORS[0]).toMatchObject({ x: 49.9, z: -74.6, radius: 3.2 });
+    expect(VENDORS[1]).toMatchObject({ x: 85.5, z: -60.5, radius: 3.0 });
+    expect(vendorAt(49.9, -74.6)?.id).toBe("joe");
+    expect(vendorAt(SPOT_EYE.pier.x, SPOT_EYE.pier.z)).toBeNull();
+    expect(GUIDE_CARDS[1].rows?.length).toBe(6);
+
+    const sun = sunDirection(16.2);
+    expect(sun.y).toBeGreaterThan(0);
+    const afternoon = shoreLook(16.2);
+    const night = shoreLook(22);
+    expect(afternoon.horizon).not.toBe(night.horizon);
+    expect(shoreLook(6.5).sunInt).toBeGreaterThan(shoreLook(22).sunInt);
+
+    for (const spot of ["beach", "pier", "boat"] as const) {
+      for (const castM of [22, 32, 45]) {
+        const landed = throwFull(spot, castM);
+        expect(landed.depth, `${spot} ${castM}`).toBeGreaterThanOrEqual(0.25);
+        expect(biteDelay(landed.habitat, 16.2, () => 0.2), `${spot} ${castM}`).not.toBe(Infinity);
+        expect(landed.pastTip, `${spot} ${castM}`).toBeLessThanOrEqual(castM + 6);
+        const trip = new FishingTrip({ rng: () => 0, money: 0 });
+        trip.skipGuide();
+        trip.setSpot(spot);
+        if (spot === "boat" && castM > 22) {
+          trip.state.money = 400;
+          while ((trip.view.castM ?? 0) < castM) trip.buy("rod");
+        } else if (castM > 22) {
+          trip.state.money = 400;
+          while (trip.view.castM < castM) expect(trip.buy("rod")).toBeTruthy();
+        }
+        trip.toReady();
+        trip.setHeld(true);
+        trip.tick(1.1);
+        trip.setHeld(false);
+        expect(trip.view.phase).toBe("flying");
+        trip.bobberLanded(landed.line, landed.depth, landed.x, landed.z);
+        expect(trip.view.phase, `${spot} ${castM} ${trip.view.notice}`).toBe("waiting");
+      }
+    }
+
+    const sand = new FishingTrip({ rng: () => 0, money: 0 });
+    sand.skipGuide();
+    sand.setSpot("beach");
+    sand.toReady();
+    sand.setHeld(true);
+    sand.tick(1.1);
+    sand.setHeld(false);
+    sand.bobberLanded(8, 1, 20, -80);
+    expect(sand.view.phase).toBe("miss");
+    expect(sand.view.notice).toContain("沙滩");
+  });
+
+  it("breathes while idle and flicks the tip with the crank", () => {
+    const rig = new RodRig();
+    rig.equip(true);
+    const frame = { camX: 56.45, camY: 3.95, camZ: 20, yaw: Math.PI, waterY: 0, fight: null, dip: 0 };
+    rig.update(0.01, frame);
+    const base = rig.elev.now;
+    rig.update(Math.PI / 1.3 / 2, frame);
+    expect(Math.abs(rig.drawElev - base)).toBeGreaterThan(0.008);
+    expect(Math.abs(rig.drawElev - rig.elev.now)).toBeGreaterThan(0.005);
+    rig.state = "retrieving";
+    rig.crank = Math.PI / 2;
+    rig.update(0.001, frame);
+    expect(Math.abs(rig.drawElev - rig.elev.now)).toBeGreaterThan(0.004);
+  });
+});
+
+function throwFull(spot: "beach" | "pier" | "boat", castM: number): { x: number; z: number; depth: number; habitat: ReturnType<typeof habitatAt>; pastTip: number; line: number } {
+  const sample = sampleCast(spot, "bay", 1, castM, 0);
+  const eye = spot === "boat" ? { x: sample.x, y: 2.2, z: sample.z - 6 } : SPOT_EYE[spot];
+  const look = fishingLook(spot, eye.x, eye.z);
+  const yaw = Math.atan2(-(look.x - eye.x), -(look.z - eye.z));
+  const rig = new RodRig();
+  rig.equip(true);
+  rig.castM = castM;
+  const frame = { camX: eye.x, camY: eye.y, camZ: eye.z, yaw, waterY: 0, fight: null, dip: 0 };
+  rig.update(0.05, frame);
+  rig.startWindup();
+  rig.update(1.1, frame);
+  rig.release(sample.x, sample.z);
+  let n = 0;
+  while (rig.state !== "floating" && n < 500) {
+    rig.update(1 / 60, frame);
+    n++;
+  }
+  const depth = depthAt(rig.bobX, rig.bobZ);
+  return {
+    x: rig.bobX,
+    z: rig.bobZ,
+    depth,
+    habitat: habitatAt({ depth, reefDist: reefDistance(rig.bobX, rig.bobZ), pierDist: pierDistance(rig.bobX, rig.bobZ) }),
+    pastTip: Math.hypot(rig.bobX - rig.tipX, rig.bobZ - rig.tipZ),
+    line: rig.splashLine,
+  };
+}
 
 function presentBlank(raw: Float32Array): { tip: [number, number, number]; fit: ReturnType<typeof fitLowerRight> } {
   const pts = new Float32Array(raw.length);
