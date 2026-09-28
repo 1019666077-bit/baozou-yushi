@@ -91,6 +91,7 @@ import {
   smashWindowOpen,
   airborneStyleQuality,
 } from "./domain/FlopPhysics";
+import { huntFieldCaption } from "./domain/HarborCopy";
 import { PLAY_LAYOUT } from "./domain/PlayLayout";
 import {
   castAutoReleaseMs,
@@ -443,7 +444,7 @@ export class RuntimePrototype extends Component {
         ? `${island.name} · 无尽潮`
         : this.launch.challenge === "weekly"
           ? `${island.name} · 周挑战`
-          : `${island.name} · 潮汐猎场`,
+          : `${island.name} · ${huntFieldCaption()}`,
       32,
       0,
       318,
@@ -455,7 +456,7 @@ export class RuntimePrototype extends Component {
       this.layer,
       this.tutorial
         ? tutorialPrompt("cast")
-        : "抛竿拽上岸。在甲板上砸晕，下半屏拖进左边鱼箱。空中砸更值钱。",
+        : "抛竿把鱼拽上船。砸晕，拖进鱼箱，回港卖掉。空中砸更值钱。",
       22,
       0,
       268,

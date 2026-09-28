@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>海边鱼市 · 3D 灰盒</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #082838;
+        font-family: "PingFang SC", "Noto Sans SC", sans-serif;
+        color: #fff8ee;
+      }
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+      }
+      .hud {
+        position: absolute;
+        left: 16px;
+        top: 16px;
+        pointer-events: none;
+        text-shadow: 0 2px 10px rgba(8, 20, 28, 0.55);
+      }
+      .hud h1 {
+        margin: 0;
+        font-size: 28px;
+        letter-spacing: 0.08em;
+        font-weight: 700;
+      }
+      .hud p {
+        margin: 6px 0 0;
+        font-size: 13px;
+        opacity: 0.88;
+        max-width: 28rem;
+      }
+      .bar {
+        position: absolute;
+        left: 16px;
+        bottom: 18px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: 999px;
+        padding: 10px 16px;
+        font-size: 14px;
+        font-weight: 650;
+        color: #3a220c;
+        background: linear-gradient(#ffc46a, #f08a32);
+        box-shadow: 0 6px 16px rgba(80, 32, 8, 0.28);
+        cursor: pointer;
+      }
+      button.ghost {
+        color: #eef6ff;
+        background: rgba(12, 36, 48, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+      }
+      .hint {
+        font-size: 12px;
+        opacity: 0.8;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hud">
+      <h1 id="title">海边鱼市</h1>
+      <p>浏览器 3D 灰盒 · 海 + 浮台 + 阿笠 + 远景。不是 Creator 实机。</p>
+    </div>
+    <div class="bar">
+      <button type="button" id="reset">回到斜俯视</button>
+      <span class="hint">拖动环视 · 滚轮远近</span>
+    </div>
+    <script type="importmap">
+      { "imports": { "three": "./vendor/three.module.min.js" } }
+    </script>
+    <script type="module" src="./scene.js"></script>
+  </body>
+</html>

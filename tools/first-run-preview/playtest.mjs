@@ -87,24 +87,19 @@ try {
   await shot(page, "01-harbor-new");
 
   const harborText = await page.evaluate(() => document.body.innerText);
+  note(harborText.includes("海边鱼市"), "新档标题海边鱼市");
   note(harborText.includes("开始教学"), "new-save CTA 开始教学");
-  note(harborText.includes("练潮码头"), "出航行是练潮码头");
-  note(!harborText.includes("● 泡沫湾"), "教学前不假装选中泡沫湾");
-  note(harborText.includes("教学后图鉴"), "图鉴锁定");
-  note(harborText.includes("教学后"), "选岛/图鉴在教学前标明教学后");
-
-  note(await tap(page, "教学后图鉴"), "点锁定图鉴");
-  await wait(200);
-  note(
-    (await page.evaluate(() => document.body.innerText)).includes("先完成教学再查看图鉴"),
-    "锁定图鉴提示",
-  );
+  note(harborText.includes("拽上船"), "第一屏旁白说拽上船");
+  note(!harborText.includes("教学后图鉴"), "第一屏不露图鉴钮");
+  note(!harborText.includes("泡沫湾"), "第一屏不露选岛");
+  note(!harborText.includes("码头差事"), "第一屏不露码头差事");
+  note(!harborText.includes("适度游戏"), "第一屏不叠健康忠告");
 
   note(await tap(page, "开始教学"), "开始教学");
   await wait(250);
   await shot(page, "02-tutorial-cast");
   const castText = await page.evaluate(() => document.body.innerText);
-  note(castText.includes("练潮码头") && castText.includes("潮汐猎场"), "教学猎场标题");
+  note(castText.includes("练潮码头") && castText.includes("渔场"), "教学猎场标题");
   note(castText.includes("抛竿") && castText.includes("捡起"), "抛竿/捡起按钮");
   const castState = await page.evaluate(() => window.proxyState());
   note(
@@ -183,7 +178,7 @@ try {
   await wait(350);
   await shot(page, "08-harbor-after");
   const after = await page.evaluate(() => document.body.innerText);
-  note(after.includes("潮退浮站") || after.includes("潮汐港口"), "回到浮站");
+  note(after.includes("海边鱼市") || after.includes("港口"), "回到鱼市");
   note(after.includes("11/90") || after.includes("卖出已入账"), "卖出接到攒够进度");
   note(after.includes("再出海") || after.includes("出海捕鱼"), "第二局 CTA 文案");
   note(after.includes("● 泡沫湾"), "教学后默认泡沫湾");
@@ -201,7 +196,7 @@ try {
   note(!after.includes("适度游戏"), "卖完不叠健康忠告");
   note(!after.includes("泡沫湾 · 教学后"), "教学后选岛不再写教学后");
 
-  note(await tap(page, "升级弹力鱼竿"), "点升级（首局金币不够）");
+  note(await tap(page, "还差79") || (await tap(page, "升级弹力鱼竿")), "点升级（首局金币不够）");
   await wait(200);
   await shot(page, "09-upgrade-broke");
   const broke = await page.evaluate(() => document.body.innerText);

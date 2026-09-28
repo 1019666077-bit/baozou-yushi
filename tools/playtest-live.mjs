@@ -419,7 +419,7 @@ try {
   await wait(1500);
   texts = await labels(page);
   await shot(page, "05-tutorial-battle");
-  note(hasText(texts, "练潮码头") && hasText(texts, "潮汐猎场"), "tutorial hunt title");
+  note(hasText(texts, "练潮码头") && hasText(texts, "渔场"), "tutorial hunt title");
   note(hasText(texts, "抛竿") && hasText(texts, "捡起"), "cast/pick buttons");
   note(hasText(texts, "点击抛竿") || hasText(texts, "湾鳍"), "tutorial cast prompt");
 
