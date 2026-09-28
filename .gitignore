@@ -13,4 +13,6 @@ reports/
 .vscode/
 coverage/
 tools/first-run-preview/generated/
+tools/fishing-preview/generated/
+docs/fishing/.frames/
 tools/tide-station-preview/generated/

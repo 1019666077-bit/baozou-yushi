@@ -16,5 +16,10 @@ jobs:
           node-version: lts/*
           cache: npm
       - run: npm ci
+      - name: Chrome
+        run: |
+          wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get update
+          sudo apt-get install -y /tmp/chrome.deb fonts-wqy-microhei
       - run: npm run validate
       - run: npm run simulate

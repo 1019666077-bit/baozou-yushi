@@ -1,3 +1,5 @@
+import type { FishingPersist } from "../fishing/persist";
+
 export type FishTier = "normal" | "elite" | "boss";
 export type ToolKind = "rod" | "cannon" | "harpoon";
 export type FishBehavior =
@@ -238,6 +240,8 @@ export interface PlayerSave {
   };
   /** W2 活站本地进度：订单意图 / 漂物 / 浮台换皮。不影响售价。 */
   station?: StationSave;
+  /** 出海钓鱼：鱼舱、图鉴、鱼线/轮/竿/舱升级。金币仍用 coins。缺省视为新钓手。 */
+  fishing?: FishingPersist;
 }
 
 export interface RunSummary {

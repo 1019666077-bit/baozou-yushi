@@ -4,6 +4,7 @@ import {
   bundledIslands,
   bundledTools,
 } from "../data/bundledConfig";
+import { defaultFishingPersist, normalizeFishing } from "../fishing/FishingSave";
 import { defaultStationState, normalizeStation } from "./StationOps";
 
 import { localDayKey } from "./MonetizationPolicy";
@@ -53,6 +54,7 @@ export function createDefaultSave(now = Date.now()): PlayerSave {
       lowPower: false,
     },
     station: defaultStationState(),
+    fishing: defaultFishingPersist(),
   };
 }
 
@@ -217,5 +219,6 @@ export function migrate(save: PlayerSave): PlayerSave {
       ...(source.settings ?? {}),
     },
     station: normalizeStation(save.station),
+    fishing: normalizeFishing(source.fishing),
   };
 }

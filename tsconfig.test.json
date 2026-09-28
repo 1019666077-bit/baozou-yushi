@@ -9,8 +9,14 @@
     "types": ["vitest/globals", "node"],
     "noEmit": true
   },
+  "exclude": [
+    "assets/scripts/fishing/FishingSession.ts",
+    "assets/scripts/fishing/FishingWorld.ts",
+    "assets/scripts/fishing/audio/FishingAudio.ts"
+  ],
   "include": [
     "assets/scripts/domain/**/*.ts",
+    "assets/scripts/fishing/**/*.ts",
     "assets/scripts/content/IslandFishPool.ts",
     "assets/scripts/data/types.ts",
     "assets/scripts/platform/PlatformAdapter.ts",

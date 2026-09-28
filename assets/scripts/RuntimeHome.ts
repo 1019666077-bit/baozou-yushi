@@ -157,6 +157,8 @@ import {
 import { purchaseService } from "./monetization/MonetizationRuntime";
 import { adGrants } from "./monetization/AdGrantService";
 import { HarborStage } from "./world/HarborStage";
+import { FishingSession } from "./fishing/FishingSession";
+import { fishingHarborGate } from "./fishing/HarborGate";
 
 const { ccclass } = _decorator;
 
@@ -188,6 +190,7 @@ export class RuntimeHome extends Component {
     | "board"
     | "building"
     | "settle"
+    | "fishing"
     | "sea" = "harbor";
   private justDiscovered: string[] = [];
   private coinJumpLabel?: Label;
@@ -268,6 +271,8 @@ export class RuntimeHome extends Component {
     this.surface = "harbor";
     const proto = this.node.getComponent(RuntimePrototype);
     if (proto) proto.destroy();
+    const fishing = this.node.getComponent(FishingSession);
+    if (fishing) fishing.destroy();
     const layer = replacePlayLayer(this.node);
     this.paintHarborWorld(layer);
 
@@ -496,6 +501,17 @@ export class RuntimeHome extends Component {
         20,
       );
     }
+    const fishingGate = fishingHarborGate(save);
+    makeButton(
+      layer,
+      fishingGate.locked ? "教学后钓鱼" : "出海钓鱼",
+      500,
+      -140,
+      () => this.startFishing(),
+      180,
+      52,
+      20,
+    );
     if (firstScreen) {
       makeButton(
         layer,
@@ -1411,6 +1427,22 @@ export class RuntimeHome extends Component {
       error ?? `${ConfigService.toolById(this.selectedToolId).name}升级成功`,
     );
     this.showHarbor();
+  }
+
+  private startFishing(): void {
+    const gate = fishingHarborGate(playerSave.get());
+    if (gate.locked) {
+      this.setStatus(gate.hint);
+      return;
+    }
+    const proto = this.node.getComponent(RuntimePrototype);
+    if (proto) proto.destroy();
+    HarborStage.drop();
+    this.surface = "fishing";
+    FishingSession.onHarbor = () => this.showHarbor();
+    const existing = this.node.getComponent(FishingSession);
+    if (existing) existing.destroy();
+    this.node.addComponent(FishingSession);
   }
 
   private async sail(): Promise<void> {

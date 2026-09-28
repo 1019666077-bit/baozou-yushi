@@ -71,6 +71,7 @@ const ISLAND_PACKS = [
   "island_prism_reef",
   "island_storm_eye",
 ];
+const AUDIO_PACK = "fishing-audio";
 
 function ensureSubpackageGameJs(dir, fallback) {
   const gameJs = path.join(dir, "game.js");
@@ -102,7 +103,7 @@ function hoistIslandSubpackages() {
     settings.assets.subpackages = settings.assets.subpackages ?? [];
   }
   const hoisted = [];
-  for (const name of ISLAND_PACKS) {
+  for (const name of [...ISLAND_PACKS, AUDIO_PACK]) {
     const src = path.join(output, "assets", name);
     const dest = path.join(output, "subpackages", name);
     if (fs.existsSync(src) && !fs.existsSync(dest)) {

@@ -25,8 +25,11 @@ describe("content configuration", () => {
     const checklist = path.join(root, "docs", "STORE_ASSET_CHECKLIST.md");
     expect(fs.existsSync(register)).toBe(true);
     expect(fs.existsSync(checklist)).toBe(true);
-    expect(fs.readFileSync(register, "utf8")).toContain("当前不包含第三方");
-    expect(fs.readFileSync(register, "utf8")).toContain("完整提示词");
+    const registerText = fs.readFileSync(register, "utf8");
+    expect(registerText).toContain("没有第三方图片、模型、字体、音乐或 AI 生成媒体");
+    expect(registerText).toContain("rod_swish.mp3");
+    expect(registerText).toContain("CC0");
+    expect(registerText).toContain("完整提示词");
     expect(fs.readFileSync(checklist, "utf8")).toContain("不是成品截图");
     expect(fs.readFileSync(checklist, "utf8")).toContain("不得进入 release");
   });
