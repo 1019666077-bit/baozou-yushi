@@ -12,12 +12,16 @@ import {
   paintSkyBloom,
   paintWaterLife,
 } from "./skin.js";
+import { paintHarborBackdrop, preloadHarborLooks } from "./harborLooks.js";
+import { mountTideStation } from "/tide-station/scene.js";
 
 const grain = makeGrain(320, 180);
 
 const stage = document.getElementById("stage");
 const bg = document.getElementById("bg");
+const worldCanvas = document.getElementById("world3d");
 const juiceCanvas = document.getElementById("juice");
+let world3d = null;
 const hud = document.getElementById("hud");
 const buttons = document.getElementById("buttons");
 const disclaimer = document.getElementById("disclaimer");
@@ -31,10 +35,10 @@ const sy = (y) => 360 - y;
 
 const save = {
   coins: 0,
-  tutorialComplete: false,
+  tutorialComplete: true,
   completedRuns: 0,
   discovered: 0,
-  selectedIslandId: COPY.tutorialIsland.id,
+  selectedIslandId: COPY.islands[0].id,
 };
 
 const station = {
@@ -51,7 +55,7 @@ let tutorialStep = "cast";
 let carrying = false;
 let hooked = false;
 let pickable = false;
-let status = COPY.harborPrompts.newSail;
+let status = COPY.harborPlayPrompt ?? COPY.harborPrompts.freeSail;
 let statusFlash = "";
 let toastLeft = 0;
 let fishName = COPY.waitingCast;
@@ -725,33 +729,37 @@ function carryBob(elapsed) {
   };
 }
 
+function harborWorldSurface() {
+  return surface === "harbor" || surface === "settle" || surface === "orders" || surface === "pontoon";
+}
+
+function syncWorld3d() {
+  world3d?.setVisible(harborWorldSurface());
+}
+
 function paintSea(ctx, _look, harbor = false) {
-  const ops = harbor ? COPY.art?.harbor : freeHunt && COPY.art?.foam ? COPY.art.foam : COPY.art?.tutorial;
+  const phase = performance.now() / 520;
+  if (harbor) {
+    if (world3d) {
+      ctx.clearRect(0, 0, W, H);
+      return;
+    }
+    paintHarborBackdrop(ctx);
+    return;
+  }
+  const ops = freeHunt && COPY.art?.foam ? COPY.art.foam : COPY.art?.tutorial;
   if (ops) {
-    paintOps(ctx, ops, performance.now() / 520);
-    if (!harbor && COPY.art?.dock) paintOps(ctx, COPY.art.dock, performance.now() / 520);
+    paintOps(ctx, ops, phase);
+    if (COPY.art?.dock) paintOps(ctx, COPY.art.dock, phase);
   } else {
     ctx.fillStyle = "#0a5c7e";
     ctx.fillRect(0, 0, W, H);
   }
-  const phase = performance.now() / 520;
-  paintSkyBloom(ctx, phase, harbor);
-  paintWaterLife(ctx, phase, !harbor);
-  paintBayTraffic(ctx, phase, harbor);
-  paintNearPier(ctx, phase, harbor, station.pontoonTier);
-  if (harbor && station.flotsamSpawned) {
-    const bob = Math.sin(phase * 1.4) * 5;
-    if (COPY.artFlotsam) {
-      ctx.save();
-      ctx.translate(0, bob);
-      paintOps(ctx, COPY.artFlotsam, phase);
-      ctx.restore();
-    }
-  }
-  if (harbor && station.pontoonTier >= 2 && COPY.artPontoon2) {
-    paintOps(ctx, COPY.artPontoon2, phase);
-  }
-  paintFinish(ctx, grain, W, H, !harbor);
+  paintSkyBloom(ctx, phase, false);
+  paintWaterLife(ctx, phase, true);
+  paintBayTraffic(ctx, phase, false);
+  paintNearPier(ctx, phase, false, station.pontoonTier);
+  paintFinish(ctx, grain, W, H, true);
 }
 
 function paintBoat(ctx, x, y) {
@@ -1217,8 +1225,8 @@ function renderHarbor() {
   const displayIsland = complete ? COPY.islands[0].id : COPY.tutorialIsland.id;
   hud.innerHTML = "";
   buttons.innerHTML = "";
-  label(COPY.harborTitle, 36, 0, 310, 900, rgb(COPY.colors.palette.hud), "title");
-  label(`● 金币 ${save.coins}`, 26, 470, 310, 280, rgb(COPY.colors.gold), "goldchip");
+  label(COPY.harborTitle, 36, 0, COPY.harborTitleY ?? 328, 900, rgb(COPY.colors.palette.hud), "title");
+  label(`● 金币 ${save.coins}`, 26, 470, COPY.harborTitleY ?? 328, 280, rgb(COPY.colors.gold), "goldchip");
   if (coinJump && coinJumpLeft > 0) {
     const t = 1 - coinJumpLeft / COPY.coinJumpSeconds;
     label(coinJump, 28, 470, 274 + t * 46, 280, `rgba(255,220,72,${1 - t * 0.15})`, "goldchip");
@@ -1235,7 +1243,8 @@ function renderHarbor() {
     progressBar(0, barY, 380, save.coins / COPY.nextUpgradeCost);
   }
   const phase = harborPhase();
-  const showMeta = COPY.hudShowMeta?.[phase] ?? phase === "idle";
+  const showMeta =
+    complete && (COPY.hudShowMeta?.[phase] ?? phase === "idle");
   if (showMeta) {
     label(COPY.cloudLine, 18, 0, 278);
     label(COPY.healthLine, 16, 0, 262, 1100);
@@ -1244,7 +1253,9 @@ function renderHarbor() {
     next !== "sail"
       ? COPY.harborPrompts[next === "upgrade" ? "upgrade" : "sell"]
       : complete
-        ? COPY.harborGoalAfter ?? COPY.harborPrompts.freeSail
+        ? save.completedRuns > 0
+          ? COPY.harborGoalAfter ?? COPY.harborPrompts.freeSail
+          : COPY.harborPlayPrompt ?? COPY.harborPrompts.freeSail
         : COPY.harborPrompts.newSail;
   const discoveryText =
     complete && statusFlash === COPY.firstRun.discovery
@@ -1260,29 +1271,28 @@ function renderHarbor() {
           : phase === "toast"
             ? statusFlash
             : "";
-  plate(0, 292, 760, 44, !complete);
-  label(line, 20, 0, 292, 1100, rgb(COPY.colors.cream));
+  plate(0, COPY.harborPromptY ?? 248, 760, 44, !complete);
+  label(line, 20, 0, COPY.harborPromptY ?? 248, 1100, rgb(COPY.colors.cream));
   if (toastText) {
     label(
       toastText,
       22,
       0,
-      252,
+      (COPY.harborPromptY ?? 248) - 40,
       720,
       toastText === discoveryText ? rgb(COPY.colors.gold) : rgb(COPY.colors.cream),
     );
   }
-  COPY.islands.forEach((island, index) => {
-    const selected = complete && island.id === displayIsland;
-    const unlocked = island.unlockCost === 0;
-    const caption = complete
-      ? island.chipAfter ??
-        (unlocked ? `${selected ? "● " : ""}${island.name}` : `${island.name} ${island.unlockCost}`)
-      : island.chipNew ?? `${island.name} · 教学后`;
-    const chip = cta(caption, -220 + index * 220, 210, 148, 32, 14, "secondary", () => onIsland(island));
-    chip.classList.add("chip");
-  });
   if (complete) {
+    COPY.islands.forEach((island, index) => {
+      const selected = island.id === displayIsland;
+      const unlocked = island.unlockCost === 0;
+      const caption =
+        island.chipAfter ??
+        (unlocked ? `${selected ? "● " : ""}${island.name}` : `${island.name} ${island.unlockCost}`);
+      const chip = cta(caption, -220 + index * 220, 210, 148, 32, 14, "secondary", () => onIsland(island));
+      chip.classList.add("chip");
+    });
     COPY.tools.forEach((tool, index) => {
       const owned = tool.id === "tool_rod";
       const selected = owned;
@@ -1295,12 +1305,34 @@ function renderHarbor() {
       });
       toolBtn.classList.add("chip");
     });
+    label(COPY.sailLineAfter, 18, 200, -86, 520);
+    label(COPY.fishCountAfter, 18, 200, -112, 520);
   }
-  label(complete ? COPY.sailLineAfter : COPY.sailLineNew, 18, 200, -86, 520);
-  label(complete ? COPY.fishCountAfter : COPY.fishCountNew, 18, 200, -112, 520);
-  const labels = complete ? COPY.featureLabelsAfter : COPY.featureLabelsNew;
+  if (!complete) {
+    cta(COPY.sailCaptionNew, 0, -220, 300, 96, 32, "primary", sail);
+    cta(
+      COPY.settingsButton,
+      -530,
+      COPY.harborTitleY ?? 328,
+      COPY.button.mini.width,
+      COPY.button.mini.height,
+      COPY.button.mini.fontSize,
+      "secondary",
+      () => {
+        setStatus("代理预览不包含设置页。");
+        render();
+      },
+    );
+    return;
+  }
+  const labels =
+    save.completedRuns >= 1
+      ? COPY.featureLabelsAfter
+      : COPY.featureLabelsPlay ?? COPY.featureLabelsAfter;
   cta(
-    complete ? COPY.sailCaptionAfter : COPY.sailCaptionNew,
+    save.completedRuns >= 1
+      ? COPY.sailCaptionAfter
+      : COPY.sailCaptionPlay ?? COPY.sailCaptionAfter,
     -80,
     -230,
     230,
@@ -1318,38 +1350,39 @@ function renderHarbor() {
     next === "upgrade" ? 26 : 20,
     next === "upgrade" ? "primary" : "secondary",
     () => {
-      if (!complete) setStatus(COPY.upgradeLockNew);
-      else if (save.coins < COPY.nextUpgradeCost) setStatus(COPY.coinFail);
+      if (save.coins < COPY.nextUpgradeCost) setStatus(COPY.coinFail);
       render();
     },
   );
   cta(labels.book, 220, -230, 180, 72, 22, "secondary", () => {
-    setStatus(complete ? COPY.bookLockAfter : COPY.bookLockNew);
+    setStatus(COPY.bookLockAfter);
     render();
   });
   cta(labels.board, 470, -230, 160, 72, 22, "secondary", () => {
-    setStatus(complete ? COPY.boardLockAfter : COPY.boardLockNew);
+    setStatus(COPY.boardLockAfter);
     render();
   });
-  if (station.flotsamSpawned) {
-    cta(COPY.harborFlotsamPick ?? "捞起漂木", 340, -40, 180, 52, 20, "secondary", () => {
-      station.flotsamSpawned = false;
-      station.flotsamHeld = 1;
-      setStatus(COPY.harborFlotsamPicked ?? "捞到一块潮间漂木。带回订单板交给小站。");
+  if (complete && (COPY.harborStationVisibleAfter ?? true)) {
+    if (station.flotsamSpawned) {
+      cta(COPY.harborFlotsamPick ?? "捞木头", 340, -40, 180, 52, 20, "secondary", () => {
+        station.flotsamSpawned = false;
+        station.flotsamHeld = 1;
+        setStatus(COPY.harborFlotsamPicked ?? "捞到一块木头。去码头差事交回去。");
+        render();
+      });
+    } else if (station.flotsamHeld > 0) {
+      label(COPY.harborFlotsamHeld ?? "手里有一块木头", 18, 340, -40, 280);
+    }
+    cta(COPY.harborOrderBoard ?? "码头差事", -340, -140, 180, 52, 20, "secondary", () => {
+      surface = "orders";
       render();
     });
-  } else if (station.flotsamHeld > 0) {
-    label(COPY.harborFlotsamHeld ?? "手里有一块潮间漂木", 18, 340, -40, 280);
+    cta(COPY.harborPontoonUpgrade ?? "加宽码头", 80, -140, 180, 52, 20, "secondary", () => {
+      surface = "pontoon";
+      render();
+    });
   }
-  cta(COPY.harborOrderBoard ?? "订单板", -340, -140, 180, 52, 20, "secondary", () => {
-    surface = "orders";
-    render();
-  });
-  cta(COPY.harborPontoonUpgrade ?? "浮台升级", 80, -140, 180, 52, 20, "secondary", () => {
-    surface = "pontoon";
-    render();
-  });
-  cta(COPY.settingsButton, -530, 310, COPY.button.mini.width, COPY.button.mini.height, COPY.button.mini.fontSize, "secondary", () => {
+  cta(COPY.settingsButton, -530, COPY.harborTitleY ?? 328, COPY.button.mini.width, COPY.button.mini.height, COPY.button.mini.fontSize, "secondary", () => {
     setStatus("代理预览不包含设置页。");
     render();
   });
@@ -1374,7 +1407,7 @@ function renderSea() {
   hud.innerHTML = "";
   buttons.innerHTML = "";
   plate(0, 268, COPY.plate.size.width, COPY.plate.size.height, true);
-  label(`${COPY.tutorialIsland.name} · ${COPY.huntSuffix}`, 32, 0, 318);
+  label(`${(freeHunt ? COPY.islands[0]?.name : COPY.tutorialIsland.name) ?? "泡沫湾"} · ${COPY.huntSuffix}`, 32, 0, 318);
   label(multiplier, 22, -470, 318, 280);
   label(`本局 ${runCoins}`, 24, 470, 318, 280, rgb(COPY.colors.gold));
   label(status, 22, 0, 268, 760, rgb(COPY.colors.cream));
@@ -1478,8 +1511,8 @@ function renderOrderBoard() {
   paintSea(ctx, COPY.looks.harbor, true);
   hud.innerHTML = "";
   buttons.innerHTML = "";
-  label(COPY.harborOrderBoard ?? "订单板", 34, 0, 220);
-  label(COPY.harborOrderName ?? "潮间补货", 26, 0, 164);
+  label(COPY.harborOrderBoard ?? "码头差事", 34, 0, 220);
+  label(COPY.harborOrderName ?? "钉块木板", 26, 0, 164);
   label(COPY.harborBuildingOrders ?? "", 22, 0, 100, 980);
   label(
     station.orderDelivered ? COPY.harborOrderNeedDone : COPY.harborOrderNeedIdle,
@@ -1488,7 +1521,7 @@ function renderOrderBoard() {
     40,
   );
   if (station.flotsamHeld > 0) {
-    label(COPY.harborFlotsamHeld ?? "手里有一块潮间漂木", 18, 0, 8, 720);
+    label(COPY.harborFlotsamHeld ?? "手里有一块木头", 18, 0, 8, 720);
   }
   cta(
     station.orderAccepted ? COPY.harborOrderAccepted : COPY.harborOrderAccept,
@@ -1518,21 +1551,21 @@ function renderOrderBoard() {
     "secondary",
     () => {
       if (station.orderDelivered) {
-        setStatus(COPY.harborOrderDelivered ?? "已送到小站");
+        setStatus(COPY.harborOrderDelivered ?? "木头已交");
       } else if (!station.orderAccepted) {
-        setStatus(COPY.harborOrderAcceptHint ?? "先记下需求，再把潮间漂木交到浮站。");
+        setStatus(COPY.harborOrderAcceptHint ?? "先接差事，再把岸边木头交回码头。");
       } else if (station.flotsamHeld <= 0) {
-        setStatus(COPY.harborOrderDeliverHint ?? "先捞起近岸的潮间漂木。");
+        setStatus(COPY.harborOrderDeliverHint ?? "先捞起岸边那块木头。");
       } else {
         station.flotsamHeld = 0;
         station.orderProgress = 1;
         station.orderDelivered = true;
-        setStatus(COPY.harborFlotsamDelivered ?? "潮间漂木已钉到棚角。小站记下了。");
+        setStatus(COPY.harborFlotsamDelivered ?? "木头钉上棚角了。卖价没变。");
       }
       render();
     },
   );
-  cta(COPY.harborBuildingBack ?? "回到浮站", 0, -250, 240, 72, 24, "secondary", () => {
+  cta(COPY.harborBuildingBack ?? "回港口", 0, -250, 240, 72, 24, "secondary", () => {
     surface = "harbor";
     render();
   });
@@ -1543,7 +1576,7 @@ function renderPontoon() {
   paintSea(ctx, COPY.looks.harbor, true);
   hud.innerHTML = "";
   buttons.innerHTML = "";
-  label(COPY.harborPontoonUpgrade ?? "浮台升级", 34, 0, 220);
+  label(COPY.harborPontoonUpgrade ?? "加宽码头", 34, 0, 220);
   label(station.pontoonTier >= 2 ? COPY.harborPontoonTier2 : COPY.harborPontoonTier1, 24, 0, 160, 900);
   label(
     station.pontoonTier >= 2
@@ -1573,7 +1606,7 @@ function renderPontoon() {
       render();
     },
   );
-  cta(COPY.harborBuildingBack ?? "回到浮站", 0, -250, 240, 72, 24, "secondary", () => {
+  cta(COPY.harborBuildingBack ?? "回港口", 0, -250, 240, 72, 24, "secondary", () => {
     surface = "harbor";
     render();
   });
@@ -1601,6 +1634,7 @@ function paintBackdrop() {
 function render() {
   stage.dataset.surface = surface;
   stage.dataset.step = tutorialStep;
+  syncWorld3d();
   if (surface === "harbor") renderHarbor();
   else if (surface === "settle") renderSettle();
   else if (surface === "orders") renderOrderBoard();
@@ -1653,7 +1687,7 @@ function sail() {
   slamMark = 0;
   freeHunt = save.tutorialComplete === true;
   if (freeHunt) {
-    status = "自由局：点抛竿蓄力，再点「甩出」才松手。早/晚是普通命中。";
+    status = COPY.hazardHunt ?? "今日险货。空中砸才算搏赢。";
     fishName = "泡沫湾 · 湾鳍";
   }
   splashRings = [];
@@ -1721,7 +1755,9 @@ function applyWeak(knockNow = true) {
     playSfx("smash");
   }
   playSfx("weak");
-  status = COPY.tutorialPrompts.reel;
+  status = freeHunt
+    ? COPY.hazardDeck ?? COPY.tutorialPrompts.reel
+    : COPY.tutorialPrompts.reel;
   fishName = `${COPY.firstRun.liveQuoteHooked} · 韧性 0 · 弱点亮`;
 }
 
@@ -1758,7 +1794,7 @@ function onCrate() {
   carrying = false;
   tutorialStep = "settle";
   runCoins = COPY.firstRun.sold.price;
-  showCallout(COPY.firstRun.inbox);
+  showCallout(freeHunt ? COPY.hazardWin ?? COPY.firstRun.inbox : COPY.firstRun.inbox);
   burst("catch", COPY.crate.x, COPY.crate.y);
   cratePunchLeft = 0.16;
   playSfx("catch");
@@ -1942,7 +1978,27 @@ function tick(now) {
   requestAnimationFrame(tick);
 }
 
-render();
+preloadHarborLooks().then(() => {
+  render();
+});
+if (worldCanvas) {
+  mountTideStation(worldCanvas, {
+    interactive: false,
+    fillWindow: false,
+    layoutUrl: "/tide-station/generated/layout.json",
+  })
+    .then((api) => {
+      world3d = api;
+      syncWorld3d();
+      world3d.resize();
+      render();
+    })
+    .catch((err) => {
+      console.warn("tide-station 3d failed, fallback morning.jpg", err);
+      world3d = null;
+      render();
+    });
+}
 requestAnimationFrame(tick);
 
 Object.assign(window, {
@@ -1962,6 +2018,8 @@ Object.assign(window, {
     slamMark,
     dust: particles.filter((p) => p.kind === "dust").length,
     tutorialComplete: save.tutorialComplete,
+    harborLookId: world3d ? "tide-station" : "morning",
+    world3d: Boolean(world3d),
     station: { ...station },
   }),
   proxyHoldCharge: (value) => {

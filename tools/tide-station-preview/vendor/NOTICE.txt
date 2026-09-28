@@ -1,0 +1,2 @@
+Three.js r160.1 (`three.module.min.js`) is MIT licensed.
+https://github.com/mrdoob/three.js

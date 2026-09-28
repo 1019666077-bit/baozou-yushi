@@ -43,9 +43,11 @@ const browser = await puppeteer.launch({
 const page = await browser.newPage();
 await page.goto(url, { waitUntil: "networkidle0" });
 await wait(1600);
-await tap(page, "开始教学");
+await tap(page, "出海捕鱼");
 await wait(1400);
 await tap(page, "抛竿");
+await wait(900);
+await tap(page, "甩出");
 await wait(1400);
 await tap(page, "弱点");
 await wait(1400);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SeededRandom } from "../assets/scripts/domain/SeededRandom";
 import { createDefaultSave, mergeSaves } from "../assets/scripts/domain/SaveMerge";
+import { TUTORIAL_GATE } from "../assets/scripts/domain/TutorialFlow";
 import {
   activity,
   biteDelay,
@@ -270,7 +271,7 @@ describe("fishing save beside the 11 coin wallet", () => {
   });
 
   it("writes fishing coins back onto the shared wallet only", () => {
-    const save = { ...createDefaultSave(5), coins: 11 };
+    const save = { ...createDefaultSave(5), coins: 11, tutorialComplete: false };
     const state = gameStateFromSave(save);
     expect(state.money).toBe(11);
     state.money = 16;
@@ -469,21 +470,27 @@ describe("bite controller window", () => {
 });
 
 describe("harbor gate before the tutorial", () => {
-  it("locks fishing so a catch sale cannot raise the 11 coin wallet", () => {
+  it("stays open while the tutorial gate is off, and still keeps fish sales off the 11 coin wallet", () => {
     const save = createDefaultSave(1);
     save.coins = 11;
-    expect(save.tutorialComplete).toBe(false);
-    const gate = fishingHarborGate(save);
-    expect(gate.locked).toBe(true);
-    expect(gate.hint).toContain("教学");
+    expect(save.tutorialComplete).toBe(true);
+    expect(TUTORIAL_GATE).toBe(false);
+    expect(fishingHarborGate(save).locked).toBe(false);
+    save.tutorialComplete = false;
+    const open = fishingHarborGate(save);
+    expect(open.locked).toBe(false);
+    expect(open.hint).toBe("");
+    const locked = fishingHarborGate(save, true);
+    expect(locked.locked).toBe(true);
+    expect(locked.hint).toContain("教学");
     const state = gameStateFromSave(save);
     state.addFish("mullet", 1, 12);
     state.sell(null);
     expect(state.money).toBeGreaterThan(11);
     expect(save.coins).toBe(11);
-    expect(fishingHarborGate(save).locked).toBe(true);
-    save.tutorialComplete = true;
     expect(fishingHarborGate(save).locked).toBe(false);
+    save.tutorialComplete = true;
+    expect(fishingHarborGate(save, true).locked).toBe(false);
   });
 });
 

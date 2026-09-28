@@ -2,7 +2,7 @@
 
 规则移植自 [tidewater](https://github.com/dgreenheck/tidewater)（MIT）的 `src/game/`。画面是卡通低多边形，不是原版的写实水面。许可、文件对照和 CC0 音效见仓库根目录 `THIRD_PARTY_NOTICES.md`。
 
-港口里的「出海」仍是原来的扑腾教学，主橙按钮不动。旁边的「出海钓鱼」才进这套拉力玩法。教学出海没完成时，这个入口锁着，文案是「先完成教学出海，再来钓鱼」，避免还没教完就把鱼卖掉、把首局金币从 11 顶上去。
+港口里的「出海」仍是原来的扑腾教学，主橙按钮不动。旁边的「出海钓鱼」才进这套拉力玩法。`TUTORIAL_GATE` 关掉时这个入口一直能进，避免教学不再发生、旧档却永远锁死。闸门重新打开且教学出海没完成时，入口才锁，文案是「先完成教学出海，再来钓鱼」，避免还没教完就把鱼卖掉、把首局金币从 11 顶上去。
 
 ## 怎么玩
 
@@ -42,7 +42,7 @@
 
 ## 在 Creator 里看
 
-用 Cocos Creator 3.8.8 打开本仓库，跑 `assets/scenes/Boot.scene`。先完成教学出海，再点右侧「出海钓鱼」（不是中间那颗橙色出海）。这一步的截图不是 Creator 实机。
+用 Cocos Creator 3.8.8 打开本仓库，跑 `assets/scenes/Boot.scene`。新档教学闸门是关的，右侧「出海钓鱼」可以直接进（不是中间那颗橙色出海）。这一步的截图不是 Creator 实机。
 
 ## 没有 Creator 时
 
@@ -71,4 +71,4 @@ node tools/fishing-preview/record.mjs
 | 商店价格和属性 | `assets/scripts/fishing/Gear.ts` |
 | 试饵、提竿窗口 | `assets/scripts/fishing/BiteController.ts` |
 | 中文名、乔和玛塔的对白、引导卡 | `assets/scripts/fishing/present.ts` |
-| 教学没完成时锁入口 | `assets/scripts/fishing/HarborGate.ts` |
+| 教学闸门开着且没完成时锁入口；闸门关着则放行 | `assets/scripts/fishing/HarborGate.ts` |

@@ -30,6 +30,9 @@ function printHuman(report) {
   if (!report.ok) {
     console.log("本机若已安装，请导出：");
     console.log("  export COCOS_CREATOR=/绝对路径/CocosCreator");
+    console.log("本机有 Creator 时一键出包并预览：");
+    console.log("  node tools/try-web-desktop-build.mjs && npx --yes serve build/web-desktop -l 8765");
+    console.log("  浏览器打开 http://127.0.0.1:8765/ （进港口，不要点出海）");
     console.log("没有 Creator 时不要声称已有 web-desktop 或真机截图。");
     console.log("代验 CTA：node tools/first-run-preview/serve.mjs  （2D/辅助 ≠ Creator 3D）");
     console.log("截图清单：node tools/stage3d-shot-checklist.mjs");

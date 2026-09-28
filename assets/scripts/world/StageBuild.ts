@@ -1,9 +1,12 @@
 import {
   Color,
+  ImageAsset,
   Material,
   Mesh,
   MeshRenderer,
   Node,
+  Texture2D,
+  Vec4,
   primitives,
   utils,
 } from "cc";
@@ -13,12 +16,16 @@ import {
   type StageFinish,
   type StagePart,
 } from "../domain/ProcGeom";
+import { paintWaterAlbedo, paintWoodAlbedo } from "../domain/StageSkin";
 
 const mats = new Map<string, Material>();
 let boxMesh: Mesh | undefined;
 let sphereMesh: Mesh | undefined;
 let planeMesh: Mesh | undefined;
+let woodTex: Texture2D | undefined;
+let waterTex: Texture2D | undefined;
 let useLit = true;
+let useSkinTex = true;
 
 type WaterRipple = {
   mesh: Mesh;
@@ -33,9 +40,12 @@ export function resetStageMeshes(): void {
   boxMesh = undefined;
   sphereMesh = undefined;
   planeMesh = undefined;
+  woodTex = undefined;
+  waterTex = undefined;
   mats.clear();
   ripples.clear();
   useLit = true;
+  useSkinTex = true;
 }
 
 function ensurePrimitives(): void {
@@ -92,6 +102,42 @@ function makeWaterMesh(): { mesh: Mesh; geo: primitives.IGeometry } {
   return { mesh: utils.createMesh(geo), geo };
 }
 
+function uploadRuntimeTex(
+  paint: typeof paintWoodAlbedo,
+): Texture2D | undefined {
+  if (!useSkinTex) return undefined;
+  try {
+    const { width, height, data } = paint(STAGE_BUDGET.runtimeTexSize);
+    const img = new ImageAsset();
+    img.reset({
+      _data: data,
+      _compressed: false,
+      width,
+      height,
+      format: Texture2D.PixelFormat.RGBA8888,
+    });
+    const tex = new Texture2D();
+    tex.image = img;
+    tex.setWrapMode(Texture2D.WrapMode.REPEAT, Texture2D.WrapMode.REPEAT);
+    tex.setFilters(Texture2D.Filter.LINEAR, Texture2D.Filter.LINEAR);
+    tex.uploadData(data);
+    return tex;
+  } catch {
+    useSkinTex = false;
+    return undefined;
+  }
+}
+
+function woodTexture(): Texture2D | undefined {
+  woodTex ??= uploadRuntimeTex(paintWoodAlbedo);
+  return woodTex;
+}
+
+function waterTexture(): Texture2D | undefined {
+  waterTex ??= uploadRuntimeTex(paintWaterAlbedo);
+  return waterTex;
+}
+
 function roughnessOf(finish?: StageFinish): number {
   if (finish === "water") return 0.22;
   if (finish === "fish") return 0.4;
@@ -143,14 +189,50 @@ export function unlitMat(color: Color): Material {
   return mat;
 }
 
+function skinMat(
+  color: Color,
+  finish: StageFinish | undefined,
+  tiling?: readonly [number, number],
+): Material {
+  const kind = finish === "wood" ? "wood" : finish === "water" ? "water" : "";
+  if (!kind || !useSkinTex) return unlitMat(color);
+  const tileKey = tiling ? `${tiling[0]},${tiling[1]}` : "";
+  const key = `t:${kind}:${color.r},${color.g},${color.b}:${tileKey}`;
+  const cached = mats.get(key);
+  if (cached) return cached;
+  const tex = kind === "wood" ? woodTexture() : waterTexture();
+  if (!tex) return unlitMat(color);
+  try {
+    const mat = new Material();
+    mat.initialize({
+      effectName: "builtin-unlit",
+      defines: { USE_TEXTURE: true, USE_INSTANCING: false },
+    });
+    mat.setProperty("mainColor", color);
+    mat.setProperty("mainTexture", tex);
+    if (tiling) {
+      mat.setProperty("tilingOffset", new Vec4(tiling[0], tiling[1], 0, 0));
+    }
+    mats.set(key, mat);
+    return mat;
+  } catch {
+    useSkinTex = false;
+    return unlitMat(color);
+  }
+}
+
 export function stageMat(
   color: Color,
-  _finish?: StageFinish,
+  finish?: StageFinish,
   _glow = false,
+  tiling?: readonly [number, number],
 ): Material {
   // Runtime-created standard materials can rebuild their PSO before the
-  // generated mesh has a valid local descriptor layout on Web. The unlit
-  // material is deterministic across Web, Android, and WeChat.
+  // generated mesh has a valid local descriptor layout on Web. Unlit + a
+  // tiny runtime albedo is deterministic across Web, Android, and WeChat.
+  if (finish === "wood" || finish === "water") {
+    return skinMat(color, finish, tiling);
+  }
   return unlitMat(color);
 }
 
@@ -185,7 +267,12 @@ export function spawnPart(parent: Node, layer: number, part: StagePart): Node {
           ? sharedPlane()
           : sharedBox();
   }
-  renderer.material = stageMat(colorOf(part.color), part.finish, part.glow === true);
+  renderer.material = stageMat(
+    colorOf(part.color),
+    part.finish,
+    part.glow === true,
+    part.uvTiling,
+  );
   renderer.shadowCastingMode = MeshRenderer.ShadowCastingMode.OFF;
   return node;
 }
